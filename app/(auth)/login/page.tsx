@@ -13,11 +13,11 @@ export default async function LoginPage() {
 
   return (
     <main className="container-mobile flex min-h-screen items-center justify-center py-8">
-      <Card className="w-full max-w-md space-y-4 border-[#d8c99a]">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <BrandLogo priority className="w-[170px] sm:w-[210px]" />
-          <h1 className="text-xl font-extrabold text-[#14532d]">نظام عزام للحج</h1>
-          <p className="text-sm text-[#5b4a1f]">لوحة تحكم ميدانية سريعة وآمنة</p>
+      <Card className="w-full max-w-md space-y-5 border-slate-200 bg-white/95 text-center shadow-lg backdrop-blur">
+        <div className="flex flex-col items-center gap-3">
+          <BrandLogo priority className="w-[180px] sm:w-[220px]" />
+          <h1 className="text-2xl font-extrabold text-[#166534]">نظام عزام للحج</h1>
+          <p className="text-sm text-slate-500">تسجيل دخول آمن وسريع</p>
         </div>
         <LoginForm />
       </Card>

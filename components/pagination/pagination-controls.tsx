@@ -25,26 +25,30 @@ export function PaginationControls({ page, totalPages, basePath, query }: Props)
   const prevPage = Math.max(1, page - 1);
   const nextPage = Math.min(totalPages, page + 1);
   return (
-    <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-3">
+    <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
       {page <= 1 ? (
-        <Button variant="secondary" disabled>
+        <Button variant="secondary" disabled className="min-h-10 rounded-lg px-4 py-2 text-sm">
           السابق
         </Button>
       ) : (
         <Link href={`${basePath}?${createQueryString(query, prevPage)}`}>
-          <Button variant="secondary">السابق</Button>
+          <Button variant="secondary" className="min-h-10 rounded-lg px-4 py-2 text-sm">
+            السابق
+          </Button>
         </Link>
       )}
-      <p className="text-sm text-slate-600">
+      <p className="rounded-lg bg-slate-50 px-3 py-1 text-sm text-slate-600">
         صفحة {page} من {totalPages}
       </p>
       {page >= totalPages ? (
-        <Button variant="secondary" disabled>
+        <Button variant="secondary" disabled className="min-h-10 rounded-lg px-4 py-2 text-sm">
           التالي
         </Button>
       ) : (
         <Link href={`${basePath}?${createQueryString(query, nextPage)}`}>
-          <Button variant="secondary">التالي</Button>
+          <Button variant="secondary" className="min-h-10 rounded-lg px-4 py-2 text-sm">
+            التالي
+          </Button>
         </Link>
       )}
     </div>

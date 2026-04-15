@@ -9,17 +9,17 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-[#14532d] text-white hover:bg-[#0f3f21]",
-  secondary: "bg-[#f8f3df] text-[#14532d] hover:bg-[#efe4bf]",
-  danger: "bg-red-700 text-white hover:bg-red-800",
-  ghost: "bg-transparent text-[#14532d] hover:bg-[#f8f3df]",
+  primary: "bg-[#166534] text-white hover:bg-[#14532d] shadow-sm hover:shadow-md",
+  secondary: "bg-[#f5efda] text-[#14532d] hover:bg-[#eee2be] shadow-sm",
+  danger: "bg-red-700 text-white hover:bg-red-800 shadow-sm hover:shadow-md",
+  ghost: "bg-transparent text-[#166534] hover:bg-[#f5efda]",
 };
 
 export function Button({ variant = "primary", className, children, ...props }: Props) {
   return (
     <button
       className={clsx(
-        "inline-flex min-h-12 items-center justify-center rounded-lg px-5 py-3 text-base font-extrabold transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60",
+        "inline-flex min-h-12 items-center justify-center rounded-xl px-5 py-3 text-base font-extrabold transition-all duration-200 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60",
         variants[variant],
         className,
       )}

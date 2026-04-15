@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f5f8f0;
-  --foreground: #1f2937;
-  --primary: #14532d;
-  --primary-dark: #0f3f21;
-  --gold: #b58a2c;
-  --gold-soft: #f8f3df;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --primary: #166534;
+  --primary-dark: #14532d;
+  --gold: #b08d2f;
+  --gold-soft: #f5efda;
   --danger: #b91c1c;
   --muted: #64748b;
 }
@@ -21,15 +21,29 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-tajawal), Arial, Helvetica, sans-serif;
+  font-weight: 500;
 }
 
 * {
   box-sizing: border-box;
 }
 
+button,
+input,
+select,
+textarea {
+  transition: all 180ms ease;
+}
+
+select {
+  border-radius: 0.75rem;
+  border-color: #e2e8f0;
+}
+
 a {
   color: inherit;
   text-decoration: none;
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
 }
 
 .container-mobile {
@@ -41,9 +55,15 @@ a {
 
 .card {
   background: white;
-  border: 1px solid #d8c99a;
-  border-radius: 0.75rem;
-  box-shadow: 0 6px 18px rgb(20 83 45 / 0.06);
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  box-shadow: 0 8px 28px rgb(15 23 42 / 0.06);
+  transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.card:hover {
+  border-color: #d9e4dc;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 0.08);
 }
 
 .status-present {

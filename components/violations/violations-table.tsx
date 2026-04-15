@@ -23,7 +23,22 @@ function getStatusLabel(status: ViolationRow["status"]) {
 export function ViolationsTable({ rows }: Props) {
   return (
     <Card className="overflow-hidden p-0">
-      <div className="overflow-x-auto">
+      <div className="space-y-3 p-3 md:hidden">
+        {rows.map((violation) => (
+          <div key={violation.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <p className="font-bold text-slate-800">{violation.workers?.name ?? "غير معروف"}</p>
+            <p className="text-xs text-slate-500">{violation.workers?.id_number ?? "-"}</p>
+            <div className="mt-2 space-y-1 text-xs text-slate-600">
+              <p>الموقع: {violation.sites?.name ?? "غير محدد"}</p>
+              <p>المخالفة: {violation.violation_types?.name_ar ?? "-"}</p>
+              <p>الحالة: {getStatusLabel(violation.status)}</p>
+              <p>التاريخ: {new Date(violation.occurred_at).toLocaleDateString("ar-SA")}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-100 text-slate-700">
             <tr>

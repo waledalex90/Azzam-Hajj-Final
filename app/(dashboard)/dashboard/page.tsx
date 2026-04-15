@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/card";
+import { Bell, Building2, Compass, MapPin, ShieldAlert, TrendingUp, UserCheck2, UserMinus2, Users2 } from "lucide-react";
 import { getSessionContext } from "@/lib/auth/session";
 import { ROLE_LABELS } from "@/lib/constants/roles";
 import { getAdminDashboardData, getDashboardStats } from "@/lib/data/dashboard";
@@ -26,28 +27,36 @@ export default async function DashboardHomePage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="bg-white">
           <div className="text-center">
-            <p className="text-2xl text-blue-600">🏢</p>
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+              <MapPin className="h-5 w-5" />
+            </div>
             <p className="mt-2 text-3xl font-extrabold text-slate-800">{dashboardData.topStats.sites}</p>
             <p className="mt-1 text-xs text-slate-500">المواقع</p>
           </div>
         </Card>
         <Card className="bg-white">
           <div className="text-center">
-            <p className="text-2xl text-emerald-600">👥</p>
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+              <Users2 className="h-5 w-5" />
+            </div>
             <p className="mt-2 text-3xl font-extrabold text-slate-800">{dashboardData.topStats.activeWorkers}</p>
             <p className="mt-1 text-xs text-slate-500">العمال النشطون</p>
           </div>
         </Card>
         <Card className="bg-white">
           <div className="text-center">
-            <p className="text-2xl text-slate-500">🚫</p>
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+              <UserMinus2 className="h-5 w-5" />
+            </div>
             <p className="mt-2 text-3xl font-extrabold text-slate-800">{dashboardData.topStats.inactiveWorkers}</p>
             <p className="mt-1 text-xs text-slate-500">العمال الموقوفون</p>
           </div>
         </Card>
         <Card className="bg-white">
           <div className="text-center">
-            <p className="text-2xl text-amber-600">🦺</p>
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+              <Building2 className="h-5 w-5" />
+            </div>
             <p className="mt-2 text-3xl font-extrabold text-slate-800">{dashboardData.topStats.contractors}</p>
             <p className="mt-1 text-xs text-slate-500">المقاولون</p>
           </div>
@@ -58,7 +67,7 @@ export default async function DashboardHomePage() {
         <Card className="min-h-[180px]">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-extrabold text-slate-900">أكثر مواقع حضورًا</h2>
-            <span className="text-xs text-slate-400">📍</span>
+            <MapPin className="h-4 w-4 text-slate-400" />
           </div>
           <p className="mt-8 text-center text-sm text-slate-500">اختر موقعًا حضوريًا لعرض التفاصيل.</p>
         </Card>
@@ -66,7 +75,7 @@ export default async function DashboardHomePage() {
         <Card className="min-h-[180px]">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-extrabold text-slate-900">نسبة الحضور اليوم</h2>
-            <span className="text-xs text-slate-400">🧭</span>
+            <Compass className="h-4 w-4 text-slate-400" />
           </div>
           <div className="mt-6 flex items-end justify-center gap-8 text-sm">
             <div className="text-center">
@@ -87,7 +96,10 @@ export default async function DashboardHomePage() {
 
       <div className="grid gap-3 xl:grid-cols-3">
         <Card className="min-h-[190px]">
-          <h2 className="text-sm font-extrabold text-slate-900">تنبيهات انتهاء الإقامات</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-extrabold text-slate-900">تنبيهات انتهاء الإقامات</h2>
+            <ShieldAlert className="h-4 w-4 text-amber-600" />
+          </div>
           <div className="mt-3 space-y-2 text-sm">
             {dashboardData.iqamaAlerts.length === 0 ? (
               <p className="text-slate-500">لا توجد إقامات منتهية قريبًا.</p>
@@ -109,7 +121,10 @@ export default async function DashboardHomePage() {
         </Card>
 
         <Card className="min-h-[190px]">
-          <h2 className="text-sm font-extrabold text-slate-900">طلبات التعديل المعلقة</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-extrabold text-slate-900">طلبات التعديل المعلقة</h2>
+            <Bell className="h-4 w-4 text-rose-500" />
+          </div>
           <div className="mt-3 space-y-2 text-sm">
             {dashboardData.pendingCorrections.length === 0 ? (
               <p className="text-slate-500">لا توجد طلبات.</p>
@@ -125,7 +140,10 @@ export default async function DashboardHomePage() {
         </Card>
 
         <Card className="min-h-[190px]">
-          <h2 className="text-sm font-extrabold text-slate-900">آخر العمال المضافين</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-extrabold text-slate-900">آخر العمال المضافين</h2>
+            <UserCheck2 className="h-4 w-4 text-emerald-600" />
+          </div>
           <div className="mt-3 space-y-2 text-sm">
             {dashboardData.latestWorkers.length === 0 ? (
               <p className="text-slate-500">لا توجد بيانات حديثة.</p>
@@ -140,6 +158,14 @@ export default async function DashboardHomePage() {
           </div>
         </Card>
       </div>
+
+      <Card className="bg-gradient-to-l from-emerald-50 to-amber-50">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-extrabold text-slate-800">مؤشر الأداء اليومي</p>
+          <TrendingUp className="h-4 w-4 text-emerald-700" />
+        </div>
+        <p className="mt-2 text-sm text-slate-600">معدل الحضور الحالي {attendanceRate}% مع أداء تشغيلي مستقر.</p>
+      </Card>
     </section>
   );
 }

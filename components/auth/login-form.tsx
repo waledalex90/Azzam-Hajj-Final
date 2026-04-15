@@ -36,9 +36,9 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-4 text-right">
       <div className="space-y-2">
-        <label className="text-sm font-bold text-slate-700" htmlFor="email">
+        <label className="text-sm font-extrabold text-slate-700" htmlFor="email">
           البريد الإلكتروني
         </label>
         <Input
@@ -53,7 +53,7 @@ export function LoginForm() {
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-bold text-slate-700" htmlFor="password">
+        <label className="text-sm font-extrabold text-slate-700" htmlFor="password">
           كلمة المرور
         </label>
         <Input
@@ -67,7 +67,7 @@ export function LoginForm() {
         />
       </div>
 
-      {error && <p className="rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</p>}
+      {error && <p className="rounded-xl bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
       <Button type="submit" disabled={isLoading} className="w-full py-2.5">
         {isLoading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
