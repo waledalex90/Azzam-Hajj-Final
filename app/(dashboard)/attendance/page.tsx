@@ -193,7 +193,6 @@ export default async function AttendancePage({ searchParams }: Props) {
           workDate,
           siteId: Number.isFinite(siteId) ? siteId : undefined,
           search: q,
-          status: "present",
         })
       : null;
 

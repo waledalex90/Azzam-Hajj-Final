@@ -20,6 +20,26 @@ type Props = {
 const PAGE_SIZE = 20;
 
 export default async function CorrectionsPage({ searchParams }: Props) {
+  async function approveRequest(formData: FormData) {
+    "use server";
+    const requestId = Number(formData.get("requestId"));
+    if (!requestId) return;
+    const supabase = createSupabaseAdminClient();
+    await supabase.from("correction_requests").update({ status: "approved" }).eq("id", requestId);
+    revalidatePath("/corrections");
+    revalidatePath("/dashboard");
+  }
+
+  async function rejectRequest(formData: FormData) {
+    "use server";
+    const requestId = Number(formData.get("requestId"));
+    if (!requestId) return;
+    const supabase = createSupabaseAdminClient();
+    await supabase.from("correction_requests").update({ status: "rejected" }).eq("id", requestId);
+    revalidatePath("/corrections");
+    revalidatePath("/dashboard");
+  }
+
   async function updateCheck(formData: FormData) {
     "use server";
 
@@ -53,8 +73,9 @@ export default async function CorrectionsPage({ searchParams }: Props) {
       ? params.date
       : new Date().toISOString().slice(0, 10);
   const q = params.q?.trim();
+  const supabase = createSupabaseAdminClient();
 
-  const [{ rows, meta }, sites] = await Promise.all([
+  const [{ rows, meta }, sites, reqRes] = await Promise.all([
     getAttendanceChecksPage({
       page,
       pageSize: PAGE_SIZE,
@@ -63,10 +84,118 @@ export default async function CorrectionsPage({ searchParams }: Props) {
       search: q,
     }),
     getSiteOptions(),
+    supabase
+      .from("correction_requests")
+      .select("id, attendance_id, reason, status, created_at, requester_id")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
+
+  const pendingRequestsRaw = reqRes.error ? [] : ((reqRes.data ?? []) as Array<{
+    id: number;
+    attendance_id: number | null;
+    reason: string | null;
+    status: string;
+    created_at: string;
+    requester_id: number | null;
+  }>);
+
+  const requestAttendanceIds = Array.from(
+    new Set(pendingRequestsRaw.map((item) => Number(item.attendance_id)).filter(Boolean)),
+  );
+
+  let requestChecks = new Map<
+    number,
+    {
+      workers?: { name: string; id_number: string } | null;
+      attendance_rounds?: { work_date: string; round_no: number; sites?: { name: string } | null } | null;
+      status: "present" | "absent" | "half";
+    }
+  >();
+
+  if (requestAttendanceIds.length > 0) {
+    const { data: checkRows, error: checkErr } = await supabase
+      .from("attendance_checks")
+      .select("id, status, workers(name,id_number), attendance_rounds(work_date,round_no,sites(name))")
+      .in("id", requestAttendanceIds);
+
+    if (!checkErr) {
+      requestChecks = new Map(
+        ((checkRows ?? []) as Array<{
+          id: number;
+          status: "present" | "absent" | "half";
+          workers?: { name: string; id_number: string } | { name: string; id_number: string }[] | null;
+          attendance_rounds?:
+            | { work_date: string; round_no: number; sites?: { name: string } | { name: string }[] | null }
+            | {
+                work_date: string;
+                round_no: number;
+                sites?: { name: string } | { name: string }[] | null;
+              }[]
+            | null;
+        }>).map((row) => {
+          const worker = Array.isArray(row.workers) ? (row.workers[0] ?? null) : (row.workers ?? null);
+          const round = Array.isArray(row.attendance_rounds)
+            ? (row.attendance_rounds[0] ?? null)
+            : (row.attendance_rounds ?? null);
+          const site = round?.sites ? (Array.isArray(round.sites) ? (round.sites[0] ?? null) : round.sites) : null;
+          return [
+            row.id,
+            {
+              workers: worker,
+              attendance_rounds: round ? { ...round, sites: site } : null,
+              status: row.status,
+            },
+          ];
+        }),
+      );
+    }
+  }
 
   return (
     <section className="space-y-4">
+      <Card>
+        <h1 className="text-lg font-extrabold text-slate-900">طلبات التعديل الواردة من المراقب الميداني</h1>
+        <div className="mt-3 space-y-2">
+          {pendingRequestsRaw.length === 0 ? (
+            <p className="text-sm text-slate-500">لا توجد طلبات تعديل معلقة.</p>
+          ) : (
+            pendingRequestsRaw.map((req) => {
+              const check = req.attendance_id ? requestChecks.get(req.attendance_id) : null;
+              return (
+                <div
+                  key={req.id}
+                  className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 lg:flex-row lg:items-center lg:justify-between"
+                >
+                  <div className="text-sm">
+                    <p className="font-bold text-slate-800">
+                      {check?.workers?.name ?? "سجل حضور"} ({check?.workers?.id_number ?? "-"})
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {check?.attendance_rounds?.sites?.name ?? "-"} | {check?.attendance_rounds?.work_date ?? "-"} / #
+                      {check?.attendance_rounds?.round_no ?? "-"} | الحالة الحالية:{" "}
+                      {check?.status === "present" ? "حاضر" : check?.status === "absent" ? "غائب" : "نصف يوم"}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-700">السبب: {req.reason || "بدون سبب"}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <form action={approveRequest}>
+                      <input type="hidden" name="requestId" value={req.id} />
+                      <button className="rounded bg-emerald-700 px-3 py-1 text-xs font-bold text-white">اعتماد الطلب</button>
+                    </form>
+                    <form action={rejectRequest}>
+                      <input type="hidden" name="requestId" value={req.id} />
+                      <button className="rounded bg-red-700 px-3 py-1 text-xs font-bold text-white">رفض الطلب</button>
+                    </form>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </Card>
+
       <Card>
         <h1 className="text-lg font-extrabold text-slate-900">طلبات تعديل الحضور</h1>
         <form className="mt-4 grid gap-2 sm:grid-cols-4" method="get">
