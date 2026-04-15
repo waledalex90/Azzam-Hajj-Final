@@ -38,7 +38,7 @@ export function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-4 text-right">
       <div className="space-y-2">
-        <label className="text-sm font-extrabold text-[#f6e5a8]" htmlFor="email">
+        <label className="text-sm font-extrabold text-slate-800" htmlFor="email">
           البريد الإلكتروني
         </label>
         <Input
@@ -49,12 +49,12 @@ export function LoginForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="name@company.com"
-          className="border-[#b88b2f] bg-[#17181a] text-[#f4ecd7] shadow-[0_0_0_1px_rgba(212,175,55,0.16),0_10px_22px_rgba(0,0,0,0.28)] placeholder:text-[#9f987f] transition-all duration-200 focus:border-[#d4af37] focus:ring-[#3a2d0f] focus:shadow-[0_0_0_1px_rgba(212,175,55,0.42),0_0_24px_rgba(212,175,55,0.24)]"
+          className="border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#166534] focus:ring-[#dcfce7]"
         />
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-extrabold text-[#f6e5a8]" htmlFor="password">
+        <label className="text-sm font-extrabold text-slate-800" htmlFor="password">
           كلمة المرور
         </label>
         <Input
@@ -65,12 +65,12 @@ export function LoginForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="********"
-          className="border-[#b88b2f] bg-[#17181a] text-[#f4ecd7] shadow-[0_0_0_1px_rgba(212,175,55,0.16),0_10px_22px_rgba(0,0,0,0.28)] placeholder:text-[#9f987f] transition-all duration-200 focus:border-[#d4af37] focus:ring-[#3a2d0f] focus:shadow-[0_0_0_1px_rgba(212,175,55,0.42),0_0_24px_rgba(212,175,55,0.24)]"
+          className="border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#166534] focus:ring-[#dcfce7]"
         />
       </div>
 
       {error && (
-        <p className="rounded-xl border border-[#7f1d1d] bg-[#2a1111]/85 p-2 text-sm text-[#fca5a5]">
+        <p className="rounded-xl border border-red-200 bg-red-50 p-2 text-sm text-red-700">
           {error}
         </p>
       )}
@@ -78,7 +78,7 @@ export function LoginForm() {
       <Button
         type="submit"
         disabled={isLoading}
-        className="w-full border border-[#d4af37] bg-[#d4af37] py-2.5 text-[#0b0b0c] shadow-[0_10px_24px_rgba(212,175,55,0.26)] transition-all duration-200 hover:bg-[#e2c35b] hover:shadow-[0_12px_28px_rgba(212,175,55,0.34)]"
+        className="w-full border border-[#166534] bg-[#166534] py-2.5 text-white hover:bg-[#14532d]"
       >
         {isLoading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
       </Button>
