@@ -8,6 +8,21 @@ import type {
   TopStats,
 } from "@/lib/types/db";
 
+function isMissingObjectError(error: unknown) {
+  const code = String((error as { code?: string } | null)?.code ?? "");
+  const msg = String((error as { message?: string } | null)?.message ?? "").toLowerCase();
+  return code === "42P01" || code === "PGRST200" || msg.includes("does not exist") || msg.includes("not found");
+}
+
+async function safeCount(query: PromiseLike<{ count: number | null; error: { message?: string } | null }>) {
+  const { count, error } = await query;
+  if (error) {
+    if (isMissingObjectError(error)) return 0;
+    throw new Error(error.message || "Count query failed");
+  }
+  return count ?? 0;
+}
+
 export async function getDashboardStats(): Promise<DashboardStats> {
   const today = new Date().toISOString().slice(0, 10);
   const start = `${today}T00:00:00.000Z`;
@@ -15,36 +30,34 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
   const supabase = createSupabaseAdminClient();
 
-  const [
-    { count: presentCount, error: presentError },
-    { count: absentCount, error: absentError },
-    { count: violationsCount, error: violationsError },
-  ] = await Promise.all([
-    supabase
-      .from("attendance_daily_summary")
-      .select("*", { count: "exact", head: true })
-      .eq("work_date", today)
-      .eq("final_status", "present"),
-    supabase
-      .from("attendance_daily_summary")
-      .select("*", { count: "exact", head: true })
-      .eq("work_date", today)
-      .eq("final_status", "absent"),
-    supabase
-      .from("worker_violations")
-      .select("*", { count: "exact", head: true })
-      .gte("occurred_at", start)
-      .lte("occurred_at", end),
+  const [presentCount, absentCount, violationsCount] = await Promise.all([
+    safeCount(
+      supabase
+        .from("attendance_daily_summary")
+        .select("*", { count: "exact", head: true })
+        .eq("work_date", today)
+        .eq("final_status", "present"),
+    ),
+    safeCount(
+      supabase
+        .from("attendance_daily_summary")
+        .select("*", { count: "exact", head: true })
+        .eq("work_date", today)
+        .eq("final_status", "absent"),
+    ),
+    safeCount(
+      supabase
+        .from("worker_violations")
+        .select("*", { count: "exact", head: true })
+        .gte("occurred_at", start)
+        .lte("occurred_at", end),
+    ),
   ]);
 
-  if (presentError) throw new Error(`Present count failed: ${presentError.message}`);
-  if (absentError) throw new Error(`Absent count failed: ${absentError.message}`);
-  if (violationsError) throw new Error(`Violations count failed: ${violationsError.message}`);
-
   return {
-    presentToday: presentCount ?? 0,
-    absentToday: absentCount ?? 0,
-    violationsToday: violationsCount ?? 0,
+    presentToday: presentCount,
+    absentToday: absentCount,
+    violationsToday: violationsCount,
   };
 }
 
@@ -53,50 +66,54 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   const today = new Date().toISOString().slice(0, 10);
   const after30Days = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString().slice(0, 10);
 
-  const [
-    { count: contractors, error: contractorsError },
-    { count: inactiveWorkers, error: inactiveError },
-    { count: activeWorkers, error: activeError },
-    { count: sites, error: sitesError },
-    { data: iqamaAlertsRaw, error: iqamaError },
-    { data: latestWorkersRaw, error: latestWorkersError },
-  ] = await Promise.all([
-    supabase.from("contractors").select("*", { count: "exact", head: true }),
-    supabase
-      .from("workers")
-      .select("*", { count: "exact", head: true })
-      .eq("is_active", false)
-      .eq("is_deleted", false),
-    supabase
-      .from("workers")
-      .select("*", { count: "exact", head: true })
-      .eq("is_active", true)
-      .eq("is_deleted", false),
-    supabase.from("sites").select("*", { count: "exact", head: true }),
-    supabase
-      .from("workers")
-      .select("id, name, id_number, iqama_expiry")
-      .eq("is_active", true)
-      .eq("is_deleted", false)
-      .not("iqama_expiry", "is", null)
-      .gte("iqama_expiry", today)
-      .lte("iqama_expiry", after30Days)
-      .order("iqama_expiry", { ascending: true })
-      .limit(6),
-    supabase
-      .from("workers")
-      .select("id, name, id_number, created_at")
-      .eq("is_deleted", false)
-      .order("created_at", { ascending: false })
-      .limit(8),
+  const [contractors, inactiveWorkers, activeWorkers, sites] = await Promise.all([
+    safeCount(supabase.from("contractors").select("*", { count: "exact", head: true })),
+    safeCount(
+      supabase
+        .from("workers")
+        .select("*", { count: "exact", head: true })
+        .eq("is_active", false)
+        .eq("is_deleted", false),
+    ),
+    safeCount(
+      supabase
+        .from("workers")
+        .select("*", { count: "exact", head: true })
+        .eq("is_active", true)
+        .eq("is_deleted", false),
+    ),
+    safeCount(supabase.from("sites").select("*", { count: "exact", head: true })),
   ]);
 
-  if (contractorsError) throw new Error(`Contractors count failed: ${contractorsError.message}`);
-  if (inactiveError) throw new Error(`Inactive workers count failed: ${inactiveError.message}`);
-  if (activeError) throw new Error(`Active workers count failed: ${activeError.message}`);
-  if (sitesError) throw new Error(`Sites count failed: ${sitesError.message}`);
-  if (iqamaError) throw new Error(`Iqama alerts query failed: ${iqamaError.message}`);
-  if (latestWorkersError) throw new Error(`Latest workers query failed: ${latestWorkersError.message}`);
+  let iqamaAlertsRaw: IqamaAlert[] = [];
+  const iqamaRes = await supabase
+    .from("workers")
+    .select("id, name, id_number, iqama_expiry")
+    .eq("is_active", true)
+    .eq("is_deleted", false)
+    .not("iqama_expiry", "is", null)
+    .gte("iqama_expiry", today)
+    .lte("iqama_expiry", after30Days)
+    .order("iqama_expiry", { ascending: true })
+    .limit(6);
+  if (!iqamaRes.error) {
+    iqamaAlertsRaw = (iqamaRes.data as IqamaAlert[]) ?? [];
+  } else if (!isMissingObjectError(iqamaRes.error)) {
+    throw new Error(`Iqama alerts query failed: ${iqamaRes.error.message}`);
+  }
+
+  let latestWorkersRaw: LatestWorker[] = [];
+  const latestRes = await supabase
+    .from("workers")
+    .select("id, name, id_number, created_at")
+    .eq("is_deleted", false)
+    .order("created_at", { ascending: false })
+    .limit(8);
+  if (!latestRes.error) {
+    latestWorkersRaw = (latestRes.data as LatestWorker[]) ?? [];
+  } else if (!isMissingObjectError(latestRes.error)) {
+    throw new Error(`Latest workers query failed: ${latestRes.error.message}`);
+  }
 
   let pendingCorrections: PendingCorrection[] = [];
   const { data: correctionsRaw, error: correctionsError } = await supabase
@@ -119,16 +136,16 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   }
 
   const topStats: TopStats = {
-    contractors: contractors ?? 0,
-    inactiveWorkers: inactiveWorkers ?? 0,
-    activeWorkers: activeWorkers ?? 0,
-    sites: sites ?? 0,
+    contractors,
+    inactiveWorkers,
+    activeWorkers,
+    sites,
   };
 
   return {
     topStats,
-    iqamaAlerts: (iqamaAlertsRaw as IqamaAlert[]) ?? [],
+    iqamaAlerts: iqamaAlertsRaw,
     pendingCorrections,
-    latestWorkers: (latestWorkersRaw as LatestWorker[]) ?? [],
+    latestWorkers: latestWorkersRaw,
   };
 }
