@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import Image from "next/image";
 
 import { LoginForm } from "@/components/auth/login-form";
-import { Card } from "@/components/ui/card";
 import { getSessionContext } from "@/lib/auth/session";
 
 export default async function LoginPage() {
@@ -13,7 +12,7 @@ export default async function LoginPage() {
 
   return (
     <main className="container-mobile flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_20%_20%,#1f2022_0%,#0e0f11_40%,#050506_100%)] py-8">
-      <Card className="login-lux-card-animate w-full max-w-md space-y-6 border-2 border-[#c9a53c] bg-[#111214]/95 text-center shadow-[0_18px_42px_rgba(0,0,0,0.45)] backdrop-blur">
+      <div className="login-lux-card-animate w-full max-w-md space-y-6 rounded-2xl border-2 border-[#c9a53c] bg-[linear-gradient(160deg,rgba(20,20,22,0.98)_0%,rgba(10,10,11,0.95)_100%)] p-4 text-center shadow-[0_18px_42px_rgba(0,0,0,0.45)] backdrop-blur sm:p-5">
         <div className="login-lux-logo-animate flex flex-col items-center gap-3">
           <Image
             src="/icons/icon-512.svg"
@@ -27,7 +26,7 @@ export default async function LoginPage() {
           <p className="text-sm text-[#c8c0ab]">بوابة الدخول الرسمية</p>
         </div>
         <LoginForm />
-      </Card>
+      </div>
       <style jsx global>{`
         @keyframes loginLuxFadeSlide {
           from {
