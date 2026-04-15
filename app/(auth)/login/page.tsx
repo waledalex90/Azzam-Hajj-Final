@@ -13,8 +13,8 @@ export default async function LoginPage() {
 
   return (
     <main className="container-mobile flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_20%_20%,#1f2022_0%,#0e0f11_40%,#050506_100%)] py-8">
-      <Card className="w-full max-w-md space-y-6 border-2 border-[#c9a53c] bg-[#111214]/95 text-center shadow-[0_18px_42px_rgba(0,0,0,0.45)] backdrop-blur">
-        <div className="flex flex-col items-center gap-3">
+      <Card className="login-lux-card-animate w-full max-w-md space-y-6 border-2 border-[#c9a53c] bg-[#111214]/95 text-center shadow-[0_18px_42px_rgba(0,0,0,0.45)] backdrop-blur">
+        <div className="login-lux-logo-animate flex flex-col items-center gap-3">
           <Image
             src="/icons/icon-512.svg"
             alt="Azzam Royal Icon"
@@ -28,6 +28,33 @@ export default async function LoginPage() {
         </div>
         <LoginForm />
       </Card>
+      <style jsx global>{`
+        @keyframes loginLuxFadeSlide {
+          from {
+            opacity: 0;
+            transform: translateY(18px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .login-lux-card-animate {
+          animation: loginLuxFadeSlide 0.56s ease-out both;
+        }
+
+        .login-lux-logo-animate {
+          animation: loginLuxFadeSlide 0.62s ease-out 0.08s both;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .login-lux-card-animate,
+          .login-lux-logo-animate {
+            animation: none !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }

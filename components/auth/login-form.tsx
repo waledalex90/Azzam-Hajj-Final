@@ -49,7 +49,7 @@ export function LoginForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="name@company.com"
-          className="border-[#b88b2f] bg-[#1a1a1c] text-[#f4ecd7] placeholder:text-[#9f987f] focus:border-[#d4af37] focus:ring-[#3a2d0f]"
+          className="border-[#b88b2f] bg-[#1a1a1c] text-[#f4ecd7] shadow-[0_0_0_1px_rgba(212,175,55,0.12),0_8px_20px_rgba(0,0,0,0.22)] placeholder:text-[#9f987f] transition-all duration-200 focus:border-[#d4af37] focus:ring-[#3a2d0f] focus:shadow-[0_0_0_1px_rgba(212,175,55,0.38),0_0_22px_rgba(212,175,55,0.2)]"
         />
       </div>
 
@@ -65,7 +65,7 @@ export function LoginForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="********"
-          className="border-[#b88b2f] bg-[#1a1a1c] text-[#f4ecd7] placeholder:text-[#9f987f] focus:border-[#d4af37] focus:ring-[#3a2d0f]"
+          className="border-[#b88b2f] bg-[#1a1a1c] text-[#f4ecd7] shadow-[0_0_0_1px_rgba(212,175,55,0.12),0_8px_20px_rgba(0,0,0,0.22)] placeholder:text-[#9f987f] transition-all duration-200 focus:border-[#d4af37] focus:ring-[#3a2d0f] focus:shadow-[0_0_0_1px_rgba(212,175,55,0.38),0_0_22px_rgba(212,175,55,0.2)]"
         />
       </div>
 
@@ -74,7 +74,7 @@ export function LoginForm() {
       <Button
         type="submit"
         disabled={isLoading}
-        className="w-full border border-[#d4af37] bg-[#d4af37] py-2.5 text-[#0b0b0c] hover:bg-[#e2c35b]"
+        className="w-full border border-[#d4af37] bg-[#d4af37] py-2.5 text-[#0b0b0c] shadow-[0_10px_24px_rgba(212,175,55,0.26)] transition-all duration-200 hover:bg-[#e2c35b] hover:shadow-[0_12px_28px_rgba(212,175,55,0.34)]"
       >
         {isLoading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
       </Button>
