@@ -49,6 +49,7 @@ export function LoginForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="name@company.com"
+          className="border-[#b88b2f] bg-[#1a1a1c] text-[#f4ecd7] placeholder:text-[#9f987f] focus:border-[#d4af37] focus:ring-[#3a2d0f]"
         />
       </div>
 
@@ -64,12 +65,17 @@ export function LoginForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="********"
+          className="border-[#b88b2f] bg-[#1a1a1c] text-[#f4ecd7] placeholder:text-[#9f987f] focus:border-[#d4af37] focus:ring-[#3a2d0f]"
         />
       </div>
 
       {error && <p className="rounded-xl bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
-      <Button type="submit" disabled={isLoading} className="w-full py-2.5">
+      <Button
+        type="submit"
+        disabled={isLoading}
+        className="w-full border border-[#d4af37] bg-[#d4af37] py-2.5 text-[#0b0b0c] hover:bg-[#e2c35b]"
+      >
         {isLoading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
       </Button>
     </form>

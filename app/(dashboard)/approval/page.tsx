@@ -111,7 +111,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
           <select
             name="siteId"
             defaultValue={params.siteId}
-            className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3"
+            className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3"
           >
             <option value="">كل المواقع</option>
             {sites.map((site) => (

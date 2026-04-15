@@ -12,7 +12,7 @@ export default async function LoginPage() {
   }
 
   return (
-    <main className="container-mobile flex min-h-screen items-center justify-center py-8">
+    <main className="container-mobile flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_20%_20%,#222325_0%,#0f0f11_42%,#050506_100%)] py-8">
       <Card className="w-full max-w-md space-y-5 border-[#b88b2f] bg-[#121214]/95 text-center shadow-lg backdrop-blur">
         <div className="flex flex-col items-center gap-3">
           <BrandLogo priority className="w-[180px] sm:w-[220px]" />

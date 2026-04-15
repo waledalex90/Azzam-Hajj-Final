@@ -384,7 +384,7 @@ export default async function WorkersPage({ searchParams }: Props) {
               <Input name="jobTitle" placeholder="المسمى الوظيفي" />
               <select
                 name="contractorId"
-                className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+                className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
               >
                 <option value="">المقاول التابع له</option>
                 {contractors.map((contractor) => (
@@ -395,7 +395,7 @@ export default async function WorkersPage({ searchParams }: Props) {
               </select>
               <select
                 name="siteId"
-                className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+                className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
               >
                 <option value="">موقع العمل الحالي</option>
                 {sites.map((site) => (
@@ -407,7 +407,7 @@ export default async function WorkersPage({ searchParams }: Props) {
               <select
                 name="paymentType"
                 defaultValue="salary"
-                className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+                className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
               >
                 <option value="salary">راتب شهري</option>
                 <option value="daily">راتب يومي</option>
@@ -446,7 +446,7 @@ export default async function WorkersPage({ searchParams }: Props) {
               <select
                 name="siteId"
                 defaultValue={params.siteId}
-                className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3"
+                className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3"
               >
                 <option value="">تصفية بالموقع</option>
                 {sites.map((site) => (
@@ -458,7 +458,7 @@ export default async function WorkersPage({ searchParams }: Props) {
               <select
                 name="contractorId"
                 defaultValue={params.contractorId}
-                className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3"
+                className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3"
               >
                 <option value="">تصفية بالمقاول</option>
                 {contractors.map((contractor) => (
@@ -574,7 +574,7 @@ export default async function WorkersPage({ searchParams }: Props) {
                       <select
                         name="paymentType"
                         defaultValue={worker.payment_type}
-                        className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+                        className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
                       >
                         <option value="salary">راتب شهري</option>
                         <option value="daily">راتب يومي</option>
@@ -582,7 +582,7 @@ export default async function WorkersPage({ searchParams }: Props) {
                       <select
                         name="contractorId"
                         defaultValue={worker.contractor_id ?? ""}
-                        className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+                        className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
                       >
                         <option value="">المقاول</option>
                         {contractors.map((contractor) => (
@@ -594,7 +594,7 @@ export default async function WorkersPage({ searchParams }: Props) {
                       <select
                         name="siteId"
                         defaultValue={worker.current_site_id ?? ""}
-                        className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+                        className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
                       >
                         <option value="">الموقع</option>
                         {sites.map((site) => (

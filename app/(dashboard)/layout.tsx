@@ -29,7 +29,7 @@ export default async function DashboardLayout({ children }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0b0c] lg:flex">
+    <div className="min-h-screen bg-slate-50 lg:flex">
       <AdminSidebar user={appUser} />
       <main className="flex-1 p-4 lg:p-6">
         <div className="mx-auto w-full max-w-[1200px] space-y-4">
@@ -37,7 +37,7 @@ export default async function DashboardLayout({ children }: Props) {
             <LogoutButton />
           </div>
           {demoMode && (
-            <Card className="border-[#d4af37] bg-[#1a1a1c] text-[#f6e5a8]">
+            <Card className="border-amber-300 bg-amber-50 text-amber-900">
               نسخة تجريبية محلية مفعلة: أي عمليات حفظ/تعديل/حذف لن تُكتب في قاعدة البيانات.
             </Card>
           )}

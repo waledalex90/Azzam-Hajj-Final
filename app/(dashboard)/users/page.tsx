@@ -46,7 +46,7 @@ export default async function UsersPage() {
           <Input name="username" placeholder="اسم الدخول" />
           <select
             name="role"
-            className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+            className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
             defaultValue="field_observer"
           >
             {ROLES.map((role) => (

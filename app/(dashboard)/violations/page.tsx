@@ -121,7 +121,7 @@ export default async function ViolationsPage({ searchParams }: Props) {
           <div className="sm:col-span-2 grid gap-2 sm:grid-cols-2">
             <select
               name="workerId"
-              className="min-h-12 w-full rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+              className="min-h-12 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
               required
               defaultValue=""
             >
@@ -136,7 +136,7 @@ export default async function ViolationsPage({ searchParams }: Props) {
             </select>
             <select
               name="violationTypeId"
-              className="min-h-12 w-full rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+              className="min-h-12 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
               required
               defaultValue=""
             >
@@ -152,7 +152,7 @@ export default async function ViolationsPage({ searchParams }: Props) {
           </div>
           <select
             name="siteId"
-            className="min-h-12 w-full rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+            className="min-h-12 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
             defaultValue=""
           >
             <option value="">تحديد تلقائي من موقع العامل</option>
@@ -166,7 +166,7 @@ export default async function ViolationsPage({ searchParams }: Props) {
           <textarea
             name="description"
             placeholder="وصف المخالفة"
-            className="min-h-28 w-full rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base sm:col-span-2"
+            className="min-h-28 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base sm:col-span-2"
           />
           <div className="sm:col-span-2">
             <Button type="submit" className="w-full sm:w-auto">

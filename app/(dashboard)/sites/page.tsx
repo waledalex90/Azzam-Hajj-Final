@@ -51,7 +51,7 @@ export default async function SitesPage() {
           <Input name="name" placeholder="اسم الموقع" />
           <select
             name="mainContractorId"
-            className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+            className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
           >
             <option value="">المقاول الرئيسي</option>
             {contractors.map((contractor) => (

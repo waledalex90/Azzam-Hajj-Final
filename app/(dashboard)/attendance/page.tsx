@@ -165,7 +165,7 @@ export default async function AttendancePage({ searchParams }: Props) {
           <select
             name="siteId"
             defaultValue={params.siteId}
-            className="min-h-12 w-full rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+            className="min-h-12 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
           >
             <option value="">كل المواقع</option>
             {sites.map((site) => (

@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0b0b0c;
-  --foreground: #f4ecd7;
-  --primary: #d4af37;
-  --primary-dark: #b88b2f;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --primary: #166534;
+  --primary-dark: #14532d;
   --gold: #d4af37;
   --gold-soft: #f6e5a8;
   --luxury-black: #0b0b0c;
@@ -12,7 +12,7 @@
   --luxury-gold: #d4af37;
   --luxury-gold-deep: #b88b2f;
   --danger: #b91c1c;
-  --muted: #b3ab98;
+  --muted: #64748b;
 }
 
 @theme inline {
@@ -41,9 +41,9 @@ textarea {
 
 select {
   border-radius: 0.75rem;
-  border-color: var(--luxury-gold-deep);
-  background: var(--luxury-black-soft);
-  color: var(--foreground);
+  border-color: #e2e8f0;
+  background: #fff;
+  color: #0f172a;
 }
 
 a {
@@ -60,39 +60,16 @@ a {
 }
 
 .card {
-  background: var(--luxury-black-soft);
-  border: 1px solid color-mix(in srgb, var(--luxury-gold) 58%, #3f3f46);
+  background: white;
+  border: 1px solid #e2e8f0;
   border-radius: 1.1rem;
-  box-shadow: 0 10px 30px rgb(0 0 0 / 0.3);
+  box-shadow: 0 8px 28px rgb(15 23 42 / 0.06);
   transition: box-shadow 180ms ease, border-color 180ms ease;
 }
 
 .card:hover {
-  border-color: color-mix(in srgb, var(--luxury-gold) 75%, #71717a);
-  box-shadow: 0 14px 32px rgb(0 0 0 / 0.38);
-}
-
-.card .text-slate-900,
-.card .text-slate-800,
-.card .text-slate-700 {
-  color: #f4ecd7 !important;
-}
-
-.card .text-slate-600,
-.card .text-slate-500 {
-  color: #c8c0ab !important;
-}
-
-.card .bg-slate-50,
-.card .bg-slate-100,
-.card .bg-white {
-  background: #1b1b1d !important;
-}
-
-.card .border-slate-100,
-.card .border-slate-200,
-.card .border-slate-300 {
-  border-color: color-mix(in srgb, var(--luxury-gold) 48%, #3f3f46) !important;
+  border-color: #d9e4dc;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 0.08);
 }
 
 .status-present {
