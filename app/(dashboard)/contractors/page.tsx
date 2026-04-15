@@ -1,123 +1,128 @@
+import { revalidatePath } from "next/cache";
+
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PaginationControls } from "@/components/pagination/pagination-controls";
-import { getContractorFinanceData } from "@/lib/data/contractors";
-import { parsePage } from "@/lib/utils/pagination";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type Props = {
-  searchParams: Promise<{
-    page?: string;
-    start?: string;
-    end?: string;
-    siteId?: string;
-    contractorId?: string;
-  }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 };
 
-const PAGE_SIZE = 12;
-
-function defaultStartDate() {
-  const d = new Date();
-  d.setDate(1);
-  return d.toISOString().slice(0, 10);
-}
-
-function defaultEndDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export default async function ContractorsPage({ searchParams }: Props) {
-  const params = await searchParams;
-  const page = parsePage(params.page, 1);
-  const startDate = params.start && /^\d{4}-\d{2}-\d{2}$/.test(params.start) ? params.start : defaultStartDate();
-  const endDate = params.end && /^\d{4}-\d{2}-\d{2}$/.test(params.end) ? params.end : defaultEndDate();
-  const siteId = params.siteId ? Number(params.siteId) : undefined;
-  const contractorId = params.contractorId ? Number(params.contractorId) : undefined;
+  async function createContractor(formData: FormData) {
+    "use server";
+    const name = String(formData.get("name") || "").trim();
+    if (!name) return;
 
-  const { rows, meta, sites, contractors } = await getContractorFinanceData({
-    startDate,
-    endDate,
-    siteId: Number.isFinite(siteId) ? siteId : undefined,
-    contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
-    page,
-    pageSize: PAGE_SIZE,
-  });
+    const supabase = createSupabaseAdminClient();
+    const { data: exists } = await supabase.from("contractors").select("id").eq("name", name).maybeSingle();
+    if (exists?.id) return;
+
+    await supabase.from("contractors").insert({ name, is_active: true });
+    revalidatePath("/contractors");
+    revalidatePath("/dashboard");
+  }
+
+  async function toggleContractor(formData: FormData) {
+    "use server";
+    const contractorId = Number(formData.get("contractorId"));
+    const isActive = String(formData.get("isActive")) === "true";
+    if (!contractorId) return;
+
+    const supabase = createSupabaseAdminClient();
+    await supabase.from("contractors").update({ is_active: !isActive }).eq("id", contractorId);
+    revalidatePath("/contractors");
+  }
+
+  async function removeContractor(formData: FormData) {
+    "use server";
+    const contractorId = Number(formData.get("contractorId"));
+    if (!contractorId) return;
+
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase.from("contractors").delete().eq("id", contractorId);
+
+    // If contractor is already referenced by workers/sites, keep it but mark inactive.
+    if (error) {
+      await supabase.from("contractors").update({ is_active: false }).eq("id", contractorId);
+    }
+
+    revalidatePath("/contractors");
+    revalidatePath("/dashboard");
+  }
+
+  await searchParams;
+  const supabase = createSupabaseAdminClient();
+  const { data } = await supabase
+    .from("contractors")
+    .select("id, name, is_active")
+    .order("name", { ascending: true })
+    .limit(200);
+
+  const contractors = (data ?? []) as Array<{
+    id: number;
+    name: string;
+    is_active: boolean;
+  }>;
 
   return (
     <section className="space-y-4">
       <Card>
-        <h1 className="text-xl font-extrabold text-slate-900">المقاولين - المستخلص المالي</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          منطق النسخة القديمة: احتساب الأيام = (حاضر + نصف يوم × 0.5) والقيمة = الأيام × 100.
-        </p>
-        <form method="get" className="mt-4 grid gap-2 sm:grid-cols-5">
-          <Input name="start" type="date" defaultValue={startDate} />
-          <Input name="end" type="date" defaultValue={endDate} />
-          <select
-            name="siteId"
-            defaultValue={params.siteId}
-            className="min-h-12 w-full rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
-          >
-            <option value="">كل المواقع</option>
-            {sites.map((site) => (
-              <option key={site.id} value={site.id}>
-                {site.name}
-              </option>
-            ))}
-          </select>
-          <select
-            name="contractorId"
-            defaultValue={params.contractorId}
-            className="min-h-12 w-full rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
-          >
-            <option value="">كل المقاولين</option>
-            {contractors.map((contractor) => (
-              <option key={contractor.id} value={contractor.id}>
-                {contractor.name}
-              </option>
-            ))}
-          </select>
-          <Button type="submit">تحديث التقرير</Button>
-        </form>
-      </Card>
+        <h1 className="text-2xl font-extrabold text-slate-900">المقاولين</h1>
+        <p className="text-xs text-slate-500">الرئيسية / المقاولين</p>
 
-      <Card className="overflow-hidden p-0">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-100 text-slate-700">
-              <tr>
-                <th className="px-3 py-2 text-right font-bold">المقاول</th>
-                <th className="px-3 py-2 text-right font-bold">الموقع</th>
-                <th className="px-3 py-2 text-right font-bold">عدد العمال</th>
-                <th className="px-3 py-2 text-right font-bold">عدد الأيام</th>
-                <th className="px-3 py-2 text-right font-bold">المبلغ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => (
-                <tr key={`${row.contractorId}-${row.siteId}-${index}`} className="border-t border-slate-200">
-                  <td className="px-3 py-2 font-bold text-slate-800">{row.contractor}</td>
-                  <td className="px-3 py-2">{row.site}</td>
-                  <td className="px-3 py-2">{row.workers}</td>
-                  <td className="px-3 py-2">{row.days}</td>
-                  <td className="px-3 py-2 font-bold text-emerald-700">{row.amount.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mt-5 border-t border-slate-200 pt-4">
+          <h2 className="mb-3 text-base font-extrabold text-slate-900">إضافة مقاول جديد</h2>
+          <form action={createContractor} className="grid gap-2 sm:grid-cols-[auto_1fr]">
+            <button className="h-10 rounded bg-black px-5 text-sm font-extrabold text-white">إضافة</button>
+            <Input name="name" placeholder="اسم المقاول / الشركة" className="h-10 min-h-10 py-2 text-sm" />
+          </form>
         </div>
-        {rows.length === 0 && (
-          <div className="p-4 text-center text-sm text-slate-500">لا توجد بيانات ضمن الفلاتر الحالية.</div>
-        )}
       </Card>
 
-      <PaginationControls
-        page={meta.page}
-        totalPages={meta.totalPages}
-        basePath="/contractors"
-        query={{ start: startDate, end: endDate, siteId: params.siteId, contractorId: params.contractorId }}
-      />
+      <Card className="border border-slate-200 bg-slate-50/40 p-2">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {contractors.map((contractor) => (
+            <div key={contractor.id} className="rounded-md border border-slate-200 bg-white px-3 py-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="truncate text-sm font-extrabold text-slate-800">{contractor.name}</p>
+                <div className="flex items-center gap-2">
+                  <form action={removeContractor}>
+                    <input type="hidden" name="contractorId" value={contractor.id} />
+                    <button
+                      type="submit"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-sm bg-[#e43d4f] text-[10px] font-bold text-white"
+                      title="حذف"
+                    >
+                      ■
+                    </button>
+                  </form>
+                  <form action={toggleContractor}>
+                    <input type="hidden" name="contractorId" value={contractor.id} />
+                    <input type="hidden" name="isActive" value={String(contractor.is_active)} />
+                    <button
+                      type="submit"
+                      className={`relative h-6 w-11 rounded-full transition ${
+                        contractor.is_active ? "bg-[#2bb24c]" : "bg-slate-400"
+                      }`}
+                      title={contractor.is_active ? "إيقاف" : "تفعيل"}
+                    >
+                      <span
+                        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition ${
+                          contractor.is_active ? "left-5" : "left-0.5"
+                        }`}
+                      />
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+      {contractors.length === 0 && (
+        <Card className="text-center text-sm text-slate-500">لا يوجد مقاولون بعد.</Card>
+      )}
     </section>
   );
 }
