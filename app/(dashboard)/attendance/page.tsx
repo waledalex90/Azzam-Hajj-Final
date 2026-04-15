@@ -258,10 +258,16 @@ export default async function AttendancePage({ searchParams }: Props) {
                 إجمالي السجلات: {reviewedPage?.meta.totalRows ?? 0}
               </p>
             </div>
-            <p className="mt-2 text-xs text-slate-500">
-              زر <span className="font-bold text-emerald-700">مراجعة حضور</span> ينشئ جولة جديدة لنفس العامل كي يتم
-              إعادة الاعتماد من المراقب الميداني.
-            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <button
+                type="button"
+                disabled
+                className="rounded-lg bg-[#166534] px-3 py-1.5 text-xs font-bold text-white opacity-90"
+              >
+                مراجعة حضور
+              </button>
+              <span>هذا الزر ينشئ جولة جديدة لنفس العامل كي يتم إعادة الاعتماد من المراقب الميداني.</span>
+            </div>
           </Card>
 
           <Card className="overflow-hidden p-0">

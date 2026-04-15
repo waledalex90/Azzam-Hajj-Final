@@ -63,6 +63,15 @@ function makeIdempotencyKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function chunkArray<T>(items: T[], chunkSize: number) {
+  if (chunkSize <= 0) return [items];
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
 export function AttendanceWorkersTable({
   rows,
   workDate,
@@ -78,7 +87,11 @@ export function AttendanceWorkersTable({
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const isFlushingRef = useRef(false);
 
-  const allIds = useMemo(() => rows.map((row) => row.id), [rows]);
+  const visibleRows = useMemo(
+    () => rows.filter((row) => statusMap[row.id] === undefined),
+    [rows, statusMap],
+  );
+  const allIds = useMemo(() => visibleRows.map((row) => row.id), [visibleRows]);
   const allFilteredIds = useMemo(() => {
     const source = filteredWorkerIds.length > 0 ? filteredWorkerIds : allIds;
     return Array.from(new Set(source));
@@ -177,6 +190,7 @@ export function AttendanceWorkersTable({
     async function onBulk(status: AttendanceStatus) {
       if (selected.length === 0 || bulkPending) return;
       const selectedCount = selected.length;
+      const selectedIdsSnapshot = [...selected];
       setBulkPending(true);
       setPendingWorkerIds((prev) => Array.from(new Set([...prev, ...selected])));
       setStatusMap((prev) => {
@@ -187,17 +201,25 @@ export function AttendanceWorkersTable({
         return next;
       });
 
-      const operation: QueueOperation = {
+      const operations = chunkArray(selectedIdsSnapshot, 200).map((workerIds) => ({
         idempotencyKey: makeIdempotencyKey(),
         workDate,
         status,
-        workerIds: selected,
+        workerIds,
         createdAt: new Date().toISOString(),
-      };
-      enqueueOperation(operation);
+      }));
+      operations.forEach(enqueueOperation);
       try {
         await flushQueue();
-        setSyncMessage(`تم التحضير بنجاح لعدد ${selectedCount} موظف.`);
+        const remainingQueue = readQueue();
+        const stillQueued = remainingQueue.some((item) =>
+          item.workerIds.some((id) => selectedIdsSnapshot.includes(id)),
+        );
+        if (stillQueued) {
+          setSyncMessage("تمت جدولة التحضير وسيتم إكمال المزامنة تلقائيًا.");
+        } else {
+          setSyncMessage(`تم التحضير بنجاح لعدد ${selectedCount} موظف.`);
+        }
       } finally {
         const remainingQueue = readQueue();
         const queuedIds = new Set(remainingQueue.flatMap((item) => item.workerIds));
@@ -255,7 +277,12 @@ export function AttendanceWorkersTable({
       enqueueOperation(operation);
       try {
         await flushQueue();
-        setSyncMessage("تم تحضير الموظف بنجاح.");
+        const stillQueued = readQueue().some((op) => op.workerIds.includes(workerId));
+        if (stillQueued) {
+          setSyncMessage("تمت جدولة تحضير الموظف وسيتم إكمال المزامنة تلقائيًا.");
+        } else {
+          setSyncMessage("تم تحضير الموظف بنجاح.");
+        }
       } finally {
         const stillQueued = readQueue().some((op) => op.workerIds.includes(workerId));
         if (!stillQueued) {
@@ -324,7 +351,7 @@ export function AttendanceWorkersTable({
       </div>
 
       <div className="space-y-3 p-3 md:hidden">
-        {rows.map((worker) => (
+        {visibleRows.map((worker) => (
           <div key={worker.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <label className="mb-2 inline-flex items-center gap-2 text-xs font-bold text-slate-600">
               <input
@@ -360,7 +387,7 @@ export function AttendanceWorkersTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((worker) => (
+            {visibleRows.map((worker) => (
               <tr key={worker.id} className="border-t border-slate-200">
                 <td className="px-3 py-2">
                   <input
@@ -379,7 +406,7 @@ export function AttendanceWorkersTable({
           </tbody>
         </table>
       </div>
-      {rows.length === 0 && (
+      {visibleRows.length === 0 && (
         <div className="p-4 text-center text-sm text-slate-500">لا توجد بيانات في الصفحة الحالية.</div>
       )}
     </Card>
