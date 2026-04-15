@@ -410,7 +410,7 @@ export default async function WorkersPage({ searchParams }: Props) {
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href="/api/workers-template"
-                className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded bg-slate-900 px-4 py-2 text-sm font-bold text-white"
+                className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-600"
               >
                 تحميل ملف Excel عربي
               </Link>
@@ -457,7 +457,7 @@ export default async function WorkersPage({ searchParams }: Props) {
               <Input name="basicSalary" type="number" step="0.01" placeholder="الراتب المتفق عليه" />
               <Input name="iqamaExpiry" type="date" placeholder="تاريخ انتهاء الإقامة" />
               <div className="flex items-end">
-                <button className="w-full rounded bg-slate-900 px-4 py-2 text-sm font-bold text-white">
+                <button className="w-full rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-600">
                   حفظ الموظف
                 </button>
               </div>
@@ -645,7 +645,9 @@ export default async function WorkersPage({ searchParams }: Props) {
                           </option>
                         ))}
                       </select>
-                      <button className="rounded bg-slate-900 px-4 py-2 text-sm font-bold text-white">حفظ التعديل</button>
+                      <button className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-600">
+                        حفظ التعديل
+                      </button>
                     </form>
                   )}
                 </Card>
