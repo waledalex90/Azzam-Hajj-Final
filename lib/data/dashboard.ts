@@ -8,17 +8,10 @@ import type {
   TopStats,
 } from "@/lib/types/db";
 
-function isMissingObjectError(error: unknown) {
-  const code = String((error as { code?: string } | null)?.code ?? "");
-  const msg = String((error as { message?: string } | null)?.message ?? "").toLowerCase();
-  return code === "42P01" || code === "PGRST200" || msg.includes("does not exist") || msg.includes("not found");
-}
-
 async function safeCount(query: PromiseLike<{ count: number | null; error: { message?: string } | null }>) {
   const { count, error } = await query;
   if (error) {
-    if (isMissingObjectError(error)) return 0;
-    throw new Error(error.message || "Count query failed");
+    return 0;
   }
   return count ?? 0;
 }
@@ -98,8 +91,6 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     .limit(6);
   if (!iqamaRes.error) {
     iqamaAlertsRaw = (iqamaRes.data as IqamaAlert[]) ?? [];
-  } else if (!isMissingObjectError(iqamaRes.error)) {
-    throw new Error(`Iqama alerts query failed: ${iqamaRes.error.message}`);
   }
 
   let latestWorkersRaw: LatestWorker[] = [];
@@ -111,8 +102,6 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     .limit(8);
   if (!latestRes.error) {
     latestWorkersRaw = (latestRes.data as LatestWorker[]) ?? [];
-  } else if (!isMissingObjectError(latestRes.error)) {
-    throw new Error(`Latest workers query failed: ${latestRes.error.message}`);
   }
 
   let pendingCorrections: PendingCorrection[] = [];
@@ -125,14 +114,6 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   if (!correctionsError) {
     pendingCorrections = (correctionsRaw as PendingCorrection[]) ?? [];
-  } else {
-    // Table may not exist in new schema yet; keep dashboard resilient.
-    const code = String(correctionsError.code || "");
-    const msg = String(correctionsError.message || "").toLowerCase();
-    const knownMissing = code === "42P01" || msg.includes("does not exist");
-    if (!knownMissing) {
-      throw new Error(`Pending corrections query failed: ${correctionsError.message}`);
-    }
   }
 
   const topStats: TopStats = {
