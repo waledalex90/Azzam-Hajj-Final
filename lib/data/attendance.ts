@@ -1,5 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { PaginationMeta, SiteOption, WorkerRow } from "@/lib/types/db";
+import type { AttendanceDayStats, PaginationMeta, SiteOption, WorkerRow } from "@/lib/types/db";
 import { buildPaginationMeta } from "@/lib/utils/pagination";
 
 type WorkersPageParams = {
@@ -66,4 +66,63 @@ export async function getSiteOptions(): Promise<SiteOption[]> {
     throw new Error(`Sites query failed: ${error.message}`);
   }
   return (data as SiteOption[]) ?? [];
+}
+
+export async function getAttendanceDayStats(workDate: string, siteId?: number): Promise<AttendanceDayStats> {
+  const supabase = createSupabaseAdminClient();
+
+  let totalWorkersQ = supabase
+    .from("workers")
+    .select("*", { count: "exact", head: true })
+    .eq("is_active", true)
+    .eq("is_deleted", false);
+  if (siteId) totalWorkersQ = totalWorkersQ.eq("current_site_id", siteId);
+
+  let presentQ = supabase
+    .from("attendance_daily_summary")
+    .select("*", { count: "exact", head: true })
+    .eq("work_date", workDate)
+    .eq("final_status", "present");
+  let absentQ = supabase
+    .from("attendance_daily_summary")
+    .select("*", { count: "exact", head: true })
+    .eq("work_date", workDate)
+    .eq("final_status", "absent");
+  let halfQ = supabase
+    .from("attendance_daily_summary")
+    .select("*", { count: "exact", head: true })
+    .eq("work_date", workDate)
+    .eq("final_status", "half");
+
+  if (siteId) {
+    presentQ = presentQ.eq("site_id", siteId);
+    absentQ = absentQ.eq("site_id", siteId);
+    halfQ = halfQ.eq("site_id", siteId);
+  }
+
+  const [
+    { count: total, error: totalErr },
+    { count: present, error: presentErr },
+    { count: absent, error: absentErr },
+    { count: half, error: halfErr },
+  ] = await Promise.all([totalWorkersQ, presentQ, absentQ, halfQ]);
+
+  if (totalErr) throw new Error(`Attendance total workers failed: ${totalErr.message}`);
+  if (presentErr) throw new Error(`Attendance present count failed: ${presentErr.message}`);
+  if (absentErr) throw new Error(`Attendance absent count failed: ${absentErr.message}`);
+  if (halfErr) throw new Error(`Attendance half count failed: ${halfErr.message}`);
+
+  const totalNum = total ?? 0;
+  const presentNum = present ?? 0;
+  const absentNum = absent ?? 0;
+  const halfNum = half ?? 0;
+  const pendingNum = Math.max(0, totalNum - (presentNum + absentNum + halfNum));
+
+  return {
+    total: totalNum,
+    pending: pendingNum,
+    present: presentNum,
+    absent: absentNum,
+    half: halfNum,
+  };
 }

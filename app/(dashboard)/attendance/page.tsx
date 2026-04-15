@@ -4,7 +4,7 @@ import { PaginationControls } from "@/components/pagination/pagination-controls"
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { getAttendanceWorkersPage, getSiteOptions } from "@/lib/data/attendance";
+import { getAttendanceDayStats, getAttendanceWorkersPage, getSiteOptions } from "@/lib/data/attendance";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { parsePage } from "@/lib/utils/pagination";
 
@@ -13,6 +13,7 @@ type Props = {
     page?: string;
     q?: string;
     siteId?: string;
+    date?: string;
   }>;
 };
 
@@ -24,9 +25,12 @@ export default async function AttendancePage({ searchParams }: Props) {
 
     const workerId = Number(formData.get("workerId"));
     const status = String(formData.get("status") || "");
+    const workDateRaw = String(formData.get("workDate") || "").trim();
+    const workDate = /^\d{4}-\d{2}-\d{2}$/.test(workDateRaw)
+      ? workDateRaw
+      : new Date().toISOString().slice(0, 10);
     if (!workerId || !["present", "absent", "half"].includes(status)) return;
 
-    const workDate = new Date().toISOString().slice(0, 10);
     const supabase = createSupabaseAdminClient();
 
     const { data: worker, error: workerError } = await supabase
@@ -58,8 +62,12 @@ export default async function AttendancePage({ searchParams }: Props) {
   const page = parsePage(params.page, 1);
   const siteId = params.siteId ? Number(params.siteId) : undefined;
   const q = params.q?.trim();
+  const workDate =
+    params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)
+      ? params.date
+      : new Date().toISOString().slice(0, 10);
 
-  const [{ rows, meta }, sites] = await Promise.all([
+  const [{ rows, meta }, sites, dayStats] = await Promise.all([
     getAttendanceWorkersPage({
       page,
       pageSize: PAGE_SIZE,
@@ -67,6 +75,7 @@ export default async function AttendancePage({ searchParams }: Props) {
       search: q,
     }),
     getSiteOptions(),
+    getAttendanceDayStats(workDate, Number.isFinite(siteId) ? siteId : undefined),
   ]);
 
   return (
@@ -77,7 +86,8 @@ export default async function AttendancePage({ searchParams }: Props) {
           عرض العمال عبر Server-side Pagination لتقليل الضغط عند 6000 عامل.
         </p>
 
-        <form className="mt-4 grid gap-2 sm:grid-cols-3" method="get">
+        <form className="mt-4 grid gap-2 sm:grid-cols-4" method="get">
+          <Input name="date" type="date" defaultValue={workDate} />
           <Input name="q" defaultValue={q} placeholder="بحث بالاسم أو رقم الهوية" />
           <select
             name="siteId"
@@ -97,13 +107,32 @@ export default async function AttendancePage({ searchParams }: Props) {
         </form>
       </Card>
 
-      <AttendanceWorkersTable rows={rows} action={registerAttendanceCheck} />
+      <div className="grid gap-3 sm:grid-cols-4">
+        <Card className="text-center">
+          <p className="text-xs text-slate-500">معلّق</p>
+          <p className="mt-1 text-2xl font-extrabold text-slate-700">{dayStats.pending}</p>
+        </Card>
+        <Card className="text-center">
+          <p className="text-xs text-slate-500">حاضر</p>
+          <p className="mt-1 text-2xl font-extrabold text-emerald-700">{dayStats.present}</p>
+        </Card>
+        <Card className="text-center">
+          <p className="text-xs text-slate-500">غائب</p>
+          <p className="mt-1 text-2xl font-extrabold text-red-700">{dayStats.absent}</p>
+        </Card>
+        <Card className="text-center">
+          <p className="text-xs text-slate-500">نصف يوم</p>
+          <p className="mt-1 text-2xl font-extrabold text-amber-700">{dayStats.half}</p>
+        </Card>
+      </div>
+
+      <AttendanceWorkersTable rows={rows} action={registerAttendanceCheck} workDate={workDate} />
 
       <PaginationControls
         page={meta.page}
         totalPages={meta.totalPages}
         basePath="/attendance"
-        query={{ q, siteId: params.siteId }}
+        query={{ q, siteId: params.siteId, date: workDate }}
       />
     </section>
   );

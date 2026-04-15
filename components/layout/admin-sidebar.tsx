@@ -36,11 +36,11 @@ export function AdminSidebar({ user }: Props) {
   const pathname = usePathname();
 
   return (
-    <aside className="w-full border-b border-slate-200 bg-[#111318] text-slate-100 lg:min-h-screen lg:w-[248px] lg:border-b-0 lg:border-l lg:border-slate-800">
+    <aside className="w-full border-b border-slate-200 bg-[#ffffff] text-slate-800 lg:min-h-screen lg:w-[248px] lg:border-b-0 lg:border-l lg:border-slate-200">
       <div className="px-4 py-4">
         <BrandLogo className="w-[105px] sm:w-[120px]" />
-        <div className="mt-3 border-t border-slate-700 pt-3">
-          <p className="text-xs text-slate-300">{user.username}</p>
+        <div className="mt-3 border-t border-slate-200 pt-3">
+          <p className="text-xs text-slate-700">{user.username}</p>
           <p className="mt-1 text-[11px] text-slate-500">{ROLE_LABELS[user.role]}</p>
         </div>
       </div>
@@ -54,7 +54,7 @@ export function AdminSidebar({ user }: Props) {
               href={item.href}
               className={clsx(
                 "flex items-center justify-between rounded-md px-3 py-2 text-sm transition",
-                active ? "bg-slate-100 text-slate-900" : "text-slate-300 hover:bg-slate-800",
+                active ? "bg-slate-100 text-slate-900" : "text-slate-700 hover:bg-slate-50",
               )}
             >
               <span>{item.label}</span>

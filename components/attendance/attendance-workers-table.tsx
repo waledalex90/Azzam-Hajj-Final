@@ -4,9 +4,10 @@ import type { WorkerRow } from "@/lib/types/db";
 type Props = {
   rows: WorkerRow[];
   action: (formData: FormData) => Promise<void>;
+  workDate: string;
 };
 
-export function AttendanceWorkersTable({ rows, action }: Props) {
+export function AttendanceWorkersTable({ rows, action, workDate }: Props) {
   return (
     <Card className="overflow-hidden p-0">
       <div className="overflow-x-auto">
@@ -31,6 +32,7 @@ export function AttendanceWorkersTable({ rows, action }: Props) {
                   <div className="flex flex-wrap items-center gap-2">
                     <form action={action}>
                       <input type="hidden" name="workerId" value={worker.id} />
+                      <input type="hidden" name="workDate" value={workDate} />
                       <input type="hidden" name="status" value="present" />
                       <button
                         type="submit"
@@ -41,6 +43,7 @@ export function AttendanceWorkersTable({ rows, action }: Props) {
                     </form>
                     <form action={action}>
                       <input type="hidden" name="workerId" value={worker.id} />
+                      <input type="hidden" name="workDate" value={workDate} />
                       <input type="hidden" name="status" value="absent" />
                       <button
                         type="submit"
@@ -51,6 +54,7 @@ export function AttendanceWorkersTable({ rows, action }: Props) {
                     </form>
                     <form action={action}>
                       <input type="hidden" name="workerId" value={worker.id} />
+                      <input type="hidden" name="workDate" value={workDate} />
                       <input type="hidden" name="status" value="half" />
                       <button
                         type="submit"

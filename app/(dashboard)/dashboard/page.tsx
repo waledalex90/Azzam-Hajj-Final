@@ -96,7 +96,11 @@ export default async function DashboardHomePage() {
                 <div key={item.id} className="rounded-md bg-slate-50 px-2 py-1.5">
                   <p className="font-bold text-slate-800">{item.name}</p>
                   <p className="text-xs text-slate-500">
-                    {item.id_number} - انتهاء: {new Date(item.iqama_expiry).toLocaleDateString("ar-SA")}
+                    {item.id_number} - انتهاء: {new Date(item.iqama_expiry).toLocaleDateString("ar-SA")} (
+                    {Math.ceil(
+                      (new Date(item.iqama_expiry).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24),
+                    )}{" "}
+                    يوم)
                   </p>
                 </div>
               ))

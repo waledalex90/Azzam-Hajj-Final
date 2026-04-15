@@ -58,6 +58,14 @@ export type DashboardStats = {
   violationsToday: number;
 };
 
+export type AttendanceDayStats = {
+  total: number;
+  pending: number;
+  present: number;
+  absent: number;
+  half: number;
+};
+
 export type TopStats = {
   contractors: number;
   inactiveWorkers: number;
