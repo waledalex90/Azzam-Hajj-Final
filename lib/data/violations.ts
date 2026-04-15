@@ -9,6 +9,12 @@ type ViolationsPageParams = {
   status?: "pending_review" | "needs_more_info" | "approved" | "rejected";
 };
 
+type RawViolationRow = Omit<ViolationRow, "workers" | "sites" | "violation_types"> & {
+  workers?: { name: string; id_number: string } | { name: string; id_number: string }[] | null;
+  sites?: { name: string } | { name: string }[] | null;
+  violation_types?: { name_ar: string } | { name_ar: string }[] | null;
+};
+
 export async function getViolationsPage({
   page,
   pageSize,
@@ -41,8 +47,18 @@ export async function getViolationsPage({
   }
 
   const totalRows = count ?? 0;
+  const rows: ViolationRow[] =
+    ((data as RawViolationRow[]) ?? []).map((item) => ({
+      ...item,
+      workers: Array.isArray(item.workers) ? (item.workers[0] ?? null) : (item.workers ?? null),
+      sites: Array.isArray(item.sites) ? (item.sites[0] ?? null) : (item.sites ?? null),
+      violation_types: Array.isArray(item.violation_types)
+        ? (item.violation_types[0] ?? null)
+        : (item.violation_types ?? null),
+    })) ?? [];
+
   return {
-    rows: (data as ViolationRow[]) ?? [],
+    rows,
     meta: buildPaginationMeta(totalRows, page, pageSize),
   };
 }

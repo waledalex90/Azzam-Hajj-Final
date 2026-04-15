@@ -9,6 +9,10 @@ type WorkersPageParams = {
   search?: string;
 };
 
+type RawWorkerRow = Omit<WorkerRow, "sites"> & {
+  sites?: { name: string } | { name: string }[] | null;
+};
+
 export async function getAttendanceWorkersPage({
   page,
   pageSize,
@@ -43,8 +47,14 @@ export async function getAttendanceWorkersPage({
   }
 
   const totalRows = count ?? 0;
+  const rows: WorkerRow[] =
+    ((data as RawWorkerRow[]) ?? []).map((item) => ({
+      ...item,
+      sites: Array.isArray(item.sites) ? (item.sites[0] ?? null) : (item.sites ?? null),
+    })) ?? [];
+
   return {
-    rows: (data as WorkerRow[]) ?? [],
+    rows,
     meta: buildPaginationMeta(totalRows, page, pageSize),
   };
 }
