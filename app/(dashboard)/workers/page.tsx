@@ -365,7 +365,7 @@ export default async function WorkersPage({ searchParams }: Props) {
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href="/api/workers-template"
-                className="rounded bg-slate-900 px-4 py-2 text-xs font-bold text-white"
+                className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded bg-slate-900 px-4 py-2 text-sm font-bold text-white"
               >
                 تحميل ملف Excel عربي
               </Link>
