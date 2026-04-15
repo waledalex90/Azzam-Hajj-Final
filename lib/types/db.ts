@@ -1,0 +1,38 @@
+import type { AppRole } from "@/lib/constants/roles";
+
+export type AppUser = {
+  id: number;
+  auth_user_id: string | null;
+  full_name: string;
+  username: string;
+  role: AppRole;
+};
+
+export type WorkerRow = {
+  id: number;
+  name: string;
+  id_number: string;
+  current_site_id: number | null;
+  is_active: boolean;
+  is_deleted: boolean;
+  sites?: { name: string } | null;
+};
+
+export type ViolationRow = {
+  id: number;
+  worker_id: number;
+  site_id: number;
+  description: string | null;
+  status: "pending_review" | "needs_more_info" | "approved" | "rejected";
+  occurred_at: string;
+  workers?: { name: string; id_number: string } | null;
+  sites?: { name: string } | null;
+  violation_types?: { name_ar: string } | null;
+};
+
+export type PaginationMeta = {
+  page: number;
+  pageSize: number;
+  totalRows: number;
+  totalPages: number;
+};
