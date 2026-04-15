@@ -1,42 +1,223 @@
 import { revalidatePath } from "next/cache";
+import Link from "next/link";
 
 import { PaginationControls } from "@/components/pagination/pagination-controls";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { getAttendanceWorkersPage, getContractorOptions, getSiteOptions } from "@/lib/data/attendance";
+import { getContractorOptions, getSiteOptions } from "@/lib/data/attendance";
 import { parsePage } from "@/lib/utils/pagination";
+import { buildPaginationMeta } from "@/lib/utils/pagination";
+import * as XLSX from "xlsx";
 
 type Props = {
   searchParams: Promise<{
     page?: string;
+    tab?: string;
+    editId?: string;
     q?: string;
     siteId?: string;
     contractorId?: string;
+    showStopped?: string;
+    showDeleted?: string;
   }>;
 };
 
 const PAGE_SIZE = 20;
 
+type WorkerListRow = {
+  id: number;
+  name: string;
+  id_number: string;
+  job_title: string | null;
+  payment_type: "salary" | "daily";
+  basic_salary: number | null;
+  iqama_expiry: string | null;
+  contractor_id: number | null;
+  current_site_id: number | null;
+  is_active: boolean;
+  is_deleted: boolean;
+  sites?: { name: string } | { name: string }[] | null;
+  contractors?: { name: string } | { name: string }[] | null;
+};
+
+function relationValue<T>(value: T | T[] | null | undefined): T | null {
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+}
+
+function boolFlag(value?: string) {
+  return value === "1";
+}
+
+function normalizeText(value: unknown) {
+  return String(value ?? "").trim();
+}
+
+function buildWorkersHref(query: Record<string, string | undefined>) {
+  const params = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value && value.length > 0) params.set(key, value);
+  });
+  return `/workers?${params.toString()}`;
+}
+
 export default async function WorkersPage({ searchParams }: Props) {
   async function createWorker(formData: FormData) {
     "use server";
 
-    const name = String(formData.get("name") || "").trim();
-    const idNumber = String(formData.get("idNumber") || "").trim();
+    const name = normalizeText(formData.get("name"));
+    const idNumber = normalizeText(formData.get("idNumber"));
+    const jobTitle = normalizeText(formData.get("jobTitle")) || null;
+    const paymentType = normalizeText(formData.get("paymentType")) === "daily" ? "daily" : "salary";
+    const basicSalary = Number(formData.get("basicSalary"));
+    const iqamaExpiryRaw = normalizeText(formData.get("iqamaExpiry"));
     const siteId = Number(formData.get("siteId")) || null;
     const contractorId = Number(formData.get("contractorId")) || null;
     if (!name || !idNumber) return;
 
     const supabase = createSupabaseAdminClient();
+    const { data: exists } = await supabase.from("workers").select("id").eq("id_number", idNumber).maybeSingle();
+    if (exists?.id) return;
+
     await supabase.from("workers").insert({
       name,
       id_number: idNumber,
+      job_title: jobTitle,
+      payment_type: paymentType,
+      basic_salary: Number.isFinite(basicSalary) ? basicSalary : null,
+      iqama_expiry: /^\d{4}-\d{2}-\d{2}$/.test(iqamaExpiryRaw) ? iqamaExpiryRaw : null,
       current_site_id: siteId,
       contractor_id: contractorId,
       is_active: true,
       is_deleted: false,
     });
+    revalidatePath("/workers");
+    revalidatePath("/dashboard");
+  }
+
+  async function updateWorker(formData: FormData) {
+    "use server";
+    const workerId = Number(formData.get("workerId"));
+    const name = normalizeText(formData.get("name"));
+    const idNumber = normalizeText(formData.get("idNumber"));
+    const jobTitle = normalizeText(formData.get("jobTitle")) || null;
+    const paymentType = normalizeText(formData.get("paymentType")) === "daily" ? "daily" : "salary";
+    const basicSalary = Number(formData.get("basicSalary"));
+    const iqamaExpiryRaw = normalizeText(formData.get("iqamaExpiry"));
+    const siteId = Number(formData.get("siteId")) || null;
+    const contractorId = Number(formData.get("contractorId")) || null;
+    if (!workerId || !name || !idNumber) return;
+
+    const supabase = createSupabaseAdminClient();
+    const { data: exists } = await supabase
+      .from("workers")
+      .select("id")
+      .eq("id_number", idNumber)
+      .neq("id", workerId)
+      .maybeSingle();
+    if (exists?.id) return;
+
+    await supabase
+      .from("workers")
+      .update({
+        name,
+        id_number: idNumber,
+        job_title: jobTitle,
+        payment_type: paymentType,
+        basic_salary: Number.isFinite(basicSalary) ? basicSalary : null,
+        iqama_expiry: /^\d{4}-\d{2}-\d{2}$/.test(iqamaExpiryRaw) ? iqamaExpiryRaw : null,
+        current_site_id: siteId,
+        contractor_id: contractorId,
+      })
+      .eq("id", workerId);
+
+    revalidatePath("/workers");
+    revalidatePath("/dashboard");
+  }
+
+  async function uploadWorkersSheet(formData: FormData) {
+    "use server";
+
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) return;
+
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const firstSheetName = workbook.SheetNames[0];
+    if (!firstSheetName) return;
+
+    const sheet = workbook.Sheets[firstSheetName];
+    const records = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+    if (!records.length) return;
+
+    const supabase = createSupabaseAdminClient();
+    const [sitesRes, contractorsRes, existingIdsRes] = await Promise.all([
+      supabase.from("sites").select("id, name"),
+      supabase.from("contractors").select("id, name"),
+      supabase.from("workers").select("id_number"),
+    ]);
+
+    const sitesByName = new Map(
+      ((sitesRes.data ?? []) as { id: number; name: string }[]).map((item) => [item.name.trim(), item.id]),
+    );
+    const contractorsByName = new Map(
+      ((contractorsRes.data ?? []) as { id: number; name: string }[]).map((item) => [item.name.trim(), item.id]),
+    );
+    const existingIds = new Set(
+      ((existingIdsRes.data ?? []) as { id_number: string }[]).map((item) => String(item.id_number).trim()),
+    );
+
+    const inFileIds = new Set<string>();
+    const payload: Array<{
+      name: string;
+      id_number: string;
+      job_title: string | null;
+      payment_type: "salary" | "daily";
+      basic_salary: number | null;
+      iqama_expiry: string | null;
+      current_site_id: number | null;
+      contractor_id: number | null;
+      is_active: boolean;
+      is_deleted: boolean;
+    }> = [];
+
+    for (const record of records) {
+      const name =
+        normalizeText(record["name"]) || normalizeText(record["الاسم"]) || normalizeText(record["اسم العامل"]);
+      const idNumber =
+        normalizeText(record["id_number"]) ||
+        normalizeText(record["رقم الهوية"]) ||
+        normalizeText(record["رقم الإقامة"]) ||
+        normalizeText(record["رقم الجواز"]);
+      if (!name || !idNumber) continue;
+      if (existingIds.has(idNumber) || inFileIds.has(idNumber)) continue;
+
+      const paymentRaw = normalizeText(record["payment_type"]) || normalizeText(record["نظام الدفع"]);
+      const paymentType = paymentRaw === "daily" || paymentRaw === "يومي" ? "daily" : "salary";
+      const siteName = normalizeText(record["site"]) || normalizeText(record["الموقع"]);
+      const contractorName = normalizeText(record["contractor"]) || normalizeText(record["المقاول"]);
+      const iqama = normalizeText(record["iqama_expiry"]) || normalizeText(record["تاريخ انتهاء الإقامة"]);
+      const salaryRaw = Number(record["basic_salary"] ?? record["الراتب"] ?? 0);
+
+      payload.push({
+        name,
+        id_number: idNumber,
+        job_title: normalizeText(record["job_title"]) || normalizeText(record["المسمى الوظيفي"]) || null,
+        payment_type: paymentType,
+        basic_salary: Number.isFinite(salaryRaw) && salaryRaw > 0 ? salaryRaw : null,
+        iqama_expiry: /^\d{4}-\d{2}-\d{2}$/.test(iqama) ? iqama : null,
+        current_site_id: sitesByName.get(siteName) ?? null,
+        contractor_id: contractorsByName.get(contractorName) ?? null,
+        is_active: true,
+        is_deleted: false,
+      });
+      inFileIds.add(idNumber);
+    }
+
+    if (payload.length > 0) {
+      await supabase.from("workers").insert(payload);
+    }
+
     revalidatePath("/workers");
     revalidatePath("/dashboard");
   }
@@ -53,118 +234,397 @@ export default async function WorkersPage({ searchParams }: Props) {
     revalidatePath("/dashboard");
   }
 
+  async function softDeleteWorker(formData: FormData) {
+    "use server";
+    const workerId = Number(formData.get("workerId"));
+    if (!workerId) return;
+    const supabase = createSupabaseAdminClient();
+    await supabase.from("workers").update({ is_deleted: true, is_active: false }).eq("id", workerId);
+    revalidatePath("/workers");
+    revalidatePath("/dashboard");
+  }
+
+  async function restoreWorker(formData: FormData) {
+    "use server";
+    const workerId = Number(formData.get("workerId"));
+    if (!workerId) return;
+    const supabase = createSupabaseAdminClient();
+    await supabase.from("workers").update({ is_deleted: false }).eq("id", workerId);
+    revalidatePath("/workers");
+    revalidatePath("/dashboard");
+  }
+
+  async function refreshWorkers() {
+    "use server";
+    revalidatePath("/workers");
+    revalidatePath("/dashboard");
+  }
+
   const params = await searchParams;
   const page = parsePage(params.page, 1);
+  const tab = params.tab === "create" ? "create" : "list";
+  const editId = Number(params.editId) || null;
   const q = params.q?.trim();
   const siteId = params.siteId ? Number(params.siteId) : undefined;
   const contractorId = params.contractorId ? Number(params.contractorId) : undefined;
+  const showStopped = boolFlag(params.showStopped);
+  const showDeleted = boolFlag(params.showDeleted);
 
-  const [{ rows, meta }, sites, contractors] = await Promise.all([
-    getAttendanceWorkersPage({
-      page,
-      pageSize: PAGE_SIZE,
-      siteId: Number.isFinite(siteId) ? siteId : undefined,
-      contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
-      search: q,
-    }),
+  const supabase = createSupabaseAdminClient();
+
+  let query = supabase
+    .from("workers")
+    .select(
+      "id, name, id_number, job_title, payment_type, basic_salary, iqama_expiry, contractor_id, current_site_id, is_active, is_deleted, sites(name), contractors(name)",
+      { count: "exact" },
+    )
+    .order("id", { ascending: false });
+
+  if (showDeleted) {
+    query = query.eq("is_deleted", true);
+  } else {
+    query = query.eq("is_deleted", false);
+    if (showStopped) query = query.eq("is_active", false);
+  }
+  if (Number.isFinite(siteId)) query = query.eq("current_site_id", siteId);
+  if (Number.isFinite(contractorId)) query = query.eq("contractor_id", contractorId);
+  if (q) query = query.or(`name.ilike.%${q}%,id_number.ilike.%${q}%`);
+
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
+  const [listRes, sites, contractors, totalRes, activeRes, stoppedRes, deletedRes] = await Promise.all([
+    query.range(from, to),
     getSiteOptions(),
     getContractorOptions(),
+    supabase.from("workers").select("*", { count: "exact", head: true }).eq("is_deleted", false),
+    supabase.from("workers").select("*", { count: "exact", head: true }).eq("is_deleted", false).eq("is_active", true),
+    supabase
+      .from("workers")
+      .select("*", { count: "exact", head: true })
+      .eq("is_deleted", false)
+      .eq("is_active", false),
+    supabase.from("workers").select("*", { count: "exact", head: true }).eq("is_deleted", true),
   ]);
+
+  const workers = ((listRes.data ?? []) as WorkerListRow[]).map((worker) => ({
+    ...worker,
+    sites: relationValue(worker.sites),
+    contractors: relationValue(worker.contractors),
+  }));
+  const meta = buildPaginationMeta(listRes.count ?? 0, page, PAGE_SIZE);
+
+  const queryBase = {
+    tab: "list",
+    q: q || undefined,
+    siteId: params.siteId,
+    contractorId: params.contractorId,
+    showStopped: showStopped ? "1" : undefined,
+    showDeleted: showDeleted ? "1" : undefined,
+  };
 
   return (
     <section className="space-y-4">
-      <Card>
-        <h1 className="text-lg font-extrabold text-slate-900">الموظفون</h1>
-        <form action={createWorker} className="mt-4 grid gap-2 sm:grid-cols-5">
-          <Input name="name" placeholder="اسم العامل" />
-          <Input name="idNumber" placeholder="رقم الهوية/الإقامة" />
-          <select name="siteId" className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3">
-            <option value="">اختر الموقع</option>
-            {sites.map((site) => (
-              <option key={site.id} value={site.id}>
-                {site.name}
-              </option>
-            ))}
-          </select>
-          <select
-            name="contractorId"
-            className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3"
+      <Card className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-extrabold text-slate-900">الموظفين</h1>
+          <p className="text-xs text-slate-500">الرئيسية / الموظفين</p>
+        </div>
+        <div className="flex items-center gap-4 border-b border-slate-200 text-sm">
+          <Link
+            href="/workers?tab=list"
+            className={`pb-2 font-bold ${tab === "list" ? "border-b-2 border-[#0f766e] text-slate-900" : "text-slate-500"}`}
           >
-            <option value="">اختر المقاول</option>
-            {contractors.map((contractor) => (
-              <option key={contractor.id} value={contractor.id}>
-                {contractor.name}
-              </option>
-            ))}
-          </select>
-          <button className="rounded bg-slate-900 px-4 py-2 text-sm font-bold text-white">حفظ موظف جديد</button>
-        </form>
+            قائمة الموظفين
+          </Link>
+          <Link
+            href="/workers?tab=create"
+            className={`pb-2 font-bold ${tab === "create" ? "border-b-2 border-[#0f766e] text-slate-900" : "text-slate-500"}`}
+          >
+            إضافة موظف جديد
+          </Link>
+        </div>
       </Card>
 
-      <Card>
-        <form className="grid gap-2 sm:grid-cols-4" method="get">
-          <Input name="q" defaultValue={q} placeholder="بحث" />
-          <select
-            name="siteId"
-            defaultValue={params.siteId}
-            className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3"
-          >
-            <option value="">كل المواقع</option>
-            {sites.map((site) => (
-              <option key={site.id} value={site.id}>
-                {site.name}
-              </option>
-            ))}
-          </select>
-          <select
-            name="contractorId"
-            defaultValue={params.contractorId}
-            className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3"
-          >
-            <option value="">كل المقاولين</option>
-            {contractors.map((contractor) => (
-              <option key={contractor.id} value={contractor.id}>
-                {contractor.name}
-              </option>
-            ))}
-          </select>
-          <button className="rounded bg-[#0f766e] px-4 py-2 text-sm font-bold text-white">تصفية</button>
-        </form>
-      </Card>
-
-      <div className="space-y-3">
-        {rows.map((worker) => (
-          <Card key={worker.id}>
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="font-extrabold text-slate-900">{worker.name}</p>
-                <p className="text-xs text-slate-500">
-                  {worker.id_number} | {worker.sites?.name ?? "بدون موقع"} |{" "}
-                  {worker.contractors?.name ?? "بدون مقاول"}
-                </p>
-              </div>
-              <form action={toggleActive}>
-                <input type="hidden" name="workerId" value={worker.id} />
-                <input type="hidden" name="isActive" value={String(worker.is_active)} />
-                <button
-                  className={`rounded px-3 py-1 text-xs font-bold text-white ${
-                    worker.is_active ? "bg-emerald-700" : "bg-slate-500"
-                  }`}
-                >
-                  {worker.is_active ? "نشط" : "موقوف"}
-                </button>
+      {tab === "create" ? (
+        <>
+          <Card className="space-y-3">
+            <h2 className="font-extrabold text-slate-900">استيراد من Excel</h2>
+            <p className="text-xs text-slate-500">
+              استخدم الشيت الجاهز، والحد الأدنى للأعمدة: الاسم + رقم الهوية/الإقامة/الجواز (رقم فريد غير مكرر).
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/templates/workers-import-template.csv"
+                className="rounded bg-slate-900 px-4 py-2 text-xs font-bold text-white"
+              >
+                تحميل الشيت النموذجي
+              </Link>
+              <form action={uploadWorkersSheet} className="flex items-center gap-2">
+                <Input type="file" name="file" accept=".xlsx,.xls,.csv" />
+                <button className="rounded bg-[#0f766e] px-4 py-2 text-xs font-bold text-white">رفع الملف</button>
               </form>
             </div>
           </Card>
-        ))}
-      </div>
 
-      <PaginationControls
-        page={meta.page}
-        totalPages={meta.totalPages}
-        basePath="/workers"
-        query={{ q, siteId: params.siteId, contractorId: params.contractorId }}
-      />
+          <Card>
+            <h2 className="font-extrabold text-slate-900">تسجيل موظف جديد</h2>
+            <form action={createWorker} className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <Input name="name" placeholder="الاسم الرباعي" required />
+              <Input name="idNumber" placeholder="رقم الهوية / الإقامة / الجواز" required />
+              <Input name="jobTitle" placeholder="المسمى الوظيفي" />
+              <select
+                name="contractorId"
+                className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+              >
+                <option value="">المقاول التابع له</option>
+                {contractors.map((contractor) => (
+                  <option key={contractor.id} value={contractor.id}>
+                    {contractor.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                name="siteId"
+                className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+              >
+                <option value="">موقع العمل الحالي</option>
+                {sites.map((site) => (
+                  <option key={site.id} value={site.id}>
+                    {site.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                name="paymentType"
+                defaultValue="salary"
+                className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+              >
+                <option value="salary">راتب شهري</option>
+                <option value="daily">راتب يومي</option>
+              </select>
+              <Input name="basicSalary" type="number" step="0.01" placeholder="الراتب المتفق عليه" />
+              <Input name="iqamaExpiry" type="date" placeholder="تاريخ انتهاء الإقامة" />
+              <div className="flex items-end">
+                <button className="w-full rounded bg-slate-900 px-4 py-2 text-sm font-bold text-white">
+                  حفظ الموظف
+                </button>
+              </div>
+            </form>
+          </Card>
+        </>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Card className="text-center">
+              <p className="text-2xl font-extrabold text-slate-900">{totalRes.count ?? 0}</p>
+              <p className="text-xs text-slate-500">إجمالي المسجلين</p>
+            </Card>
+            <Card className="text-center">
+              <p className="text-2xl font-extrabold text-emerald-700">{activeRes.count ?? 0}</p>
+              <p className="text-xs text-slate-500">نشط</p>
+            </Card>
+            <Card className="text-center">
+              <p className="text-2xl font-extrabold text-slate-700">{stoppedRes.count ?? 0}</p>
+              <p className="text-xs text-slate-500">موقوف</p>
+            </Card>
+          </div>
+
+          <Card>
+            <form className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4" method="get">
+              <input type="hidden" name="tab" value="list" />
+              <Input name="q" defaultValue={q} placeholder="بحث (الاسم أو الهوية)" />
+              <select
+                name="siteId"
+                defaultValue={params.siteId}
+                className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3"
+              >
+                <option value="">تصفية بالموقع</option>
+                {sites.map((site) => (
+                  <option key={site.id} value={site.id}>
+                    {site.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                name="contractorId"
+                defaultValue={params.contractorId}
+                className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3"
+              >
+                <option value="">تصفية بالمقاول</option>
+                {contractors.map((contractor) => (
+                  <option key={contractor.id} value={contractor.id}>
+                    {contractor.name}
+                  </option>
+                ))}
+              </select>
+              <button className="rounded bg-[#0f766e] px-4 py-2 text-sm font-bold text-white">بحث وتصفية</button>
+            </form>
+          </Card>
+
+          <Card>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={buildWorkersHref({
+                  ...queryBase,
+                  showStopped: showStopped ? undefined : "1",
+                  showDeleted: undefined,
+                  page: "1",
+                })}
+                className="rounded bg-amber-500 px-3 py-2 text-xs font-bold text-white"
+              >
+                {showStopped ? "إلغاء عرض الموقوفين" : "عرض الموقوفين"}
+              </Link>
+              <Link
+                href={buildWorkersHref({
+                  ...queryBase,
+                  showDeleted: showDeleted ? undefined : "1",
+                  showStopped: undefined,
+                  page: "1",
+                })}
+                className="rounded bg-red-600 px-3 py-2 text-xs font-bold text-white"
+              >
+                {showDeleted ? `إخفاء المحذوفين (${deletedRes.count ?? 0})` : `عرض المحذوفين (${deletedRes.count ?? 0})`}
+              </Link>
+              <form action={refreshWorkers}>
+                <button className="rounded bg-slate-700 px-3 py-2 text-xs font-bold text-white">تحديث</button>
+              </form>
+            </div>
+          </Card>
+
+          <div className="space-y-3">
+            {workers.map((worker) => {
+              const isEditing = editId === worker.id;
+              return (
+                <Card key={worker.id}>
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <p className="font-extrabold text-slate-900">{worker.name}</p>
+                      <p className="text-xs text-slate-500">
+                        {worker.id_number} | {worker.sites?.name ?? "بدون موقع"} |{" "}
+                        {worker.contractors?.name ?? "بدون مقاول"}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {!worker.is_deleted && (
+                        <form action={toggleActive}>
+                          <input type="hidden" name="workerId" value={worker.id} />
+                          <input type="hidden" name="isActive" value={String(worker.is_active)} />
+                          <button
+                            className={`rounded px-3 py-1 text-xs font-bold text-white ${
+                              worker.is_active ? "bg-emerald-600" : "bg-slate-500"
+                            }`}
+                          >
+                            {worker.is_active ? "نشط" : "موقوف"}
+                          </button>
+                        </form>
+                      )}
+
+                      <Link
+                        href={buildWorkersHref({
+                          ...queryBase,
+                          editId: isEditing ? undefined : String(worker.id),
+                          page: String(meta.page),
+                        })}
+                        className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-700"
+                      >
+                        {isEditing ? "إلغاء التعديل" : "تعديل"}
+                      </Link>
+
+                      {worker.is_deleted ? (
+                        <form action={restoreWorker}>
+                          <input type="hidden" name="workerId" value={worker.id} />
+                          <button className="rounded bg-[#0f766e] px-3 py-1 text-xs font-bold text-white">
+                            استرجاع
+                          </button>
+                        </form>
+                      ) : (
+                        <form action={softDeleteWorker}>
+                          <input type="hidden" name="workerId" value={worker.id} />
+                          <button className="rounded bg-red-600 px-3 py-1 text-xs font-bold text-white">حذف</button>
+                        </form>
+                      )}
+                    </div>
+                  </div>
+
+                  {isEditing && (
+                    <form action={updateWorker} className="mt-3 grid gap-2 border-t border-slate-200 pt-3 sm:grid-cols-2">
+                      <input type="hidden" name="workerId" value={worker.id} />
+                      <Input name="name" defaultValue={worker.name} required />
+                      <Input name="idNumber" defaultValue={worker.id_number} required />
+                      <Input name="jobTitle" defaultValue={worker.job_title ?? ""} placeholder="المسمى الوظيفي" />
+                      <Input
+                        name="basicSalary"
+                        type="number"
+                        step="0.01"
+                        defaultValue={worker.basic_salary ?? ""}
+                        placeholder="الراتب"
+                      />
+                      <Input name="iqamaExpiry" type="date" defaultValue={worker.iqama_expiry ?? ""} />
+                      <select
+                        name="paymentType"
+                        defaultValue={worker.payment_type}
+                        className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+                      >
+                        <option value="salary">راتب شهري</option>
+                        <option value="daily">راتب يومي</option>
+                      </select>
+                      <select
+                        name="contractorId"
+                        defaultValue={worker.contractor_id ?? ""}
+                        className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+                      >
+                        <option value="">المقاول</option>
+                        {contractors.map((contractor) => (
+                          <option key={contractor.id} value={contractor.id}>
+                            {contractor.name}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        name="siteId"
+                        defaultValue={worker.current_site_id ?? ""}
+                        className="min-h-12 rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+                      >
+                        <option value="">الموقع</option>
+                        {sites.map((site) => (
+                          <option key={site.id} value={site.id}>
+                            {site.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button className="rounded bg-slate-900 px-4 py-2 text-sm font-bold text-white">حفظ التعديل</button>
+                    </form>
+                  )}
+                </Card>
+              );
+            })}
+            {workers.length === 0 && (
+              <Card className="text-center text-sm text-slate-500">لا توجد بيانات مطابقة للفلترة الحالية.</Card>
+            )}
+          </div>
+
+          <form action={refreshWorkers} className="flex justify-end">
+            <button className="rounded bg-slate-700 px-3 py-2 text-xs font-bold text-white">تحديث</button>
+          </form>
+
+          <PaginationControls
+            page={meta.page}
+            totalPages={meta.totalPages}
+            basePath="/workers"
+            query={{
+              tab: "list",
+              q: q || undefined,
+              siteId: params.siteId,
+              contractorId: params.contractorId,
+              showStopped: showStopped ? "1" : undefined,
+              showDeleted: showDeleted ? "1" : undefined,
+              editId: params.editId,
+            }}
+          />
+        </>
+      )}
     </section>
   );
 }
