@@ -34,10 +34,9 @@ type QueueOperation = {
   workDate: string;
   status: AttendanceStatus;
   workerIds: number[];
-  createdAt: string;
 };
 
-const CONNECTION_ERROR_MESSAGE = "فشل الاتصال.. لم يتم حفظ البيانات، يرجى المحاولة مرة أخرى.";
+const SAVE_ERROR_MESSAGE = "فشل الحفظ.. البيانات لم تصل للسيرفر";
 
 type SyncProgress = {
   active: boolean;
@@ -52,15 +51,6 @@ function makeIdempotencyKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function chunkArray<T>(items: T[], chunkSize: number) {
-  if (chunkSize <= 0) return [items];
-  const chunks: T[][] = [];
-  for (let i = 0; i < items.length; i += chunkSize) {
-    chunks.push(items.slice(i, i + chunkSize));
-  }
-  return chunks;
-}
-
 export function AttendanceWorkersTable({
   rows,
   workDate,
@@ -71,9 +61,10 @@ export function AttendanceWorkersTable({
   const router = useRouter();
   const [selected, setSelected] = useState<number[]>([]);
   const statusMap = initialStatusMap;
-  const [pendingWorkerIds, setPendingWorkerIds] = useState<number[]>([]);
-  const [bulkPending, setBulkPending] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [activeWorkerId, setActiveWorkerId] = useState<number | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [isSyncError, setIsSyncError] = useState(false);
   const [syncProgress, setSyncProgress] = useState<SyncProgress>({
     active: false,
     processed: 0,
@@ -99,22 +90,22 @@ export function AttendanceWorkersTable({
 
   async function postSyncOperation(operation: QueueOperation) {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
-      throw new Error(CONNECTION_ERROR_MESSAGE);
+      throw new Error(SAVE_ERROR_MESSAGE);
     }
 
-    const response = await fetch("/api/attendance", {
+    const response = await fetch("/api/attendance/bulk-sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(operation),
+      body: JSON.stringify({ mode: "attendance_submit", ...operation }),
     });
 
     if (!response.ok) {
-      throw new Error(CONNECTION_ERROR_MESSAGE);
+      throw new Error(SAVE_ERROR_MESSAGE);
     }
 
     const payload = (await response.json().catch(() => ({}))) as { ok?: boolean };
     if (!payload.ok) {
-      throw new Error(CONNECTION_ERROR_MESSAGE);
+      throw new Error(SAVE_ERROR_MESSAGE);
     }
   }
 
@@ -143,46 +134,32 @@ export function AttendanceWorkersTable({
   }
 
   function bulkButtons() {
-    async function onBulk(status: AttendanceStatus) {
-      if (selected.length === 0 || bulkPending) return;
+    async function handleAttendance(status: AttendanceStatus) {
+      if (selected.length === 0 || isSaving) return;
       const selectedCount = selected.length;
       const selectedIdsSnapshot = [...selected];
-      setBulkPending(true);
+      setIsSaving(true);
+      setActiveWorkerId(null);
       setSyncMessage(null);
+      setIsSyncError(false);
       setSyncProgress({ active: true, processed: 0, total: selectedCount });
-      setPendingWorkerIds((prev) => Array.from(new Set([...prev, ...selected])));
-
-      const operations = chunkArray(selectedIdsSnapshot, 500).map((workerIds) => ({
-        idempotencyKey: makeIdempotencyKey(),
-        workDate,
-        status,
-        workerIds,
-        createdAt: new Date().toISOString(),
-      }));
       try {
-        const processedIds: number[] = [];
-        for (const operation of operations) {
-          await postSyncOperation(operation);
-          processedIds.push(...operation.workerIds);
-          setSyncProgress((prev) => ({
-            ...prev,
-            processed: Math.min(prev.total, processedIds.length),
-          }));
-          setPendingWorkerIds((prev) => prev.filter((id) => !operation.workerIds.includes(id)));
-        }
-
-        if (processedIds.length > 0) {
-          // Do not change local worker status before server-driven refresh.
-        }
+        await postSyncOperation({
+          idempotencyKey: makeIdempotencyKey(),
+          workDate,
+          status,
+          workerIds: selectedIdsSnapshot,
+        });
+        setSyncProgress({ active: true, processed: selectedCount, total: selectedCount });
         setSyncMessage(`تم التحضير بنجاح لعدد ${selectedCount} موظف.`);
         setSelected([]);
         mutate();
       } catch (error) {
-        const message = error instanceof Error ? error.message : CONNECTION_ERROR_MESSAGE;
-        setSyncMessage(message || CONNECTION_ERROR_MESSAGE);
+        const message = error instanceof Error ? error.message : SAVE_ERROR_MESSAGE;
+        setSyncMessage(message || SAVE_ERROR_MESSAGE);
+        setIsSyncError(true);
       } finally {
-        setBulkPending(false);
-        setPendingWorkerIds([]);
+        setIsSaving(false);
         setSyncProgress((prev) => ({ active: false, processed: prev.processed, total: prev.total }));
       }
     }
@@ -191,25 +168,25 @@ export function AttendanceWorkersTable({
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={() => onBulk("present")}
+          onClick={() => handleAttendance("present")}
           className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-          disabled={selected.length === 0 || bulkPending}
+          disabled={selected.length === 0 || isSaving}
         >
           تحضير المحدد كـ حاضر
         </button>
         <button
           type="button"
-          onClick={() => onBulk("absent")}
+          onClick={() => handleAttendance("absent")}
           className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-          disabled={selected.length === 0 || bulkPending}
+          disabled={selected.length === 0 || isSaving}
         >
           تحضير المحدد كـ غائب
         </button>
         <button
           type="button"
-          onClick={() => onBulk("half")}
+          onClick={() => handleAttendance("half")}
           className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-          disabled={selected.length === 0 || bulkPending}
+          disabled={selected.length === 0 || isSaving}
         >
           تحضير المحدد كنصف يوم
         </button>
@@ -218,12 +195,14 @@ export function AttendanceWorkersTable({
   }
 
   const statusButtons = (workerId: number) => {
-    const pending = pendingWorkerIds.includes(workerId);
+    const pending = activeWorkerId === workerId && isSaving;
 
     async function onStatusClick(status: AttendanceStatus) {
-      if (pending || bulkPending) return;
-      setPendingWorkerIds((prev) => [...prev, workerId]);
+      if (pending || isSaving) return;
+      setIsSaving(true);
+      setActiveWorkerId(workerId);
       setSyncMessage(null);
+      setIsSyncError(false);
       setSyncProgress({ active: true, processed: 0, total: 1 });
 
       const operation: QueueOperation = {
@@ -231,7 +210,6 @@ export function AttendanceWorkersTable({
         workDate,
         status,
         workerIds: [workerId],
-        createdAt: new Date().toISOString(),
       };
       try {
         await postSyncOperation(operation);
@@ -239,10 +217,12 @@ export function AttendanceWorkersTable({
         setSyncMessage("تم تحضير الموظف بنجاح.");
         mutate();
       } catch (error) {
-        const message = error instanceof Error ? error.message : CONNECTION_ERROR_MESSAGE;
-        setSyncMessage(message || CONNECTION_ERROR_MESSAGE);
+        const message = error instanceof Error ? error.message : SAVE_ERROR_MESSAGE;
+        setSyncMessage(message || SAVE_ERROR_MESSAGE);
+        setIsSyncError(true);
       } finally {
-        setPendingWorkerIds((prev) => prev.filter((id) => id !== workerId));
+        setIsSaving(false);
+        setActiveWorkerId(null);
         setSyncProgress((prev) => ({ active: false, processed: prev.processed, total: prev.total }));
       }
     }
@@ -253,7 +233,7 @@ export function AttendanceWorkersTable({
         type="button"
         onClick={() => onStatusClick("present")}
         className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-        disabled={pending || bulkPending}
+        disabled={pending || isSaving}
       >
           حاضر
       </button>
@@ -261,7 +241,7 @@ export function AttendanceWorkersTable({
         type="button"
         onClick={() => onStatusClick("absent")}
         className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-        disabled={pending || bulkPending}
+        disabled={pending || isSaving}
       >
           غائب
       </button>
@@ -269,7 +249,7 @@ export function AttendanceWorkersTable({
         type="button"
         onClick={() => onStatusClick("half")}
         className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-        disabled={pending || bulkPending}
+        disabled={pending || isSaving}
       >
           نصف
       </button>
@@ -298,7 +278,13 @@ export function AttendanceWorkersTable({
             المحدد حاليًا: {selected.length}
           </span>
           {syncMessage && (
-            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">
+            <span
+              className={`rounded-full border px-2 py-1 text-xs font-bold ${
+                isSyncError
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
+              }`}
+            >
               {syncMessage}
             </span>
           )}
