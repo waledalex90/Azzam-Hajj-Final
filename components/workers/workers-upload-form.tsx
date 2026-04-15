@@ -14,28 +14,10 @@ function SubmitUploadButton() {
   return (
     <button
       type="submit"
-      name="operation"
-      value="insert"
       disabled={pending}
       className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {pending ? "جاري الرفع..." : "إضافة من الملف"}
-    </button>
-  );
-}
-
-function SubmitUpdateButton() {
-  const { pending } = useFormStatus();
-
-  return (
-    <button
-      type="submit"
-      name="operation"
-      value="update"
-      disabled={pending}
-      className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-lg bg-amber-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      {pending ? "جاري التحديث..." : "تحديث من الملف"}
+      {pending ? "جاري رفع الملف..." : "رفع الملف"}
     </button>
   );
 }
@@ -54,7 +36,6 @@ export function WorkersUploadForm({ action }: Props) {
         className="min-h-12 rounded-lg border-slate-200 bg-white"
       />
       <SubmitUploadButton />
-      <SubmitUpdateButton />
     </form>
   );
 }
