@@ -36,3 +36,19 @@ export type PaginationMeta = {
   totalRows: number;
   totalPages: number;
 };
+
+export type SiteOption = {
+  id: number;
+  name: string;
+};
+
+export type ViolationTypeOption = {
+  id: number;
+  name_ar: string;
+};
+
+export type DashboardStats = {
+  presentToday: number;
+  absentToday: number;
+  violationsToday: number;
+};

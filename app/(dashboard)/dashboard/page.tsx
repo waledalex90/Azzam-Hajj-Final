@@ -1,9 +1,11 @@
 import { Card } from "@/components/ui/card";
 import { getSessionContext } from "@/lib/auth/session";
 import { ROLE_LABELS } from "@/lib/constants/roles";
+import { getDashboardStats } from "@/lib/data/dashboard";
 
 export default async function DashboardHomePage() {
   const { appUser } = await getSessionContext();
+  const stats = await getDashboardStats();
 
   return (
     <section className="space-y-4">
@@ -13,6 +15,21 @@ export default async function DashboardHomePage() {
           الدور الحالي: {appUser ? ROLE_LABELS[appUser.role] : "غير معروف"}
         </p>
       </Card>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card>
+          <h2 className="text-sm font-bold text-slate-900">حاضر اليوم</h2>
+          <p className="mt-2 text-2xl font-extrabold status-present">{stats.presentToday}</p>
+        </Card>
+        <Card>
+          <h2 className="text-sm font-bold text-slate-900">غائب اليوم</h2>
+          <p className="mt-2 text-2xl font-extrabold status-absent">{stats.absentToday}</p>
+        </Card>
+        <Card>
+          <h2 className="text-sm font-bold text-slate-900">مخالفات اليوم</h2>
+          <p className="mt-2 text-2xl font-extrabold text-amber-700">{stats.violationsToday}</p>
+        </Card>
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Card>

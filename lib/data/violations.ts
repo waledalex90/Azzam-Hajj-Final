@@ -1,5 +1,11 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { PaginationMeta, ViolationRow } from "@/lib/types/db";
+import type {
+  PaginationMeta,
+  SiteOption,
+  ViolationRow,
+  ViolationTypeOption,
+  WorkerRow,
+} from "@/lib/types/db";
 import { buildPaginationMeta } from "@/lib/utils/pagination";
 
 type ViolationsPageParams = {
@@ -60,5 +66,43 @@ export async function getViolationsPage({
   return {
     rows,
     meta: buildPaginationMeta(totalRows, page, pageSize),
+  };
+}
+
+export async function getViolationFormOptions(search?: string): Promise<{
+  sites: SiteOption[];
+  violationTypes: ViolationTypeOption[];
+  workers: WorkerRow[];
+}> {
+  const supabase = createSupabaseAdminClient();
+
+  const [{ data: sites, error: siteError }, { data: types, error: typeError }] = await Promise.all([
+    supabase.from("sites").select("id, name").order("name"),
+    supabase.from("violation_types").select("id, name_ar").eq("is_active", true).order("id"),
+  ]);
+
+  if (siteError) throw new Error(`Sites query failed: ${siteError.message}`);
+  if (typeError) throw new Error(`Violation types query failed: ${typeError.message}`);
+
+  let workersQuery = supabase
+    .from("workers")
+    .select("id, name, id_number, current_site_id, is_active, is_deleted")
+    .eq("is_active", true)
+    .eq("is_deleted", false)
+    .order("id", { ascending: false })
+    .limit(30);
+
+  if (search && search.trim()) {
+    const value = search.trim();
+    workersQuery = workersQuery.or(`name.ilike.%${value}%,id_number.ilike.%${value}%`);
+  }
+
+  const { data: workers, error: workerError } = await workersQuery;
+  if (workerError) throw new Error(`Workers query failed: ${workerError.message}`);
+
+  return {
+    sites: (sites as SiteOption[]) ?? [],
+    violationTypes: (types as ViolationTypeOption[]) ?? [],
+    workers: (workers as WorkerRow[]) ?? [],
   };
 }

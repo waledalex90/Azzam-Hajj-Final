@@ -1,5 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { PaginationMeta, WorkerRow } from "@/lib/types/db";
+import type { PaginationMeta, SiteOption, WorkerRow } from "@/lib/types/db";
 import { buildPaginationMeta } from "@/lib/utils/pagination";
 
 type WorkersPageParams = {
@@ -57,4 +57,13 @@ export async function getAttendanceWorkersPage({
     rows,
     meta: buildPaginationMeta(totalRows, page, pageSize),
   };
+}
+
+export async function getSiteOptions(): Promise<SiteOption[]> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.from("sites").select("id, name").order("name");
+  if (error) {
+    throw new Error(`Sites query failed: ${error.message}`);
+  }
+  return (data as SiteOption[]) ?? [];
 }

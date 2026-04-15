@@ -3,9 +3,10 @@ import type { WorkerRow } from "@/lib/types/db";
 
 type Props = {
   rows: WorkerRow[];
+  action: (formData: FormData) => Promise<void>;
 };
 
-export function AttendanceWorkersTable({ rows }: Props) {
+export function AttendanceWorkersTable({ rows, action }: Props) {
   return (
     <Card className="overflow-hidden p-0">
       <div className="overflow-x-auto">
@@ -16,6 +17,7 @@ export function AttendanceWorkersTable({ rows }: Props) {
               <th className="px-3 py-2 text-right font-bold">الاسم</th>
               <th className="px-3 py-2 text-right font-bold">رقم الهوية</th>
               <th className="px-3 py-2 text-right font-bold">الموقع</th>
+              <th className="px-3 py-2 text-right font-bold">الإجراء</th>
             </tr>
           </thead>
           <tbody>
@@ -25,6 +27,40 @@ export function AttendanceWorkersTable({ rows }: Props) {
                 <td className="px-3 py-2 font-bold text-slate-800">{worker.name}</td>
                 <td className="px-3 py-2">{worker.id_number}</td>
                 <td className="px-3 py-2 text-slate-600">{worker.sites?.name ?? "غير محدد"}</td>
+                <td className="px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <form action={action}>
+                      <input type="hidden" name="workerId" value={worker.id} />
+                      <input type="hidden" name="status" value="present" />
+                      <button
+                        type="submit"
+                        className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white"
+                      >
+                        حاضر
+                      </button>
+                    </form>
+                    <form action={action}>
+                      <input type="hidden" name="workerId" value={worker.id} />
+                      <input type="hidden" name="status" value="absent" />
+                      <button
+                        type="submit"
+                        className="rounded-md bg-red-700 px-3 py-1.5 text-xs font-bold text-white"
+                      >
+                        غائب
+                      </button>
+                    </form>
+                    <form action={action}>
+                      <input type="hidden" name="workerId" value={worker.id} />
+                      <input type="hidden" name="status" value="half" />
+                      <button
+                        type="submit"
+                        className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-bold text-white"
+                      >
+                        نصف
+                      </button>
+                    </form>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
