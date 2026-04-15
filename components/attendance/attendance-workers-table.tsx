@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import type { WorkerRow } from "@/lib/types/db";
@@ -29,27 +29,7 @@ function statusBadgeClass(status?: AttendanceStatus) {
   return "bg-slate-50 text-slate-600 border-slate-200";
 }
 
-type QueueOperation = {
-  idempotencyKey: string;
-  workDate: string;
-  status: AttendanceStatus;
-  workerIds: number[];
-};
-
 const SAVE_ERROR_MESSAGE = "فشل الحفظ.. البيانات لم تصل للسيرفر";
-
-type SyncProgress = {
-  active: boolean;
-  processed: number;
-  total: number;
-};
-
-function makeIdempotencyKey() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
 
 export function AttendanceWorkersTable({
   rows,
@@ -62,14 +42,8 @@ export function AttendanceWorkersTable({
   const [selected, setSelected] = useState<number[]>([]);
   const statusMap = initialStatusMap;
   const [isSaving, setIsSaving] = useState(false);
-  const [activeWorkerId, setActiveWorkerId] = useState<number | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [isSyncError, setIsSyncError] = useState(false);
-  const [syncProgress, setSyncProgress] = useState<SyncProgress>({
-    active: false,
-    processed: 0,
-    total: 0,
-  });
 
   const visibleRows = rows;
   const allIds = useMemo(() => visibleRows.map((row) => row.id), [visibleRows]);
@@ -80,26 +54,19 @@ export function AttendanceWorkersTable({
   const pageAllSelected = allIds.length > 0 && allIds.every((id) => selected.includes(id));
   const allFilteredSelected =
     allFilteredIds.length > 0 && allFilteredIds.every((id) => selected.includes(id));
-  const progressPercent = syncProgress.total
-    ? Math.min(100, Math.round((syncProgress.processed / syncProgress.total) * 100))
-    : 0;
-
-  const mutate = useCallback(() => {
-    router.refresh();
-  }, [router]);
-
-  async function postSyncOperation(operation: QueueOperation) {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      throw new Error(SAVE_ERROR_MESSAGE);
-    }
-
-    const response = await fetch("/api/attendance/bulk-sync", {
+  async function submitAttendance(status: AttendanceStatus, workerIds: number[]) {
+    const response = await fetch("/api/attendance", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: "attendance_submit", ...operation }),
+      body: JSON.stringify({
+        mode: "attendance_submit",
+        workDate,
+        status,
+        workerIds,
+      }),
     });
 
-    if (!response.ok) {
+    if (response.status !== 200) {
       throw new Error(SAVE_ERROR_MESSAGE);
     }
 
@@ -139,28 +106,19 @@ export function AttendanceWorkersTable({
       const selectedCount = selected.length;
       const selectedIdsSnapshot = [...selected];
       setIsSaving(true);
-      setActiveWorkerId(null);
       setSyncMessage(null);
       setIsSyncError(false);
-      setSyncProgress({ active: true, processed: 0, total: selectedCount });
       try {
-        await postSyncOperation({
-          idempotencyKey: makeIdempotencyKey(),
-          workDate,
-          status,
-          workerIds: selectedIdsSnapshot,
-        });
-        setSyncProgress({ active: true, processed: selectedCount, total: selectedCount });
+        await submitAttendance(status, selectedIdsSnapshot);
         setSyncMessage(`تم التحضير بنجاح لعدد ${selectedCount} موظف.`);
         setSelected([]);
-        mutate();
+        router.refresh();
       } catch (error) {
         const message = error instanceof Error ? error.message : SAVE_ERROR_MESSAGE;
         setSyncMessage(message || SAVE_ERROR_MESSAGE);
         setIsSyncError(true);
       } finally {
         setIsSaving(false);
-        setSyncProgress((prev) => ({ active: false, processed: prev.processed, total: prev.total }));
       }
     }
 
@@ -195,35 +153,21 @@ export function AttendanceWorkersTable({
   }
 
   const statusButtons = (workerId: number) => {
-    const pending = activeWorkerId === workerId && isSaving;
-
     async function onStatusClick(status: AttendanceStatus) {
-      if (pending || isSaving) return;
+      if (isSaving) return;
       setIsSaving(true);
-      setActiveWorkerId(workerId);
       setSyncMessage(null);
       setIsSyncError(false);
-      setSyncProgress({ active: true, processed: 0, total: 1 });
-
-      const operation: QueueOperation = {
-        idempotencyKey: makeIdempotencyKey(),
-        workDate,
-        status,
-        workerIds: [workerId],
-      };
       try {
-        await postSyncOperation(operation);
-        setSyncProgress({ active: true, processed: 1, total: 1 });
+        await submitAttendance(status, [workerId]);
         setSyncMessage("تم تحضير الموظف بنجاح.");
-        mutate();
+        router.refresh();
       } catch (error) {
         const message = error instanceof Error ? error.message : SAVE_ERROR_MESSAGE;
         setSyncMessage(message || SAVE_ERROR_MESSAGE);
         setIsSyncError(true);
       } finally {
         setIsSaving(false);
-        setActiveWorkerId(null);
-        setSyncProgress((prev) => ({ active: false, processed: prev.processed, total: prev.total }));
       }
     }
 
@@ -233,7 +177,7 @@ export function AttendanceWorkersTable({
         type="button"
         onClick={() => onStatusClick("present")}
         className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-        disabled={pending || isSaving}
+        disabled={isSaving}
       >
           حاضر
       </button>
@@ -241,7 +185,7 @@ export function AttendanceWorkersTable({
         type="button"
         onClick={() => onStatusClick("absent")}
         className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-        disabled={pending || isSaving}
+        disabled={isSaving}
       >
           غائب
       </button>
@@ -249,29 +193,37 @@ export function AttendanceWorkersTable({
         type="button"
         onClick={() => onStatusClick("half")}
         className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-        disabled={pending || isSaving}
+        disabled={isSaving}
       >
           نصف
       </button>
       <span
         className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${statusBadgeClass(statusMap[workerId])}`}
       >
-        {pending ? "جارٍ الحفظ..." : statusLabel(statusMap[workerId])}
+        {isSaving ? "جارٍ الحفظ..." : statusLabel(statusMap[workerId])}
       </span>
     </div>
     );
   };
 
   return (
-    <Card className="overflow-hidden p-0">
+    <Card className="relative overflow-hidden p-0">
+      {isSaving && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/80 backdrop-blur-sm">
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center shadow-sm">
+            <span className="mx-auto mb-2 inline-block h-5 w-5 animate-spin rounded-full border-2 border-slate-700 border-t-transparent" />
+            <p className="text-sm font-bold text-slate-800">جاري الحفظ... برجاء الانتظار</p>
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 p-3">
         <div className="flex flex-wrap items-center gap-4">
           <label className="inline-flex items-center gap-2 text-sm font-bold text-slate-700">
-            <input type="checkbox" checked={pageAllSelected} onChange={toggleAllPage} />
+            <input type="checkbox" checked={pageAllSelected} onChange={toggleAllPage} disabled={isSaving} />
             تحديد الصفحة ({allIds.length})
           </label>
           <label className="inline-flex items-center gap-2 text-sm font-bold text-emerald-700">
-            <input type="checkbox" checked={allFilteredSelected} onChange={toggleAllFiltered} />
+            <input type="checkbox" checked={allFilteredSelected} onChange={toggleAllFiltered} disabled={isSaving} />
             تحديد كل نتائج الفلترة ({filteredTotalRows || allFilteredIds.length})
           </label>
           <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
@@ -288,19 +240,6 @@ export function AttendanceWorkersTable({
               {syncMessage}
             </span>
           )}
-          {syncProgress.active && syncProgress.total > 0 && (
-            <div className="min-w-[260px] rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
-              <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-700">
-                <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-700 border-t-transparent" />
-                <span>
-                  جاري الحفظ في قاعدة البيانات... ({syncProgress.processed} / {syncProgress.total})
-                </span>
-              </div>
-              <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-emerald-100">
-                <div className="h-full rounded-full bg-emerald-700 transition-all duration-300" style={{ width: `${progressPercent}%` }} />
-              </div>
-            </div>
-          )}
         </div>
         {bulkButtons()}
       </div>
@@ -313,6 +252,7 @@ export function AttendanceWorkersTable({
                 type="checkbox"
                 checked={selected.includes(worker.id)}
                 onChange={() => toggle(worker.id)}
+                disabled={isSaving}
               />
               تحديد
             </label>
@@ -349,6 +289,7 @@ export function AttendanceWorkersTable({
                     type="checkbox"
                     checked={selected.includes(worker.id)}
                     onChange={() => toggle(worker.id)}
+                    disabled={isSaving}
                   />
                 </td>
                 <td className="px-3 py-2">{worker.id}</td>

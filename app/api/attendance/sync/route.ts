@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     await submitAttendanceByWorkersEngine({
       items: workerIds.map((workerId) => ({ worker_id: workerId, status })),
       workDate,
-      note: "offline/online synced attendance",
+      note: "direct attendance submit",
       idempotencyKey: body.idempotencyKey,
     });
   } else {
