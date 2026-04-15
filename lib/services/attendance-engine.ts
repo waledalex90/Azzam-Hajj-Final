@@ -60,44 +60,21 @@ export async function submitAttendanceByWorkersEngine({
   if (idempotencyKey && (await hasProcessedIdempotencyKey(idempotencyKey))) return;
 
   const supabase = createSupabaseAdminClient();
-  const workerIds = items.map((item) => item.worker_id);
-  const { data: workers, error: workerError } = await supabase
-    .from("workers")
-    .select("id, current_site_id")
-    .in("id", workerIds);
+  const payload = items
+    .map((item) => ({
+      worker_id: Number(item.worker_id),
+      status: item.status,
+    }))
+    .filter((item) => Number.isFinite(item.worker_id) && item.worker_id > 0);
+  if (payload.length === 0) return;
 
-  if (workerError || !workers || workers.length === 0) return;
-
-  const siteMap = new Map<number, Array<{ worker_id: number; status: AttendanceStatus }>>();
-  const workerSiteMap = new Map<number, number>();
-
-  for (const worker of workers as Array<{ id: number; current_site_id: number | null }>) {
-    if (worker.current_site_id) {
-      workerSiteMap.set(worker.id, worker.current_site_id);
-    }
-  }
-
-  for (const item of items) {
-    const siteId = workerSiteMap.get(item.worker_id);
-    if (!siteId) continue;
-    const current = siteMap.get(siteId) ?? [];
-    current.push(item);
-    siteMap.set(siteId, current);
-  }
-
-  for (const [siteId, payload] of siteMap.entries()) {
-    const { data: round, error: roundError } = await supabase.rpc("start_attendance_round", {
-      p_site_id: siteId,
-      p_work_date: workDate,
-      p_round_no: null,
-      p_notes: note,
-    });
-    if (roundError || !round?.id) continue;
-
-    await supabase.rpc("submit_attendance_checks", {
-      p_round_id: round.id,
-      p_payload: payload,
-    });
+  const { error } = await supabase.rpc("submit_attendance_bulk_checks", {
+    p_work_date: workDate,
+    p_payload: payload,
+    p_notes: note,
+  });
+  if (error) {
+    throw new Error(error.message || "submit_attendance_bulk_checks_failed");
   }
 
   if (idempotencyKey) {

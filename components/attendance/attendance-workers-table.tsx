@@ -30,6 +30,13 @@ function statusBadgeClass(status?: AttendanceStatus) {
 }
 
 const SAVE_ERROR_MESSAGE = "فشل الحفظ.. البيانات لم تصل للسيرفر";
+const BULK_CHUNK_SIZE = 200;
+
+type SyncProgress = {
+  active: boolean;
+  processed: number;
+  total: number;
+};
 
 export function AttendanceWorkersTable({
   rows,
@@ -44,6 +51,11 @@ export function AttendanceWorkersTable({
   const [isSaving, setIsSaving] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [isSyncError, setIsSyncError] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<SyncProgress>({
+    active: false,
+    processed: 0,
+    total: 0,
+  });
 
   const visibleRows = rows;
   const allIds = useMemo(() => visibleRows.map((row) => row.id), [visibleRows]);
@@ -54,6 +66,10 @@ export function AttendanceWorkersTable({
   const pageAllSelected = allIds.length > 0 && allIds.every((id) => selected.includes(id));
   const allFilteredSelected =
     allFilteredIds.length > 0 && allFilteredIds.every((id) => selected.includes(id));
+  const progressPercent = syncProgress.total
+    ? Math.min(100, Math.round((syncProgress.processed / syncProgress.total) * 100))
+    : 0;
+
   async function submitAttendance(status: AttendanceStatus, workerIds: number[]) {
     const response = await fetch("/api/attendance", {
       method: "POST",
@@ -108,8 +124,17 @@ export function AttendanceWorkersTable({
       setIsSaving(true);
       setSyncMessage(null);
       setIsSyncError(false);
+      setSyncProgress({ active: true, processed: 0, total: selectedCount });
       try {
-        await submitAttendance(status, selectedIdsSnapshot);
+        for (let i = 0; i < selectedIdsSnapshot.length; i += BULK_CHUNK_SIZE) {
+          const chunk = selectedIdsSnapshot.slice(i, i + BULK_CHUNK_SIZE);
+          await submitAttendance(status, chunk);
+          setSyncProgress({
+            active: true,
+            processed: Math.min(i + chunk.length, selectedCount),
+            total: selectedCount,
+          });
+        }
         setSyncMessage(`تم التحضير بنجاح لعدد ${selectedCount} موظف.`);
         setSelected([]);
         router.refresh();
@@ -119,6 +144,7 @@ export function AttendanceWorkersTable({
         setIsSyncError(true);
       } finally {
         setIsSaving(false);
+        setSyncProgress((prev) => ({ ...prev, active: false }));
       }
     }
 
@@ -158,8 +184,10 @@ export function AttendanceWorkersTable({
       setIsSaving(true);
       setSyncMessage(null);
       setIsSyncError(false);
+      setSyncProgress({ active: true, processed: 0, total: 1 });
       try {
         await submitAttendance(status, [workerId]);
+        setSyncProgress({ active: true, processed: 1, total: 1 });
         setSyncMessage("تم تحضير الموظف بنجاح.");
         router.refresh();
       } catch (error) {
@@ -168,6 +196,7 @@ export function AttendanceWorkersTable({
         setIsSyncError(true);
       } finally {
         setIsSaving(false);
+        setSyncProgress((prev) => ({ ...prev, active: false }));
       }
     }
 
@@ -210,9 +239,19 @@ export function AttendanceWorkersTable({
     <Card className="relative overflow-hidden p-0">
       {isSaving && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/80 backdrop-blur-sm">
-          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center shadow-sm">
+          <div className="min-w-[280px] rounded-xl border border-slate-200 bg-white px-4 py-3 text-center shadow-sm">
             <span className="mx-auto mb-2 inline-block h-5 w-5 animate-spin rounded-full border-2 border-slate-700 border-t-transparent" />
             <p className="text-sm font-bold text-slate-800">جاري الحفظ... برجاء الانتظار</p>
+            {syncProgress.total > 0 && (
+              <>
+                <p className="mt-1 text-xs font-bold text-slate-600">
+                  {syncProgress.processed} / {syncProgress.total}
+                </p>
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full rounded-full bg-slate-700 transition-all duration-200" style={{ width: `${progressPercent}%` }} />
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -272,7 +311,7 @@ export function AttendanceWorkersTable({
           <thead className="bg-slate-100 text-slate-700">
             <tr>
               <th className="px-3 py-2 text-right font-bold">
-                <input type="checkbox" checked={pageAllSelected} onChange={toggleAllPage} />
+                <input type="checkbox" checked={pageAllSelected} onChange={toggleAllPage} disabled={isSaving} />
               </th>
               <th className="px-3 py-2 text-right font-bold">#</th>
               <th className="px-3 py-2 text-right font-bold">الاسم</th>
