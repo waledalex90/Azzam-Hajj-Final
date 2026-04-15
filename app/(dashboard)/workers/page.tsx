@@ -1,4 +1,7 @@
 import { revalidatePath } from "next/cache";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -46,6 +49,29 @@ type WorkerListRow = {
   contractors?: { name: string } | { name: string }[] | null;
 };
 
+type UploadOperation = "insert" | "update";
+
+type ParsedWorkerUploadRow = {
+  rowIndex: number;
+  source: Record<string, unknown>;
+  workerIdRaw: string;
+  workerId: number | null;
+  name: string;
+  idNumber: string;
+  siteName: string;
+  contractorName: string;
+  jobTitle: string | null;
+  paymentType: "salary" | "daily";
+  basicSalary: number | null;
+  iqamaExpiry: string | null;
+};
+
+type RejectedRow = {
+  rowIndex: number;
+  source: Record<string, unknown>;
+  reason: string;
+};
+
 function relationValue<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
 }
@@ -56,6 +82,45 @@ function boolFlag(value?: string) {
 
 function normalizeText(value: unknown) {
   return String(value ?? "").trim();
+}
+
+function parseSheetRow(record: Record<string, unknown>, rowIndex: number): ParsedWorkerUploadRow {
+  const workerIdRaw =
+    normalizeText(record["id"]) || normalizeText(record["worker_id"]) || normalizeText(record["رقم العامل"]);
+  const workerId = Number(workerIdRaw);
+  const name =
+    normalizeText(record["name"]) || normalizeText(record["الاسم"]) || normalizeText(record["اسم العامل"]);
+  const idNumber =
+    normalizeText(record["id_number"]) ||
+    normalizeText(record["رقم الهوية/الإقامة/الجواز"]) ||
+    normalizeText(record["رقم الهوية"]) ||
+    normalizeText(record["رقم الإقامة"]) ||
+    normalizeText(record["رقم الجواز"]);
+  const siteName = normalizeText(record["site"]) || normalizeText(record["الموقع"]);
+  const contractorName = normalizeText(record["contractor"]) || normalizeText(record["المقاول"]);
+  const iqama = normalizeText(record["iqama_expiry"]) || normalizeText(record["تاريخ انتهاء الإقامة"]);
+  const salaryRaw = Number(record["basic_salary"] ?? record["الراتب"] ?? 0);
+  const paymentRaw = normalizeText(record["payment_type"]) || normalizeText(record["نظام الدفع"]);
+  const paymentType = paymentRaw === "daily" || paymentRaw === "يومي" || paymentRaw === "راتب يومي" ? "daily" : "salary";
+
+  return {
+    rowIndex,
+    source: record,
+    workerIdRaw,
+    workerId: Number.isInteger(workerId) && workerId > 0 ? workerId : null,
+    name,
+    idNumber,
+    siteName,
+    contractorName,
+    jobTitle: normalizeText(record["job_title"]) || normalizeText(record["المسمى الوظيفي"]) || null,
+    paymentType,
+    basicSalary: Number.isFinite(salaryRaw) && salaryRaw > 0 ? salaryRaw : null,
+    iqamaExpiry: /^\d{4}-\d{2}-\d{2}$/.test(iqama) ? iqama : null,
+  };
+}
+
+function buildRejectedDownloadHref(fileName: string) {
+  return `/rejected-uploads/${fileName}`;
 }
 
 function buildWorkersHref(query: Record<string, string | undefined>) {
@@ -166,11 +231,13 @@ export default async function WorkersPage({ searchParams }: Props) {
       redirect("/workers?tab=create&upload=sheet_empty");
     }
 
+    const operation: UploadOperation = normalizeText(formData.get("operation")) === "update" ? "update" : "insert";
     const supabase = createSupabaseAdminClient();
-    const [sitesRes, contractorsRes, existingIdsRes] = await Promise.all([
+    const [sitesRes, contractorsRes, existingWorkersRes, existingIdentityRes] = await Promise.all([
       supabase.from("sites").select("id, name"),
       supabase.from("contractors").select("id, name"),
-      supabase.from("workers").select("id_number"),
+      supabase.from("workers").select("id"),
+      supabase.from("workers").select("id, id_number"),
     ]);
 
     const sitesByName = new Map(
@@ -179,66 +246,206 @@ export default async function WorkersPage({ searchParams }: Props) {
     const contractorsByName = new Map(
       ((contractorsRes.data ?? []) as { id: number; name: string }[]).map((item) => [item.name.trim(), item.id]),
     );
-    const existingIds = new Set(
-      ((existingIdsRes.data ?? []) as { id_number: string }[]).map((item) => String(item.id_number).trim()),
+    const existingWorkerIds = new Set(((existingWorkersRes.data ?? []) as { id: number }[]).map((item) => Number(item.id)));
+    const existingIdentityById = new Map(
+      ((existingIdentityRes.data ?? []) as { id: number; id_number: string }[]).map((item) => [Number(item.id), String(item.id_number).trim()]),
+    );
+    const existingIdentitySet = new Set(
+      ((existingIdentityRes.data ?? []) as { id: number; id_number: string }[]).map((item) => String(item.id_number).trim()),
     );
 
-    const inFileIds = new Set<string>();
-    const payload: Array<{
+    const rejectedRows: RejectedRow[] = [];
+    const parsedRows = records.map((record, index) => parseSheetRow(record, index + 2));
+    const idsInFile = new Set<number>();
+    const identitiesInFile = new Set<string>();
+
+    const insertPayload: Array<{
+      id: number;
       name: string;
       id_number: string;
       job_title: string | null;
       payment_type: "salary" | "daily";
       basic_salary: number | null;
       iqama_expiry: string | null;
-      current_site_id: number | null;
+      current_site_id: number;
       contractor_id: number | null;
       is_active: boolean;
       is_deleted: boolean;
     }> = [];
 
-    for (const record of records) {
-      const name =
-        normalizeText(record["name"]) || normalizeText(record["الاسم"]) || normalizeText(record["اسم العامل"]);
-      const idNumber =
-        normalizeText(record["id_number"]) ||
-        normalizeText(record["رقم الهوية/الإقامة/الجواز"]) ||
-        normalizeText(record["رقم الهوية"]) ||
-        normalizeText(record["رقم الإقامة"]) ||
-        normalizeText(record["رقم الجواز"]);
-      if (!name || !idNumber) continue;
-      if (existingIds.has(idNumber) || inFileIds.has(idNumber)) continue;
+    const updatePayload: Array<{
+      rowIndex: number;
+      source: Record<string, unknown>;
+      id: number;
+      name: string;
+      id_number: string;
+      job_title: string | null;
+      payment_type: "salary" | "daily";
+      basic_salary: number | null;
+      iqama_expiry: string | null;
+      current_site_id: number;
+      contractor_id: number | null;
+    }> = [];
 
-      const paymentRaw = normalizeText(record["payment_type"]) || normalizeText(record["نظام الدفع"]);
-      const paymentType =
-        paymentRaw === "daily" || paymentRaw === "يومي" || paymentRaw === "راتب يومي" ? "daily" : "salary";
-      const siteName = normalizeText(record["site"]) || normalizeText(record["الموقع"]);
-      const contractorName = normalizeText(record["contractor"]) || normalizeText(record["المقاول"]);
-      const iqama = normalizeText(record["iqama_expiry"]) || normalizeText(record["تاريخ انتهاء الإقامة"]);
-      const salaryRaw = Number(record["basic_salary"] ?? record["الراتب"] ?? 0);
+    for (const row of parsedRows) {
+      if (!row.workerId) {
+        rejectedRows.push({ rowIndex: row.rowIndex, source: row.source, reason: "رقم العامل ناقص أو غير صحيح" });
+        continue;
+      }
+      if (!row.idNumber) {
+        rejectedRows.push({ rowIndex: row.rowIndex, source: row.source, reason: "رقم الهوية ناقص" });
+        continue;
+      }
+      if (!row.siteName) {
+        rejectedRows.push({ rowIndex: row.rowIndex, source: row.source, reason: "الموقع ناقص" });
+        continue;
+      }
+      const siteId = sitesByName.get(row.siteName);
+      if (!siteId) {
+        rejectedRows.push({ rowIndex: row.rowIndex, source: row.source, reason: "الموقع غير موجود (Exact Match مطلوب)" });
+        continue;
+      }
+      const contractorId = row.contractorName ? (contractorsByName.get(row.contractorName) ?? null) : null;
+      if (row.contractorName && !contractorId) {
+        rejectedRows.push({ rowIndex: row.rowIndex, source: row.source, reason: "المقاول غير موجود (Exact Match مطلوب)" });
+        continue;
+      }
+      if (!row.name) {
+        rejectedRows.push({ rowIndex: row.rowIndex, source: row.source, reason: "اسم العامل ناقص" });
+        continue;
+      }
 
-      payload.push({
-        name,
-        id_number: idNumber,
-        job_title: normalizeText(record["job_title"]) || normalizeText(record["المسمى الوظيفي"]) || null,
-        payment_type: paymentType,
-        basic_salary: Number.isFinite(salaryRaw) && salaryRaw > 0 ? salaryRaw : null,
-        iqama_expiry: /^\d{4}-\d{2}-\d{2}$/.test(iqama) ? iqama : null,
-        current_site_id: sitesByName.get(siteName) ?? null,
-        contractor_id: contractorsByName.get(contractorName) ?? null,
-        is_active: true,
-        is_deleted: false,
+      if (idsInFile.has(row.workerId)) {
+        rejectedRows.push({ rowIndex: row.rowIndex, source: row.source, reason: "رقم العامل مكرر داخل الملف" });
+        continue;
+      }
+
+      if (operation === "insert") {
+        if (existingWorkerIds.has(row.workerId)) {
+          rejectedRows.push({ rowIndex: row.rowIndex, source: row.source, reason: "رقم العامل موجود مسبقًا" });
+          continue;
+        }
+        if (existingIdentitySet.has(row.idNumber) || identitiesInFile.has(row.idNumber)) {
+          rejectedRows.push({ rowIndex: row.rowIndex, source: row.source, reason: "رقم الهوية موجود مسبقًا" });
+          continue;
+        }
+        insertPayload.push({
+          id: row.workerId,
+          name: row.name,
+          id_number: row.idNumber,
+          job_title: row.jobTitle,
+          payment_type: row.paymentType,
+          basic_salary: row.basicSalary,
+          iqama_expiry: row.iqamaExpiry,
+          current_site_id: siteId,
+          contractor_id: contractorId,
+          is_active: true,
+          is_deleted: false,
+        });
+        idsInFile.add(row.workerId);
+        identitiesInFile.add(row.idNumber);
+        continue;
+      }
+
+      if (!existingWorkerIds.has(row.workerId)) {
+        rejectedRows.push({ rowIndex: row.rowIndex, source: row.source, reason: "رقم العامل غير موجود للتحديث" });
+        continue;
+      }
+      const currentIdNumber = existingIdentityById.get(row.workerId);
+      if (identitiesInFile.has(row.idNumber)) {
+        rejectedRows.push({ rowIndex: row.rowIndex, source: row.source, reason: "رقم الهوية مكرر داخل الملف" });
+        continue;
+      }
+      if (currentIdNumber && currentIdNumber !== row.idNumber && existingIdentitySet.has(row.idNumber)) {
+        rejectedRows.push({ rowIndex: row.rowIndex, source: row.source, reason: "رقم الهوية مستخدم لعامل آخر" });
+        continue;
+      }
+
+      updatePayload.push({
+        rowIndex: row.rowIndex,
+        source: row.source,
+        id: row.workerId,
+        name: row.name,
+        id_number: row.idNumber,
+        job_title: row.jobTitle,
+        payment_type: row.paymentType,
+        basic_salary: row.basicSalary,
+        iqama_expiry: row.iqamaExpiry,
+        current_site_id: siteId,
+        contractor_id: contractorId,
       });
-      inFileIds.add(idNumber);
+      idsInFile.add(row.workerId);
+      identitiesInFile.add(row.idNumber);
     }
 
-    if (payload.length > 0) {
-      await supabase.from("workers").insert(payload);
-      revalidatePath("/workers");
-      revalidatePath("/dashboard");
-      redirect(`/workers?tab=create&upload=success&count=${payload.length}`);
+    let successCount = 0;
+    if (operation === "insert" && insertPayload.length > 0) {
+      const { error } = await supabase.from("workers").insert(insertPayload);
+      if (error) {
+        redirect("/workers?tab=create&upload=server_error");
+      }
+      successCount = insertPayload.length;
     }
-    redirect("/workers?tab=create&upload=no_new_rows");
+
+    if (operation === "update" && updatePayload.length > 0) {
+      for (const row of updatePayload) {
+        const { error } = await supabase
+          .from("workers")
+          .update({
+            name: row.name,
+            id_number: row.id_number,
+            job_title: row.job_title,
+            payment_type: row.payment_type,
+            basic_salary: row.basic_salary,
+            iqama_expiry: row.iqama_expiry,
+            current_site_id: row.current_site_id,
+            contractor_id: row.contractor_id,
+          })
+          .eq("id", row.id);
+        if (error) {
+          rejectedRows.push({
+            rowIndex: row.rowIndex,
+            source: row.source,
+            reason: "فشل تحديث السطر في قاعدة البيانات",
+          });
+          continue;
+        }
+        successCount += 1;
+      }
+    }
+
+    let rejectedFile = "";
+    if (rejectedRows.length > 0) {
+      const headers = Array.from(new Set(records.flatMap((record) => Object.keys(record))));
+      const exportRows = rejectedRows.map((item) => ({
+        "__رقم_السطر": item.rowIndex,
+        ...item.source,
+        "سبب الرفض": item.reason,
+      }));
+      const sheetRejected = XLSX.utils.json_to_sheet(exportRows, { header: ["__رقم_السطر", ...headers, "سبب الرفض"] });
+      const workbookRejected = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbookRejected, sheetRejected, "rejected_rows");
+      const output = XLSX.write(workbookRejected, { type: "buffer", bookType: "xlsx" });
+      const folderPath = path.join(process.cwd(), "public", "rejected-uploads");
+      await mkdir(folderPath, { recursive: true });
+      rejectedFile = `rejected-workers-${Date.now()}-${randomUUID().slice(0, 8)}.xlsx`;
+      await writeFile(path.join(folderPath, rejectedFile), output);
+    }
+
+    revalidatePath("/workers");
+    revalidatePath("/dashboard");
+
+    const params = new URLSearchParams({
+      tab: "create",
+      upload: "processed",
+      mode: operation,
+      success: String(successCount),
+      failed: String(rejectedRows.length),
+    });
+    if (rejectedFile) {
+      params.set("rejectedFile", rejectedFile);
+    }
+    redirect(`/workers?${params.toString()}`);
   }
 
   async function toggleActive(formData: FormData) {
@@ -292,7 +499,10 @@ export default async function WorkersPage({ searchParams }: Props) {
   const showStopped = boolFlag(params.showStopped);
   const showDeleted = boolFlag(params.showDeleted);
   const uploadState = params.upload;
-  const uploadedCount = Number(params.count);
+  const uploadSuccess = Number(params.success);
+  const uploadFailed = Number(params.failed);
+  const uploadMode = params.mode === "update" ? "update" : "insert";
+  const rejectedFile = normalizeText(params.rejectedFile);
 
   const supabase = createSupabaseAdminClient();
 
@@ -377,15 +587,21 @@ export default async function WorkersPage({ searchParams }: Props) {
             <p className="text-xs text-slate-500">
               استخدم الشيت الجاهز، والحد الأدنى للأعمدة: الاسم + رقم الهوية/الإقامة/الجواز (رقم فريد غير مكرر).
             </p>
-            {uploadState === "success" && (
-              <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
-                تم رفع الملف بنجاح. تمت إضافة {Number.isFinite(uploadedCount) ? uploadedCount : 0} موظف.
-              </p>
-            )}
-            {uploadState === "no_new_rows" && (
-              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
-                تم فحص الملف لكن لا توجد صفوف جديدة للإضافة (قد تكون البيانات مكررة).
-              </p>
+            {uploadState === "processed" && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-xs font-bold text-emerald-800">
+                <p>
+                  تم الانتهاء من {uploadMode === "update" ? "تحديث" : "إضافة"} الملف. نجح {Number.isFinite(uploadSuccess) ? uploadSuccess : 0}، فشل{" "}
+                  {Number.isFinite(uploadFailed) ? uploadFailed : 0}.
+                </p>
+                {rejectedFile && (
+                  <Link
+                    href={buildRejectedDownloadHref(rejectedFile)}
+                    className="mt-2 inline-flex min-h-9 items-center justify-center rounded-lg bg-red-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-600"
+                  >
+                    تحميل ملف المرفوضات
+                  </Link>
+                )}
+              </div>
             )}
             {uploadState === "sheet_empty" && (
               <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
@@ -405,6 +621,11 @@ export default async function WorkersPage({ searchParams }: Props) {
             {uploadState === "demo_mode" && (
               <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700">
                 وضع التجربة مفعل: تم استقبال الملف للمعاينة فقط.
+              </p>
+            )}
+            {uploadState === "server_error" && (
+              <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+                حدث خطأ أثناء حفظ البيانات في قاعدة البيانات. حاول مرة أخرى.
               </p>
             )}
             <div className="flex flex-wrap items-center gap-2">
