@@ -197,6 +197,20 @@ export default async function AttendancePage({ searchParams }: Props) {
         })
       : null;
 
+  const reviewedRows = reviewedPage?.rows ?? [];
+
+  const reviewBadgeClass = (status: "pending" | "confirmed" | "rejected") => {
+    if (status === "confirmed") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (status === "rejected") return "bg-rose-50 text-rose-700 border-rose-200";
+    return "bg-amber-50 text-amber-700 border-amber-200";
+  };
+
+  const reviewLabel = (status: "pending" | "confirmed" | "rejected") => {
+    if (status === "confirmed") return "معتمد";
+    if (status === "rejected") return "مرفوض";
+    return "بانتظار الاعتماد";
+  };
+
   return (
     <section className="space-y-4">
       <Card>
@@ -310,10 +324,57 @@ export default async function AttendancePage({ searchParams }: Props) {
         </>
       ) : (
         <>
+          <Card className="border-dashed border-slate-200 bg-white/80">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-extrabold text-slate-800">سجلات اليوم المحضّرة للمراجعة</p>
+              <p className="rounded-lg bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
+                إجمالي السجلات: {reviewedPage?.meta.totalRows ?? 0}
+              </p>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              زر <span className="font-bold text-emerald-700">مراجعة حضور</span> ينشئ جولة جديدة لنفس العامل كي يتم
+              إعادة الاعتماد من المراقب الميداني.
+            </p>
+          </Card>
+
           <Card className="overflow-hidden p-0">
-            <div className="overflow-x-auto">
+            <div className="space-y-3 p-3 md:hidden">
+              {reviewedRows.map((row) => (
+                <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-bold text-slate-800">{row.workers?.name ?? "-"}</p>
+                      <p className="text-xs text-slate-500">{row.workers?.id_number ?? "-"}</p>
+                    </div>
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${reviewBadgeClass(
+                        row.confirmation_status,
+                      )}`}
+                    >
+                      {reviewLabel(row.confirmation_status)}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                    <p>الموقع: {row.sites?.name ?? "-"}</p>
+                    <p>
+                      الجولة: #{row.attendance_rounds?.round_no ?? "-"} / {row.attendance_rounds?.work_date ?? "-"}
+                    </p>
+                  </div>
+
+                  <form action={reviewAttendanceCheck} className="mt-3">
+                    <input type="hidden" name="checkId" value={row.id} />
+                    <button className="w-full rounded-lg bg-[#166534] px-3 py-2 text-xs font-bold text-white">
+                      مراجعة حضور
+                    </button>
+                  </form>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-100 text-slate-700">
+                <thead className="bg-slate-50 text-slate-700">
                   <tr>
                     <th className="px-3 py-2 text-right font-bold">العامل</th>
                     <th className="px-3 py-2 text-right font-bold">الموقع</th>
@@ -323,8 +384,8 @@ export default async function AttendancePage({ searchParams }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {(reviewedPage?.rows ?? []).map((row) => (
-                    <tr key={row.id} className="border-t border-slate-200">
+                  {reviewedRows.map((row) => (
+                    <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/70">
                       <td className="px-3 py-2">
                         <p className="font-bold text-slate-800">{row.workers?.name ?? "-"}</p>
                         <p className="text-xs text-slate-500">{row.workers?.id_number ?? "-"}</p>
@@ -334,16 +395,18 @@ export default async function AttendancePage({ searchParams }: Props) {
                         {row.attendance_rounds?.work_date ?? "-"} / #{row.attendance_rounds?.round_no ?? "-"}
                       </td>
                       <td className="px-3 py-2">
-                        {row.confirmation_status === "pending"
-                          ? "بانتظار الاعتماد"
-                          : row.confirmation_status === "confirmed"
-                            ? "معتمد"
-                            : "مرفوض"}
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${reviewBadgeClass(
+                            row.confirmation_status,
+                          )}`}
+                        >
+                          {reviewLabel(row.confirmation_status)}
+                        </span>
                       </td>
                       <td className="px-3 py-2">
                         <form action={reviewAttendanceCheck}>
                           <input type="hidden" name="checkId" value={row.id} />
-                          <button className="rounded-lg bg-[#166534] px-3 py-1.5 text-xs font-bold text-white">
+                          <button className="rounded-lg bg-[#166534] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#14532d]">
                             مراجعة حضور
                           </button>
                         </form>
@@ -353,7 +416,7 @@ export default async function AttendancePage({ searchParams }: Props) {
                 </tbody>
               </table>
             </div>
-            {(reviewedPage?.rows ?? []).length === 0 && (
+            {reviewedRows.length === 0 && (
               <div className="p-4 text-center text-sm text-slate-500">
                 لا توجد سجلات حضور اليوم لعرضها في المراجعة.
               </div>
