@@ -19,6 +19,7 @@ type ApprovalDecisionPayload = {
 };
 
 type IdempotencyScope = "attendance_sync" | "approval_sync";
+const BULK_ATTENDANCE_PUBLIC_RPC = "submit_attendance_bulk_checks";
 
 async function hasProcessedIdempotencyKey(idempotencyKey: string) {
   const supabase = createSupabaseAdminClient();
@@ -68,7 +69,7 @@ export async function submitAttendanceByWorkersEngine({
     .filter((item) => Number.isFinite(item.worker_id) && item.worker_id > 0);
   if (payload.length === 0) return;
 
-  const { error } = await supabase.rpc("submit_attendance_bulk_checks", {
+  const { error } = await supabase.rpc(BULK_ATTENDANCE_PUBLIC_RPC, {
     p_work_date: workDate,
     p_payload: payload,
     p_notes: note,
