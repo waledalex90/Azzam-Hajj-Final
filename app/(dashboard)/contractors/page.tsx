@@ -1,4 +1,4 @@
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,9 @@ export default async function ContractorsPage({ searchParams }: Props) {
 
     await supabase.from("contractors").insert({ name, is_active: true });
     revalidatePath("/contractors");
+    revalidatePath("/sites");
     revalidatePath("/dashboard");
+    revalidateTag("contractors-options", "max");
   }
 
   async function toggleContractor(formData: FormData) {
@@ -35,6 +37,8 @@ export default async function ContractorsPage({ searchParams }: Props) {
     const supabase = createSupabaseAdminClient();
     await supabase.from("contractors").update({ is_active: !isActive }).eq("id", contractorId);
     revalidatePath("/contractors");
+    revalidatePath("/sites");
+    revalidateTag("contractors-options", "max");
   }
 
   async function removeContractor(formData: FormData) {
@@ -52,7 +56,9 @@ export default async function ContractorsPage({ searchParams }: Props) {
     }
 
     revalidatePath("/contractors");
+    revalidatePath("/sites");
     revalidatePath("/dashboard");
+    revalidateTag("contractors-options", "max");
   }
 
   await searchParams;

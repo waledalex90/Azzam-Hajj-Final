@@ -1,12 +1,14 @@
 import { revalidatePath } from "next/cache";
+import { unstable_noStore as noStore } from "next/cache";
 
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { getContractorOptions } from "@/lib/data/attendance";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 export default async function SitesPage() {
+  noStore();
+
   async function createSite(formData: FormData) {
     "use server";
     if (isDemoModeEnabled()) return;
@@ -40,7 +42,7 @@ export default async function SitesPage() {
   const supabase = createSupabaseAdminClient();
   const [{ data: sites }, contractors] = await Promise.all([
     supabase.from("sites").select("id, name, is_active").order("id", { ascending: false }),
-    getContractorOptions(),
+    supabase.from("contractors").select("id, name").order("name", { ascending: true }).then((res) => res.data ?? []),
   ]);
 
   return (
@@ -60,7 +62,9 @@ export default async function SitesPage() {
               </option>
             ))}
           </select>
-          <button className="rounded bg-slate-900 px-4 py-2 text-sm font-bold text-white">إضافة موقع</button>
+          <button className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-600">
+            إضافة موقع
+          </button>
         </form>
       </Card>
 
