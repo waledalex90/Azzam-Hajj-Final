@@ -318,7 +318,7 @@ export function AttendanceWorkersTable({
           {syncProgress.active && syncProgress.total > 0 && (
             <div className="min-w-[260px] rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
               <p className="text-[11px] font-bold text-emerald-700">
-                جاري الحفظ الفعلي في قاعدة البيانات ({syncProgress.processed} / {syncProgress.total})...
+                جاري حفظ التحضير ({syncProgress.processed} / {syncProgress.total})...
               </p>
               <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-emerald-100">
                 <div

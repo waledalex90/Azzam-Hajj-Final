@@ -22,7 +22,7 @@ export default async function DashboardLayout({ children }: Props) {
     return (
       <main className="container-mobile py-6">
         <Card className="text-sm text-red-700">
-          الحساب موجود في Authentication لكنه غير مربوط في جدول <code>app_users</code>.
+          هذا الحساب غير مكتمل الإعداد داخل النظام. برجاء التواصل مع مدير النظام.
         </Card>
       </main>
     );
@@ -38,7 +38,7 @@ export default async function DashboardLayout({ children }: Props) {
           </div>
           {demoMode && (
             <Card className="border-amber-300 bg-amber-50 text-amber-900">
-              نسخة تجريبية محلية مفعلة: أي عمليات حفظ/تعديل/حذف لن تُكتب في قاعدة البيانات.
+              وضع التجربة المحلي مفعل: التعديلات هنا للعرض فقط.
             </Card>
           )}
           {children}

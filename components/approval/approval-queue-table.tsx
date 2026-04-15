@@ -123,7 +123,7 @@ export function ApprovalQueueTable({ rows }: Props) {
     <Card className="overflow-hidden p-0">
       {queuedCount > 0 && (
         <div className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
-          يوجد {queuedCount} عملية اعتماد محفوظة للمزامنة عند توفر الشبكة.
+          يوجد {queuedCount} عملية اعتماد قيد المعالجة، وسيتم استكمالها تلقائيًا.
         </div>
       )}
       <div className="overflow-x-auto">

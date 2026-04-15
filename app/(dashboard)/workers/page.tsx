@@ -404,7 +404,7 @@ export default async function WorkersPage({ searchParams }: Props) {
             )}
             {uploadState === "demo_mode" && (
               <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700">
-                أنت على نسخة تجريبية محلية: تم استقبال الملف لكن لم يتم حفظ أي بيانات.
+                وضع التجربة مفعل: تم استقبال الملف للمعاينة فقط.
               </p>
             )}
             <div className="flex flex-wrap items-center gap-2">

@@ -142,7 +142,7 @@ export default async function AttendancePage({ searchParams }: Props) {
       <Card>
         <h1 className="text-lg font-extrabold text-slate-900">شاشة التحضير - مراقب فني</h1>
         <p className="mt-1 text-sm text-slate-600">
-          عرض العمال عبر Server-side Pagination لتقليل الضغط عند 6000 عامل.
+          متابعة حضور العمال بسرعة وبشكل واضح حتى مع الأعداد الكبيرة.
         </p>
 
         <div className="mt-3 flex items-center gap-2 border-b border-slate-200 text-sm">

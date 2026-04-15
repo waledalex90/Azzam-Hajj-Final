@@ -90,7 +90,7 @@ export default async function ViolationsPage({ searchParams }: Props) {
           </Link>
         </div>
         <p className="mt-1 text-sm text-slate-600">
-          جلب البيانات يتم من السيرفر مع Pagination ودعم فلاتر الحالة والموقع.
+          عرض المخالفات بشكل منظم مع خيارات فرز حسب الحالة والموقع.
         </p>
         <form className="mt-4 grid gap-2 sm:grid-cols-3" method="get">
           <select
