@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { applyApprovalDecisionsEngine, submitAttendanceByWorkersEngine } from "@/lib/services/attendance-engine";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 type AttendanceStatus = "present" | "absent" | "half";
 
@@ -18,6 +19,7 @@ type SyncBody = {
 };
 
 export async function POST(request: Request) {
+  const demoMode = isDemoModeEnabled();
   const authClient = await createSupabaseServerClient();
   const {
     data: { user },
@@ -58,7 +60,7 @@ export async function POST(request: Request) {
 
     const workerIds = Array.from(new Set(body.workerIds.map((id) => Number(id)).filter(Boolean)));
     if (workerIds.length === 0) {
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, demoMode });
     }
     const status = body.status;
     const workDate = body.workDate;
@@ -79,7 +81,7 @@ export async function POST(request: Request) {
 
     const checkIds = Array.from(new Set(body.checkIds.map((id) => Number(id)).filter(Boolean)));
     if (checkIds.length === 0) {
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, demoMode });
     }
 
     await applyApprovalDecisionsEngine({
@@ -94,5 +96,5 @@ export async function POST(request: Request) {
   revalidatePath("/dashboard");
   revalidateTag("dashboard-stats", "max");
   revalidateTag("dashboard-admin", "max");
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, demoMode });
 }

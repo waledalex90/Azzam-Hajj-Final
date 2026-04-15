@@ -11,6 +11,7 @@ import { getSessionContext } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getAttendanceChecksPage, getSiteOptions } from "@/lib/data/attendance";
 import { parsePage } from "@/lib/utils/pagination";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 type Props = {
   searchParams: Promise<{
@@ -29,6 +30,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
 
   async function requestAttendanceCorrection(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
 
     const checkId = Number(formData.get("checkId"));
     const reason = String(formData.get("reason") || "طلب تعديل حضور").trim();

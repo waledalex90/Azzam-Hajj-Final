@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getAttendanceWorkersPage, getContractorOptions, getSiteOptions } from "@/lib/data/attendance";
 import { parsePage } from "@/lib/utils/pagination";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 type Props = {
   searchParams: Promise<{
@@ -22,6 +23,7 @@ const PAGE_SIZE = 20;
 export default async function TransfersPage({ searchParams }: Props) {
   async function transferWorker(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
 
     const workerId = Number(formData.get("workerId"));
     const newSiteId = Number(formData.get("newSiteId")) || null;

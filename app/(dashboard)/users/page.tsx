@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 const ROLES = [
   { value: "admin", label: "مدير النظام" },
@@ -14,6 +15,7 @@ const ROLES = [
 export default async function UsersPage() {
   async function createUser(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
     const fullName = String(formData.get("fullName") || "").trim();
     const username = String(formData.get("username") || "").trim();
     const role = String(formData.get("role") || "field_observer");

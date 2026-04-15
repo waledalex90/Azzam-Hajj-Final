@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getAttendanceChecksPage, getSiteOptions } from "@/lib/data/attendance";
 import { parsePage } from "@/lib/utils/pagination";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 type Props = {
   searchParams: Promise<{
@@ -22,6 +23,7 @@ const PAGE_SIZE = 20;
 export default async function CorrectionsPage({ searchParams }: Props) {
   async function approveRequest(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
     const requestId = Number(formData.get("requestId"));
     if (!requestId) return;
     const supabase = createSupabaseAdminClient();
@@ -32,6 +34,7 @@ export default async function CorrectionsPage({ searchParams }: Props) {
 
   async function rejectRequest(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
     const requestId = Number(formData.get("requestId"));
     if (!requestId) return;
     const supabase = createSupabaseAdminClient();
@@ -42,6 +45,7 @@ export default async function CorrectionsPage({ searchParams }: Props) {
 
   async function updateCheck(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
 
     const checkId = Number(formData.get("checkId"));
     const status = String(formData.get("status") || "");

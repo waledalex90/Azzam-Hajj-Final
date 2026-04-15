@@ -9,6 +9,7 @@ import { getViolationFormOptions, getViolationsPage } from "@/lib/data/violation
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getSessionContext } from "@/lib/auth/session";
 import { parsePage } from "@/lib/utils/pagination";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 type Props = {
   searchParams: Promise<{
@@ -24,6 +25,7 @@ const PAGE_SIZE = 20;
 export default async function ViolationsPage({ searchParams }: Props) {
   async function createViolation(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
 
     const workerId = Number(formData.get("workerId"));
     const violationTypeId = Number(formData.get("violationTypeId"));

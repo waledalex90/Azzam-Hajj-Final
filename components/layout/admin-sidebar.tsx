@@ -66,18 +66,18 @@ export function AdminSidebar({ user }: Props) {
   }
 
   return (
-    <aside className="w-full border-b border-slate-200 bg-white/95 text-slate-800 backdrop-blur lg:min-h-screen lg:w-[260px] lg:border-b-0 lg:border-l lg:border-slate-200">
+    <aside className="w-full border-b border-[#b88b2f] bg-[#0f0f11]/95 text-[#f4ecd7] backdrop-blur lg:min-h-screen lg:w-[260px] lg:border-b-0 lg:border-l lg:border-[#b88b2f]">
       <div className="px-4 py-4">
         <BrandLogo className="w-[105px] sm:w-[120px]" />
-        <div className="mt-3 border-t border-slate-200 pt-3">
-          <p className="text-xs text-slate-700">{user.username}</p>
-          <p className="mt-1 text-[11px] text-slate-500">{ROLE_LABELS[user.role]}</p>
+        <div className="mt-3 border-t border-[#b88b2f] pt-3">
+          <p className="text-xs font-extrabold text-[#f6e5a8]">{user.username}</p>
+          <p className="mt-1 text-[11px] text-[#c8c0ab]">{ROLE_LABELS[user.role]}</p>
         </div>
         <button
           type="button"
           onClick={handleSignOut}
           disabled={isSigningOut}
-          className="mt-3 flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-3 flex w-full items-center justify-between rounded-xl border border-[#b88b2f] bg-[#1a1a1c] px-3 py-2 text-sm font-bold text-[#f6e5a8] transition hover:border-[#d4af37] hover:bg-[#232325] disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span>{isSigningOut ? "جاري تسجيل الخروج..." : "تسجيل خروج"}</span>
           <LogOut className="h-4 w-4" />
@@ -95,8 +95,8 @@ export function AdminSidebar({ user }: Props) {
               className={clsx(
                 "flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
                 active
-                  ? "bg-[#eaf4ec] text-[#14532d] shadow-sm"
-                  : "text-slate-700 hover:bg-slate-50 hover:text-slate-900",
+                  ? "bg-[#d4af37] text-[#0b0b0c] shadow-sm"
+                  : "text-[#d6cfba] hover:bg-[#1b1b1d] hover:text-[#f6e5a8]",
               )}
             >
               <span>{item.label}</span>

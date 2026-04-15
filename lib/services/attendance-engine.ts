@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 type AttendanceStatus = "present" | "absent" | "half";
 
@@ -55,6 +56,7 @@ export async function submitAttendanceByWorkersEngine({
   idempotencyKey,
 }: SubmitPayload) {
   if (items.length === 0) return;
+  if (isDemoModeEnabled()) return;
   if (idempotencyKey && (await hasProcessedIdempotencyKey(idempotencyKey))) return;
 
   const supabase = createSupabaseAdminClient();
@@ -123,6 +125,7 @@ export async function applyApprovalDecisionsEngine({
 }: ApprovalDecisionPayload) {
   const uniqueIds = Array.from(new Set(checkIds.map((id) => Number(id)).filter(Boolean)));
   if (uniqueIds.length === 0) return;
+  if (isDemoModeEnabled()) return;
   if (idempotencyKey && (await hasProcessedIdempotencyKey(idempotencyKey))) return;
 
   const supabase = createSupabaseAdminClient();

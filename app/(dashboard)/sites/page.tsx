@@ -4,10 +4,12 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getContractorOptions } from "@/lib/data/attendance";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 export default async function SitesPage() {
   async function createSite(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
     const name = String(formData.get("name") || "").trim();
     const mainContractorId = Number(formData.get("mainContractorId")) || null;
     if (!name) return;
@@ -24,6 +26,7 @@ export default async function SitesPage() {
 
   async function toggleSite(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
     const siteId = Number(formData.get("siteId"));
     const isActive = String(formData.get("isActive")) === "true";
     if (!siteId) return;

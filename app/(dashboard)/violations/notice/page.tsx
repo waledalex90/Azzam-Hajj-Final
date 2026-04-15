@@ -11,6 +11,7 @@ import { NoticeLinkedSelects } from "@/components/violations/notice-linked-selec
 import { getSessionContext } from "@/lib/auth/session";
 import { getInfractionNoticeOptions } from "@/lib/data/violations";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 type Props = {
   searchParams: Promise<{ workerQ?: string; saved?: string }>;
@@ -27,6 +28,9 @@ function toTimeValue(date: Date) {
 export default async function InfractionNoticePage({ searchParams }: Props) {
   async function saveNotice(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) {
+      redirect("/violations/notice?saved=1");
+    }
 
     const workerId = Number(formData.get("workerId"));
     const contractorId = Number(formData.get("contractorId"));

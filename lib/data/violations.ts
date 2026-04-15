@@ -8,6 +8,7 @@ import type {
   WorkerRow,
 } from "@/lib/types/db";
 import { buildPaginationMeta } from "@/lib/utils/pagination";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 type ViolationsPageParams = {
   page: number;
@@ -122,6 +123,15 @@ export async function getViolationFormOptions(search?: string): Promise<{
 
 async function ensureNoticeViolationTypes(): Promise<ViolationTypeOption[]> {
   const supabase = createSupabaseAdminClient();
+  if (isDemoModeEnabled()) {
+    const { data, error } = await supabase
+      .from("violation_types")
+      .select("id, name_ar")
+      .eq("is_active", true)
+      .order("id");
+    if (error) throw new Error(`Notice violation types query failed: ${error.message}`);
+    return (data as ViolationTypeOption[]) ?? [];
+  }
   const { error } = await supabase.from("violation_types").upsert(
     NOTICE_VIOLATION_TYPES.map((item) => ({
       code: item.code,

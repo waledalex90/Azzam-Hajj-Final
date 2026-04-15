@@ -8,6 +8,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getContractorOptions, getSiteOptions } from "@/lib/data/attendance";
 import { parsePage } from "@/lib/utils/pagination";
 import { buildPaginationMeta } from "@/lib/utils/pagination";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 import * as XLSX from "xlsx";
 
 type Props = {
@@ -64,6 +65,7 @@ function buildWorkersHref(query: Record<string, string | undefined>) {
 export default async function WorkersPage({ searchParams }: Props) {
   async function createWorker(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
 
     const name = normalizeText(formData.get("name"));
     const idNumber = normalizeText(formData.get("idNumber"));
@@ -97,6 +99,7 @@ export default async function WorkersPage({ searchParams }: Props) {
 
   async function updateWorker(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
     const workerId = Number(formData.get("workerId"));
     const name = normalizeText(formData.get("name"));
     const idNumber = normalizeText(formData.get("idNumber"));
@@ -137,6 +140,7 @@ export default async function WorkersPage({ searchParams }: Props) {
 
   async function uploadWorkersSheet(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
 
     const file = formData.get("file");
     if (!(file instanceof File) || file.size === 0) return;
@@ -226,6 +230,7 @@ export default async function WorkersPage({ searchParams }: Props) {
 
   async function toggleActive(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
     const workerId = Number(formData.get("workerId"));
     const isActive = String(formData.get("isActive")) === "true";
     if (!workerId) return;
@@ -238,6 +243,7 @@ export default async function WorkersPage({ searchParams }: Props) {
 
   async function softDeleteWorker(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
     const workerId = Number(formData.get("workerId"));
     if (!workerId) return;
     const supabase = createSupabaseAdminClient();
@@ -248,6 +254,7 @@ export default async function WorkersPage({ searchParams }: Props) {
 
   async function restoreWorker(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
     const workerId = Number(formData.get("workerId"));
     if (!workerId) return;
     const supabase = createSupabaseAdminClient();

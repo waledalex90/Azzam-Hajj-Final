@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 type Props = {
   searchParams: Promise<Record<string, string | undefined>>;
@@ -11,6 +12,7 @@ type Props = {
 export default async function ContractorsPage({ searchParams }: Props) {
   async function createContractor(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
     const name = String(formData.get("name") || "").trim();
     if (!name) return;
 
@@ -25,6 +27,7 @@ export default async function ContractorsPage({ searchParams }: Props) {
 
   async function toggleContractor(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
     const contractorId = Number(formData.get("contractorId"));
     const isActive = String(formData.get("isActive")) === "true";
     if (!contractorId) return;
@@ -36,6 +39,7 @@ export default async function ContractorsPage({ searchParams }: Props) {
 
   async function removeContractor(formData: FormData) {
     "use server";
+    if (isDemoModeEnabled()) return;
     const contractorId = Number(formData.get("contractorId"));
     if (!contractorId) return;
 

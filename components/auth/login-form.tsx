@@ -38,7 +38,7 @@ export function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-4 text-right">
       <div className="space-y-2">
-        <label className="text-sm font-extrabold text-slate-700" htmlFor="email">
+        <label className="text-sm font-extrabold text-[#f6e5a8]" htmlFor="email">
           البريد الإلكتروني
         </label>
         <Input
@@ -53,7 +53,7 @@ export function LoginForm() {
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-extrabold text-slate-700" htmlFor="password">
+        <label className="text-sm font-extrabold text-[#f6e5a8]" htmlFor="password">
           كلمة المرور
         </label>
         <Input

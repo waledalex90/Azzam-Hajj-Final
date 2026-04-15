@@ -14,7 +14,7 @@ export function LaunchSplash() {
             className="launch-screen__icon"
           />
           <p className="launch-screen__title">نظام عزام للحج</p>
-          <p className="launch-screen__subtitle">نسخة UAT - جاهزة للاختبار</p>
+          <p className="launch-screen__subtitle">النسخة الملكية - هوية أسود وذهب</p>
         </div>
       </div>
     </main>

@@ -17,6 +17,7 @@ import {
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { submitAttendanceByWorkersEngine } from "@/lib/services/attendance-engine";
 import { parsePage } from "@/lib/utils/pagination";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 type Props = {
   searchParams: Promise<{
@@ -36,6 +37,7 @@ export default async function AttendancePage({ searchParams }: Props) {
     "use server";
     const checkId = Number(formData.get("checkId"));
     if (!checkId) return;
+    if (isDemoModeEnabled()) return;
 
     const supabase = createSupabaseAdminClient();
     const { data: check } = await supabase
