@@ -70,9 +70,8 @@ export function AttendanceWorkersTable({
 }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<number[]>([]);
-  const [statusMap, setStatusMap] = useState<Record<number, AttendanceStatus>>(initialStatusMap);
+  const statusMap = initialStatusMap;
   const [pendingWorkerIds, setPendingWorkerIds] = useState<number[]>([]);
-  const [completedWorkerIds, setCompletedWorkerIds] = useState<number[]>([]);
   const [bulkPending, setBulkPending] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<SyncProgress>({
@@ -81,10 +80,7 @@ export function AttendanceWorkersTable({
     total: 0,
   });
 
-  const visibleRows = useMemo(
-    () => rows.filter((row) => !completedWorkerIds.includes(row.id)),
-    [rows, completedWorkerIds],
-  );
+  const visibleRows = rows;
   const allIds = useMemo(() => visibleRows.map((row) => row.id), [visibleRows]);
   const allFilteredIds = useMemo(() => {
     const source = filteredWorkerIds.length > 0 ? filteredWorkerIds : allIds;
@@ -106,7 +102,7 @@ export function AttendanceWorkersTable({
       throw new Error(CONNECTION_ERROR_MESSAGE);
     }
 
-    const response = await fetch("/api/attendance/sync", {
+    const response = await fetch("/api/attendance", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(operation),
@@ -176,14 +172,7 @@ export function AttendanceWorkersTable({
         }
 
         if (processedIds.length > 0) {
-          setStatusMap((prev) => {
-            const next = { ...prev };
-            processedIds.forEach((id) => {
-              next[id] = status;
-            });
-            return next;
-          });
-          setCompletedWorkerIds((prev) => Array.from(new Set([...prev, ...processedIds])));
+          // Do not change local worker status before server-driven refresh.
         }
         setSyncMessage(`تم التحضير بنجاح لعدد ${selectedCount} موظف.`);
         setSelected([]);
@@ -246,8 +235,6 @@ export function AttendanceWorkersTable({
       };
       try {
         await postSyncOperation(operation);
-        setStatusMap((prev) => ({ ...prev, [workerId]: status }));
-        setCompletedWorkerIds((prev) => Array.from(new Set([...prev, workerId])));
         setSyncProgress({ active: true, processed: 1, total: 1 });
         setSyncMessage("تم تحضير الموظف بنجاح.");
         mutate();
@@ -317,14 +304,14 @@ export function AttendanceWorkersTable({
           )}
           {syncProgress.active && syncProgress.total > 0 && (
             <div className="min-w-[260px] rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
-              <p className="text-[11px] font-bold text-emerald-700">
-                جاري حفظ التحضير ({syncProgress.processed} / {syncProgress.total})...
-              </p>
+              <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-700">
+                <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-700 border-t-transparent" />
+                <span>
+                  جاري الحفظ في قاعدة البيانات... ({syncProgress.processed} / {syncProgress.total})
+                </span>
+              </div>
               <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-emerald-100">
-                <div
-                  className="h-full rounded-full bg-emerald-700 transition-all duration-300"
-                  style={{ width: `${progressPercent}%` }}
-                />
+                <div className="h-full rounded-full bg-emerald-700 transition-all duration-300" style={{ width: `${progressPercent}%` }} />
               </div>
             </div>
           )}
