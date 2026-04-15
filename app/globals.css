@@ -1,10 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --primary: #0f766e;
-  --primary-dark: #115e59;
+  --background: #f5f8f0;
+  --foreground: #1f2937;
+  --primary: #14532d;
+  --primary-dark: #0f3f21;
+  --gold: #b58a2c;
+  --gold-soft: #f8f3df;
   --danger: #b91c1c;
   --muted: #64748b;
 }
@@ -39,9 +41,9 @@ a {
 
 .card {
   background: white;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #d8c99a;
   border-radius: 0.75rem;
-  box-shadow: 0 4px 12px rgb(15 23 42 / 0.03);
+  box-shadow: 0 6px 18px rgb(20 83 45 / 0.06);
 }
 
 .status-present {
