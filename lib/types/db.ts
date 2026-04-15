@@ -52,3 +52,37 @@ export type DashboardStats = {
   absentToday: number;
   violationsToday: number;
 };
+
+export type TopStats = {
+  contractors: number;
+  inactiveWorkers: number;
+  activeWorkers: number;
+  sites: number;
+};
+
+export type IqamaAlert = {
+  id: number;
+  name: string;
+  id_number: string;
+  iqama_expiry: string;
+};
+
+export type PendingCorrection = {
+  id: number;
+  reason: string | null;
+  created_at: string;
+};
+
+export type LatestWorker = {
+  id: number;
+  name: string;
+  id_number: string;
+  created_at: string;
+};
+
+export type AdminDashboardData = {
+  topStats: TopStats;
+  iqamaAlerts: IqamaAlert[];
+  pendingCorrections: PendingCorrection[];
+  latestWorkers: LatestWorker[];
+};

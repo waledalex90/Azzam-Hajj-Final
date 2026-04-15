@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 
-import { TopNav } from "@/components/layout/top-nav";
+import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { Card } from "@/components/ui/card";
 import { getSessionContext } from "@/lib/auth/session";
 
@@ -26,9 +26,11 @@ export default async function DashboardLayout({ children }: Props) {
   }
 
   return (
-    <div className="min-h-screen">
-      <TopNav user={appUser} />
-      <main className="container-mobile py-5">{children}</main>
+    <div className="min-h-screen bg-[#f1f3f7] lg:flex">
+      <AdminSidebar user={appUser} />
+      <main className="flex-1 p-4 lg:p-6">
+        <div className="mx-auto w-full max-w-[1200px]">{children}</div>
+      </main>
     </div>
   );
 }
