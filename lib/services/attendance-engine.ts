@@ -11,6 +11,14 @@ type SubmitPayload = {
   idempotencyKey?: string | null;
 };
 
+type ApprovalDecisionPayload = {
+  checkIds: number[];
+  decision: "confirm" | "reject";
+  idempotencyKey?: string | null;
+};
+
+type IdempotencyScope = "attendance_sync" | "approval_sync";
+
 async function hasProcessedIdempotencyKey(idempotencyKey: string) {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
@@ -92,5 +100,42 @@ export async function submitAttendanceByWorkersEngine({
 
   if (idempotencyKey) {
     await markIdempotencyKeyProcessed(idempotencyKey);
+  }
+}
+
+async function markIdempotencyKeyProcessedForScope(idempotencyKey: string, scope: IdempotencyScope) {
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.from("sync_idempotency_keys").insert({
+    idempotency_key: idempotencyKey,
+    action_scope: scope,
+  });
+
+  if (error) {
+    const code = (error as { code?: string }).code;
+    if (code === "23505" || code === "42P01") return;
+  }
+}
+
+export async function applyApprovalDecisionsEngine({
+  checkIds,
+  decision,
+  idempotencyKey,
+}: ApprovalDecisionPayload) {
+  const uniqueIds = Array.from(new Set(checkIds.map((id) => Number(id)).filter(Boolean)));
+  if (uniqueIds.length === 0) return;
+  if (idempotencyKey && (await hasProcessedIdempotencyKey(idempotencyKey))) return;
+
+  const supabase = createSupabaseAdminClient();
+  const nextStatus = decision === "confirm" ? "confirmed" : "rejected";
+  await supabase
+    .from("attendance_checks")
+    .update({
+      confirmation_status: nextStatus,
+      confirmed_at: new Date().toISOString(),
+    })
+    .in("id", uniqueIds);
+
+  if (idempotencyKey) {
+    await markIdempotencyKeyProcessedForScope(idempotencyKey, "approval_sync");
   }
 }

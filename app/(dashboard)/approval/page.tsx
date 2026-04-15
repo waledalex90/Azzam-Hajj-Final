@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 
+import { ApprovalQueueTable } from "@/components/approval/approval-queue-table";
 import { PaginationControls } from "@/components/pagination/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,27 +26,6 @@ const PAGE_SIZE = 25;
 
 export default async function ApprovalPage({ searchParams }: Props) {
   const { appUser } = await getSessionContext();
-
-  async function confirmCheck(formData: FormData) {
-    "use server";
-
-    const checkId = Number(formData.get("checkId"));
-    const action = String(formData.get("actionType") || "confirm");
-    if (!checkId || !["confirm", "reject"].includes(action)) return;
-
-    const supabase = createSupabaseAdminClient();
-    const nextStatus = action === "confirm" ? "confirmed" : "rejected";
-    await supabase
-      .from("attendance_checks")
-      .update({
-        confirmation_status: nextStatus,
-        confirmed_at: new Date().toISOString(),
-      })
-      .eq("id", checkId);
-
-    revalidatePath("/approval");
-    revalidatePath("/dashboard");
-  }
 
   async function requestAttendanceCorrection(formData: FormData) {
     "use server";
@@ -143,70 +123,57 @@ export default async function ApprovalPage({ searchParams }: Props) {
         </form>
       </Card>
 
-      <Card className="overflow-hidden p-0">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-100 text-slate-700">
-              <tr>
-                <th className="px-3 py-2 text-right">العامل</th>
-                <th className="px-3 py-2 text-right">الموقع</th>
-                <th className="px-3 py-2 text-right">الجولة</th>
-                <th className="px-3 py-2 text-right">الحالة</th>
-                <th className="px-3 py-2 text-right">الإجراء</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-t border-slate-200">
-                  <td className="px-3 py-2">
-                    <p className="font-bold text-slate-800">{row.workers?.name ?? "-"}</p>
-                    <p className="text-xs text-slate-500">{row.workers?.id_number ?? "-"}</p>
-                  </td>
-                  <td className="px-3 py-2">{row.sites?.name ?? "-"}</td>
-                  <td className="px-3 py-2">
-                    {row.attendance_rounds?.work_date ?? "-"} / #{row.attendance_rounds?.round_no ?? "-"}
-                  </td>
-                  <td className="px-3 py-2">
-                    {row.status === "present" ? "حاضر" : row.status === "absent" ? "غائب" : "نصف يوم"}
-                  </td>
-                  <td className="px-3 py-2">
-                    {activeTab === "pending" ? (
-                      <div className="flex gap-2">
-                        <form action={confirmCheck}>
-                          <input type="hidden" name="checkId" value={row.id} />
-                          <input type="hidden" name="actionType" value="confirm" />
-                          <button className="rounded bg-emerald-700 px-3 py-1 text-xs font-bold text-white">
-                            اعتماد
-                          </button>
-                        </form>
-                        <form action={confirmCheck}>
-                          <input type="hidden" name="checkId" value={row.id} />
-                          <input type="hidden" name="actionType" value="reject" />
-                          <button className="rounded bg-red-700 px-3 py-1 text-xs font-bold text-white">
-                            رفض
-                          </button>
-                        </form>
-                      </div>
-                    ) : (
+      {activeTab === "pending" ? (
+        <ApprovalQueueTable rows={rows} />
+      ) : (
+        <Card className="overflow-hidden p-0">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-100 text-slate-700">
+                <tr>
+                  <th className="px-3 py-2 text-right">العامل</th>
+                  <th className="px-3 py-2 text-right">الموقع</th>
+                  <th className="px-3 py-2 text-right">الجولة</th>
+                  <th className="px-3 py-2 text-right">الحالة</th>
+                  <th className="px-3 py-2 text-right">الإجراء</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id} className="border-t border-slate-200">
+                    <td className="px-3 py-2">
+                      <p className="font-bold text-slate-800">{row.workers?.name ?? "-"}</p>
+                      <p className="text-xs text-slate-500">{row.workers?.id_number ?? "-"}</p>
+                    </td>
+                    <td className="px-3 py-2">{row.sites?.name ?? "-"}</td>
+                    <td className="px-3 py-2">
+                      {row.attendance_rounds?.work_date ?? "-"} / #{row.attendance_rounds?.round_no ?? "-"}
+                    </td>
+                    <td className="px-3 py-2">
+                      {row.status === "present" ? "حاضر" : row.status === "absent" ? "غائب" : "نصف يوم"}
+                    </td>
+                    <td className="px-3 py-2">
                       <form action={requestAttendanceCorrection} className="flex flex-wrap items-center gap-2">
                         <input type="hidden" name="checkId" value={row.id} />
                         <input type="hidden" name="requesterId" value={appUser?.id ?? ""} />
-                        <Input name="reason" placeholder="سبب طلب التعديل" className="min-h-9 min-w-[150px] px-3 py-1 text-xs" />
+                        <Input
+                          name="reason"
+                          placeholder="سبب طلب التعديل"
+                          className="min-h-9 min-w-[150px] px-3 py-1 text-xs"
+                        />
                         <button className="rounded bg-amber-600 px-3 py-1 text-xs font-bold text-white">
                           طلب تعديل حضور
                         </button>
                       </form>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {rows.length === 0 && (
-          <div className="p-4 text-center text-sm text-slate-500">لا توجد بيانات اعتماد معلقة.</div>
-        )}
-      </Card>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {rows.length === 0 && <div className="p-4 text-center text-sm text-slate-500">لا توجد بيانات.</div>}
+        </Card>
+      )}
 
       <PaginationControls
         page={meta.page}
