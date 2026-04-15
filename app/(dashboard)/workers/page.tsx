@@ -186,6 +186,7 @@ export default async function WorkersPage({ searchParams }: Props) {
         normalizeText(record["name"]) || normalizeText(record["الاسم"]) || normalizeText(record["اسم العامل"]);
       const idNumber =
         normalizeText(record["id_number"]) ||
+        normalizeText(record["رقم الهوية/الإقامة/الجواز"]) ||
         normalizeText(record["رقم الهوية"]) ||
         normalizeText(record["رقم الإقامة"]) ||
         normalizeText(record["رقم الجواز"]);
@@ -193,7 +194,8 @@ export default async function WorkersPage({ searchParams }: Props) {
       if (existingIds.has(idNumber) || inFileIds.has(idNumber)) continue;
 
       const paymentRaw = normalizeText(record["payment_type"]) || normalizeText(record["نظام الدفع"]);
-      const paymentType = paymentRaw === "daily" || paymentRaw === "يومي" ? "daily" : "salary";
+      const paymentType =
+        paymentRaw === "daily" || paymentRaw === "يومي" || paymentRaw === "راتب يومي" ? "daily" : "salary";
       const siteName = normalizeText(record["site"]) || normalizeText(record["الموقع"]);
       const contractorName = normalizeText(record["contractor"]) || normalizeText(record["المقاول"]);
       const iqama = normalizeText(record["iqama_expiry"]) || normalizeText(record["تاريخ انتهاء الإقامة"]);
@@ -355,10 +357,10 @@ export default async function WorkersPage({ searchParams }: Props) {
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Link
-                href="/templates/workers-import-template.csv"
+                href="/api/workers-template"
                 className="rounded bg-slate-900 px-4 py-2 text-xs font-bold text-white"
               >
-                تحميل الشيت النموذجي
+                تحميل ملف Excel عربي
               </Link>
               <form action={uploadWorkersSheet} className="flex items-center gap-2">
                 <Input type="file" name="file" accept=".xlsx,.xls,.csv" />
