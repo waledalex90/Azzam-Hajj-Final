@@ -2,8 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import * as XLSX from "xlsx";
 
 import { Input } from "@/components/ui/input";
+
+const CHUNK_SIZE = 200;
 
 type SkippedRow = {
   rowIndex: number;
@@ -26,16 +29,55 @@ type ImportErrorPayload = {
   detail?: string;
 };
 
+function adjustSkippedToOriginalSheet(
+  rows: SkippedRow[],
+  chunkIndex: number,
+  chunkSize: number,
+): SkippedRow[] {
+  const offset = chunkIndex * chunkSize;
+  return rows.map((row) => ({
+    ...row,
+    rowIndex: offset + row.rowIndex,
+  }));
+}
+
 export function WorkersUploadForm() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const [progressPercent, setProgressPercent] = useState(0);
+  const [chunkLabel, setChunkLabel] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [result, setResult] = useState<ImportSuccessPayload | null>(null);
+
+  function applyErrorFromResponse(response: Response, data: ImportErrorPayload | Record<string, unknown>) {
+    const err = "error" in data && typeof data.error === "string" ? data.error : "فشل الرفع";
+    const detail = "detail" in data && typeof data.detail === "string" ? data.detail : "";
+    if (response.status === 401) {
+      setErrorMessage("يجب تسجيل الدخول أولاً.");
+    } else if (response.status === 403) {
+      setErrorMessage(err === "demo_mode" ? "وضع التجربة مفعل ولا يُسمح بالرفع." : "ليس لديك صلاحية لاستيراد الموظفين.");
+    } else if (response.status === 400) {
+      const map: Record<string, string> = {
+        file_required: "الملف مفقود أو فارغ. تأكد من اختيار ملف صالح.",
+        "Invalid form data": "تعذر قراءة النموذج (multipart). جرّب ملفًا أصغر أو تحقق من الشبكة.",
+        sheet_missing: "لا يوجد ورقة عمل داخل الملف.",
+        sheet_empty: "الورقة الأولى لا تحتوي بيانات.",
+      };
+      const base = map[err] ?? err;
+      setErrorMessage(detail ? `${base} (${detail})` : base);
+    } else {
+      setErrorMessage(
+        detail ? `${err}: ${detail}` : err,
+      );
+    }
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage(null);
     setResult(null);
+    setProgressPercent(0);
+    setChunkLabel(null);
 
     const form = event.currentTarget;
     const fileInput = form.elements.namedItem("file") as HTMLInputElement | null;
@@ -45,61 +87,96 @@ export function WorkersUploadForm() {
       return;
     }
 
-    const body = new FormData();
-    body.set("file", file, file.name);
-
     setPending(true);
     try {
-      const response = await fetch("/api/workers/import", {
-        method: "POST",
-        body,
-        credentials: "same-origin",
-      });
-
-      const data = (await response.json().catch(() => ({}))) as ImportSuccessPayload | ImportErrorPayload;
-
-      if (!response.ok) {
-        const err = "error" in data ? data.error : "فشل الرفع";
-        const detail = "detail" in data && typeof data.detail === "string" ? data.detail : "";
-        if (response.status === 401) {
-          setErrorMessage("يجب تسجيل الدخول أولاً.");
-        } else if (response.status === 403) {
-          setErrorMessage(err === "demo_mode" ? "وضع التجربة مفعل ولا يُسمح بالرفع." : "ليس لديك صلاحية لاستيراد الموظفين.");
-        } else if (response.status === 400) {
-          const code = typeof err === "string" ? err : "";
-          const map: Record<string, string> = {
-            file_required: "الملف مفقود أو فارغ. تأكد من اختيار ملف صالح.",
-            "Invalid form data": "تعذر قراءة النموذج (multipart). جرّب ملفًا أصغر أو تحقق من الشبكة.",
-            sheet_missing: "لا يوجد ورقة عمل داخل الملف.",
-            sheet_empty: "الورقة الأولى لا تحتوي بيانات.",
-          };
-          const base = map[code] ?? (typeof err === "string" ? err : "طلب غير صالح (400).");
-          setErrorMessage(detail ? `${base} (${detail})` : base);
-        } else {
-          setErrorMessage(
-            detail ? `${typeof err === "string" ? err : "خطأ"}: ${detail}` : typeof err === "string" ? err : "حدث خطأ أثناء معالجة الملف.",
-          );
-        }
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) {
+        setErrorMessage("لا يوجد Sheet داخل الملف.");
+        return;
+      }
+      const sheet = workbook.Sheets[firstSheetName];
+      const records = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+      if (!records.length) {
+        setErrorMessage("الملف لا يحتوي صفوف بيانات.");
         return;
       }
 
-      if ("ok" in data && data.ok) {
-        setResult({
-          ok: true,
-          inserted: data.inserted ?? 0,
-          updated: data.updated ?? 0,
-          skipped: data.skipped ?? 0,
-          skippedRows: Array.isArray(data.skippedRows) ? data.skippedRows : [],
-          processed: data.processed,
-          message: data.message,
+      const totalChunks = Math.ceil(records.length / CHUNK_SIZE);
+      let totalInserted = 0;
+      let totalUpdated = 0;
+      let totalSkipped = 0;
+      const allSkippedRows: SkippedRow[] = [];
+      let totalProcessed = 0;
+
+      for (let c = 0; c < totalChunks; c += 1) {
+        const start = c * CHUNK_SIZE;
+        const chunkRecords = records.slice(start, start + CHUNK_SIZE);
+        if (chunkRecords.length === 0) continue;
+
+        setChunkLabel(`الدفعة ${c + 1} من ${totalChunks} (حتى ${Math.min(start + chunkRecords.length, records.length)} / ${records.length} صف)`);
+        setProgressPercent(Math.round((c / totalChunks) * 100));
+
+        const outBook = XLSX.utils.book_new();
+        const outSheet = XLSX.utils.json_to_sheet(chunkRecords);
+        XLSX.utils.book_append_sheet(outBook, outSheet, "Sheet1");
+        const outBuf = XLSX.write(outBook, { type: "array", bookType: "xlsx" });
+        const blob = new Blob([outBuf], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         });
-        router.refresh();
-        if (fileInput) fileInput.value = "";
-      } else {
-        setErrorMessage("استجابة غير متوقعة من السيرفر.");
+
+        const body = new FormData();
+        body.set("file", blob, `workers-import-part-${c + 1}-of-${totalChunks}.xlsx`);
+
+        const response = await fetch("/api/workers/import", {
+          method: "POST",
+          body,
+          credentials: "same-origin",
+        });
+
+        const data = (await response.json().catch(() => ({}))) as ImportSuccessPayload | ImportErrorPayload;
+
+        if (!response.ok) {
+          applyErrorFromResponse(response, data);
+          setProgressPercent(0);
+          setChunkLabel(null);
+          return;
+        }
+
+        if (!("ok" in data) || !data.ok) {
+          setErrorMessage("استجابة غير متوقعة من السيرفر في إحدى الدفعات.");
+          setProgressPercent(0);
+          setChunkLabel(null);
+          return;
+        }
+
+        totalInserted += data.inserted ?? 0;
+        totalUpdated += data.updated ?? 0;
+        totalSkipped += data.skipped ?? 0;
+        totalProcessed += data.processed ?? 0;
+        const chunkSkipped = Array.isArray(data.skippedRows) ? data.skippedRows : [];
+        allSkippedRows.push(...adjustSkippedToOriginalSheet(chunkSkipped, c, CHUNK_SIZE));
+
+        setProgressPercent(Math.round(((c + 1) / totalChunks) * 100));
       }
+
+      setChunkLabel(null);
+      setResult({
+        ok: true,
+        inserted: totalInserted,
+        updated: totalUpdated,
+        skipped: totalSkipped,
+        skippedRows: allSkippedRows,
+        processed: totalProcessed,
+        message: `تمت معالجة ${totalChunks} دفعة (${records.length} صف في الملف).`,
+      });
+      router.refresh();
+      if (fileInput) fileInput.value = "";
     } catch {
-      setErrorMessage("تعذر الاتصال بالسيرفر. تحقق من الشبكة وحاول مجددًا.");
+      setErrorMessage("تعذر قراءة الملف أو الاتصال بالسيرفر. تحقق من الشبكة وحاول مجددًا.");
+      setProgressPercent(0);
+      setChunkLabel(null);
     } finally {
       setPending(false);
     }
@@ -128,6 +205,19 @@ export function WorkersUploadForm() {
         </button>
       </form>
 
+      {pending && (
+        <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+          {chunkLabel && <p className="text-[11px] font-bold text-slate-700">{chunkLabel}</p>}
+          <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
+            <div
+              className="h-full rounded-full bg-emerald-600 transition-all duration-300"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+          <p className="text-center text-[11px] font-bold text-slate-600">{progressPercent}%</p>
+        </div>
+      )}
+
       {errorMessage && (
         <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{errorMessage}</p>
       )}
@@ -138,14 +228,14 @@ export function WorkersUploadForm() {
             اكتمل الاستيراد: <span className="text-emerald-800">جديد {result.inserted}</span>،{" "}
             <span className="text-emerald-800">محدّث {result.updated}</span>،{" "}
             <span className="text-amber-800">متخطى {result.skipped}</span>
-            {result.processed !== undefined ? ` (معالَج ${result.processed} صفًا صالحًا)` : ""}
+            {result.processed !== undefined ? ` (معالَج ${result.processed} صفًا صالحًا في الدفعات)` : ""}
           </p>
           {result.message && <p className="font-normal text-emerald-800">{result.message}</p>}
 
           {result.skipped > 0 && result.skippedRows.length > 0 && (
             <div className="mt-2 overflow-x-auto rounded-lg border border-amber-200 bg-white">
               <p className="border-b border-amber-100 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900">
-                صفوف تحتاج تعديل (مرفوضة مؤقتًا):
+                صفوف تحتاج تعديل (مرفوضة مؤقتًا) — أرقام الصفوف حسب الملف الأصلي:
               </p>
               <table className="min-w-full text-[11px]">
                 <thead className="bg-slate-100 text-slate-700">
