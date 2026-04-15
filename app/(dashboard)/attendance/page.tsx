@@ -1,5 +1,6 @@
 import { AttendanceWorkersTable } from "@/components/attendance/attendance-workers-table";
 import { PaginationControls } from "@/components/pagination/pagination-controls";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getAttendanceWorkersPage } from "@/lib/data/attendance";
@@ -39,12 +40,9 @@ export default async function AttendancePage({ searchParams }: Props) {
         <form className="mt-4 grid gap-2 sm:grid-cols-3" method="get">
           <Input name="q" defaultValue={q} placeholder="بحث بالاسم أو رقم الهوية" />
           <Input name="siteId" defaultValue={params.siteId} placeholder="رقم الموقع (اختياري)" />
-          <button
-            type="submit"
-            className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-bold text-white hover:bg-teal-800"
-          >
+          <Button type="submit" className="w-full">
             تطبيق الفلاتر
-          </button>
+          </Button>
         </form>
       </Card>
 

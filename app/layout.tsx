@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Tajawal } from "next/font/google";
 import "./globals.css";
 
@@ -10,7 +10,25 @@ const tajawal = Tajawal({
 
 export const metadata: Metadata = {
   title: "نظام عزام للحج",
-  description: "Azzam Hajj System - Next.js Migration",
+  description: "Azzam Hajj System - Progressive Web App",
+  applicationName: "نظام عزام للحج",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "نظام عزام للحج",
+  },
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-512.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/icons/icon-192.svg", type: "image/svg+xml" }],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0f766e",
 };
 
 export default function RootLayout({

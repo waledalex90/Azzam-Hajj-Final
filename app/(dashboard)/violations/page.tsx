@@ -1,4 +1,5 @@
 import { PaginationControls } from "@/components/pagination/pagination-controls";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ViolationsTable } from "@/components/violations/violations-table";
@@ -39,7 +40,7 @@ export default async function ViolationsPage({ searchParams }: Props) {
           <select
             name="status"
             defaultValue={status}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+            className="min-h-12 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base"
           >
             <option value="">كل الحالات</option>
             <option value="pending_review">بانتظار المراجعة</option>
@@ -48,12 +49,9 @@ export default async function ViolationsPage({ searchParams }: Props) {
             <option value="rejected">مرفوض</option>
           </select>
           <Input name="siteId" defaultValue={params.siteId} placeholder="رقم الموقع (اختياري)" />
-          <button
-            type="submit"
-            className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-bold text-white hover:bg-teal-800"
-          >
+          <Button type="submit" className="w-full">
             تطبيق الفلاتر
-          </button>
+          </Button>
         </form>
       </Card>
 

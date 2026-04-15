@@ -19,7 +19,7 @@ export function Button({ variant = "primary", className, children, ...props }: P
   return (
     <button
       className={clsx(
-        "inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-60",
+        "inline-flex min-h-12 items-center justify-center rounded-lg px-5 py-3 text-base font-extrabold transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60",
         variants[variant],
         className,
       )}
