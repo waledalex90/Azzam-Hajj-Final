@@ -221,24 +221,24 @@ export async function getAttendanceDayStats(workDate: string, siteId?: number): 
 
   let totalWorkersQ = supabase
     .from("workers")
-    .select("*", { count: "planned", head: true })
+    .select("*", { count: "exact", head: true })
     .eq("is_active", true)
     .eq("is_deleted", false);
   if (siteId) totalWorkersQ = totalWorkersQ.eq("current_site_id", siteId);
 
   let presentQ = supabase
     .from("attendance_daily_summary")
-    .select("*", { count: "planned", head: true })
+    .select("*", { count: "exact", head: true })
     .eq("work_date", workDate)
     .eq("final_status", "present");
   let absentQ = supabase
     .from("attendance_daily_summary")
-    .select("*", { count: "planned", head: true })
+    .select("*", { count: "exact", head: true })
     .eq("work_date", workDate)
     .eq("final_status", "absent");
   let halfQ = supabase
     .from("attendance_daily_summary")
-    .select("*", { count: "planned", head: true })
+    .select("*", { count: "exact", head: true })
     .eq("work_date", workDate)
     .eq("final_status", "half");
 
