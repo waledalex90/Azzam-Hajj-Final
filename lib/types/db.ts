@@ -76,7 +76,7 @@ export type AttendanceCheckRow = {
   confirmation_status: "pending" | "confirmed" | "rejected";
   checked_at: string;
   confirm_note: string | null;
-  attendance_rounds?: { work_date: string; round_no: number } | null;
+  attendance_rounds?: { work_date: string; round_no: number; site_id?: number } | null;
   workers?: { name: string; id_number: string } | null;
   sites?: { name: string } | null;
 };

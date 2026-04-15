@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { PaginationControls } from "@/components/pagination/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getAttendanceChecksPage, getSiteOptions } from "@/lib/data/attendance";
@@ -67,7 +68,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
       <Card>
         <h1 className="text-lg font-extrabold text-slate-900">اعتماد الحضور</h1>
         <form className="mt-4 grid gap-2 sm:grid-cols-4" method="get">
-          <Input type="date" name="date" defaultValue={workDate} />
+          <DatePickerField name="date" defaultValue={workDate} />
           <select
             name="siteId"
             defaultValue={params.siteId}

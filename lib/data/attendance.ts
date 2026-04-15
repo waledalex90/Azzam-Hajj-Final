@@ -28,6 +28,7 @@ type ChecksPageParams = {
   workDate?: string;
   siteId?: number;
   search?: string;
+  status?: "present" | "absent" | "half";
   confirmationStatus?: "pending" | "confirmed" | "rejected";
 };
 
@@ -180,6 +181,7 @@ export async function getAttendanceChecksPage({
   workDate,
   siteId,
   search,
+  status,
   confirmationStatus,
 }: ChecksPageParams): Promise<{ rows: AttendanceCheckRow[]; meta: PaginationMeta }> {
   const from = (page - 1) * pageSize;
@@ -196,6 +198,9 @@ export async function getAttendanceChecksPage({
 
   if (confirmationStatus) {
     query = query.eq("confirmation_status", confirmationStatus);
+  }
+  if (status) {
+    query = query.eq("status", status);
   }
 
   if (workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
@@ -223,6 +228,7 @@ export async function getAttendanceChecksPage({
         ? {
             work_date: item.attendance_rounds[0].work_date,
             round_no: item.attendance_rounds[0].round_no,
+            site_id: item.attendance_rounds[0].site_id,
           }
         : null,
       workers: Array.isArray(item.workers) ? (item.workers[0] ?? null) : (item.workers ?? null),
