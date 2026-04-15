@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { unstable_cache } from "next/cache";
 import type {
   AdminDashboardData,
   DashboardStats,
@@ -16,7 +17,7 @@ async function safeCount(query: PromiseLike<{ count: number | null; error: { mes
   return count ?? 0;
 }
 
-export async function getDashboardStats(): Promise<DashboardStats> {
+async function getDashboardStatsUncached(): Promise<DashboardStats> {
   const today = new Date().toISOString().slice(0, 10);
   const start = `${today}T00:00:00.000Z`;
   const end = `${today}T23:59:59.999Z`;
@@ -54,7 +55,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   };
 }
 
-export async function getAdminDashboardData(): Promise<AdminDashboardData> {
+async function getAdminDashboardDataUncached(): Promise<AdminDashboardData> {
   const supabase = createSupabaseAdminClient();
   const today = new Date().toISOString().slice(0, 10);
   const after30Days = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString().slice(0, 10);
@@ -129,4 +130,22 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     pendingCorrections,
     latestWorkers: latestWorkersRaw,
   };
+}
+
+const getDashboardStatsCached = unstable_cache(getDashboardStatsUncached, ["dashboard-stats-v1"], {
+  revalidate: 20,
+  tags: ["dashboard-stats"],
+});
+
+const getAdminDashboardDataCached = unstable_cache(getAdminDashboardDataUncached, ["dashboard-admin-v1"], {
+  revalidate: 20,
+  tags: ["dashboard-admin"],
+});
+
+export async function getDashboardStats(): Promise<DashboardStats> {
+  return getDashboardStatsCached();
+}
+
+export async function getAdminDashboardData(): Promise<AdminDashboardData> {
+  return getAdminDashboardDataCached();
 }

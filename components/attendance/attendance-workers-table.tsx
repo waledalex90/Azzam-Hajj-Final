@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import type { WorkerRow } from "@/lib/types/db";
 
@@ -8,8 +8,6 @@ type AttendanceStatus = "present" | "absent" | "half";
 
 type Props = {
   rows: WorkerRow[];
-  action: (formData: FormData) => Promise<void>;
-  bulkAction: (formData: FormData) => Promise<void>;
   workDate: string;
   initialStatusMap?: Record<number, AttendanceStatus>;
 };
@@ -28,20 +26,106 @@ function statusBadgeClass(status?: AttendanceStatus) {
   return "bg-slate-50 text-slate-600 border-slate-200";
 }
 
-export function AttendanceWorkersTable({
-  rows,
-  action,
-  bulkAction,
-  workDate,
-  initialStatusMap = {},
-}: Props) {
+type QueueOperation = {
+  idempotencyKey: string;
+  workDate: string;
+  status: AttendanceStatus;
+  workerIds: number[];
+  createdAt: string;
+};
+
+const QUEUE_STORAGE_KEY = "attendance-offline-queue-v1";
+
+function readQueue(): QueueOperation[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(QUEUE_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as QueueOperation[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeQueue(queue: QueueOperation[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
+}
+
+function makeIdempotencyKey() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function AttendanceWorkersTable({ rows, workDate, initialStatusMap = {} }: Props) {
   const [selected, setSelected] = useState<number[]>([]);
   const [statusMap, setStatusMap] = useState<Record<number, AttendanceStatus>>(initialStatusMap);
   const [pendingWorkerIds, setPendingWorkerIds] = useState<number[]>([]);
   const [bulkPending, setBulkPending] = useState(false);
+  const isFlushingRef = useRef(false);
 
   const allIds = useMemo(() => rows.map((row) => row.id), [rows]);
   const allSelected = allIds.length > 0 && selected.length === allIds.length;
+
+  async function flushQueue() {
+    if (isFlushingRef.current) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
+    isFlushingRef.current = true;
+    try {
+      let queue = readQueue();
+      while (queue.length > 0) {
+        const next = queue[0];
+        const response = await fetch("/api/attendance/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(next),
+        });
+        if (!response.ok) break;
+
+        queue = queue.slice(1);
+        writeQueue(queue);
+        setPendingWorkerIds((prev) => prev.filter((id) => !next.workerIds.includes(id)));
+      }
+    } finally {
+      isFlushingRef.current = false;
+    }
+  }
+
+  function enqueueOperation(operation: QueueOperation) {
+    const queue = readQueue();
+    if (queue.some((item) => item.idempotencyKey === operation.idempotencyKey)) return;
+    queue.push(operation);
+    writeQueue(queue);
+  }
+
+  useEffect(() => {
+    const queue = readQueue();
+    if (queue.length > 0) {
+      setPendingWorkerIds(Array.from(new Set(queue.flatMap((item) => item.workerIds))));
+      setStatusMap((prev) => {
+        const next = { ...prev };
+        for (const op of queue) {
+          op.workerIds.forEach((id) => {
+            next[id] = op.status;
+          });
+        }
+        return next;
+      });
+    }
+
+    const onOnline = () => {
+      void flushQueue();
+    };
+    window.addEventListener("online", onOnline);
+    void flushQueue();
+    return () => {
+      window.removeEventListener("online", onOnline);
+    };
+  }, []);
 
   function toggle(id: number) {
     setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
@@ -64,14 +148,20 @@ export function AttendanceWorkersTable({
         return next;
       });
 
-      const fd = new FormData();
-      fd.set("workDate", workDate);
-      fd.set("status", status);
-      fd.set("workerIds", JSON.stringify(selected));
+      const operation: QueueOperation = {
+        idempotencyKey: makeIdempotencyKey(),
+        workDate,
+        status,
+        workerIds: selected,
+        createdAt: new Date().toISOString(),
+      };
+      enqueueOperation(operation);
       try {
-        await bulkAction(fd);
+        await flushQueue();
       } finally {
-        setPendingWorkerIds((prev) => prev.filter((id) => !selected.includes(id)));
+        const remainingQueue = readQueue();
+        const queuedIds = new Set(remainingQueue.flatMap((item) => item.workerIds));
+        setPendingWorkerIds((prev) => prev.filter((id) => queuedIds.has(id)));
         setSelected([]);
         setBulkPending(false);
       }
@@ -115,14 +205,21 @@ export function AttendanceWorkersTable({
       setPendingWorkerIds((prev) => [...prev, workerId]);
       setStatusMap((prev) => ({ ...prev, [workerId]: status }));
 
-      const fd = new FormData();
-      fd.set("workerId", String(workerId));
-      fd.set("workDate", workDate);
-      fd.set("status", status);
+      const operation: QueueOperation = {
+        idempotencyKey: makeIdempotencyKey(),
+        workDate,
+        status,
+        workerIds: [workerId],
+        createdAt: new Date().toISOString(),
+      };
+      enqueueOperation(operation);
       try {
-        await action(fd);
+        await flushQueue();
       } finally {
-        setPendingWorkerIds((prev) => prev.filter((id) => id !== workerId));
+        const stillQueued = readQueue().some((op) => op.workerIds.includes(workerId));
+        if (!stillQueued) {
+          setPendingWorkerIds((prev) => prev.filter((id) => id !== workerId));
+        }
       }
     }
 

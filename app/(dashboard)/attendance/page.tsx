@@ -15,6 +15,7 @@ import {
   getSiteOptions,
 } from "@/lib/data/attendance";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { submitAttendanceByWorkersEngine } from "@/lib/services/attendance-engine";
 import { parsePage } from "@/lib/utils/pagination";
 
 type Props = {
@@ -31,104 +32,6 @@ type Props = {
 const PAGE_SIZE = 25;
 
 export default async function AttendancePage({ searchParams }: Props) {
-  async function submitAttendanceByWorkers(
-    items: Array<{ worker_id: number; status: "present" | "absent" | "half" }>,
-    workDate: string,
-    note: string,
-  ) {
-    "use server";
-
-    if (items.length === 0) return;
-    const supabase = createSupabaseAdminClient();
-
-    const workerIds = items.map((item) => item.worker_id);
-    const { data: workers, error: workerError } = await supabase
-      .from("workers")
-      .select("id, current_site_id")
-      .in("id", workerIds);
-
-    if (workerError || !workers || workers.length === 0) return;
-
-    const siteMap = new Map<number, Array<{ worker_id: number; status: "present" | "absent" | "half" }>>();
-    const workerSiteMap = new Map<number, number>();
-
-    for (const worker of workers as Array<{ id: number; current_site_id: number | null }>) {
-      if (worker.current_site_id) {
-        workerSiteMap.set(worker.id, worker.current_site_id);
-      }
-    }
-
-    for (const item of items) {
-      const siteId = workerSiteMap.get(item.worker_id);
-      if (!siteId) continue;
-      const current = siteMap.get(siteId) ?? [];
-      current.push(item);
-      siteMap.set(siteId, current);
-    }
-
-    for (const [siteId, payload] of siteMap.entries()) {
-      const { data: round, error: roundError } = await supabase.rpc("start_attendance_round", {
-        p_site_id: siteId,
-        p_work_date: workDate,
-        p_round_no: null,
-        p_notes: note,
-      });
-      if (roundError || !round?.id) continue;
-
-      await supabase.rpc("submit_attendance_checks", {
-        p_round_id: round.id,
-        p_payload: payload,
-      });
-    }
-
-    revalidatePath("/attendance");
-    revalidatePath("/dashboard");
-    revalidatePath("/approval");
-  }
-
-  async function registerAttendanceCheck(formData: FormData) {
-    "use server";
-
-    const workerId = Number(formData.get("workerId"));
-    const status = String(formData.get("status") || "") as "present" | "absent" | "half";
-    const workDateRaw = String(formData.get("workDate") || "").trim();
-    const workDate = /^\d{4}-\d{2}-\d{2}$/.test(workDateRaw)
-      ? workDateRaw
-      : new Date().toISOString().slice(0, 10);
-    if (!workerId || !["present", "absent", "half"].includes(status)) return;
-
-    await submitAttendanceByWorkers([{ worker_id: workerId, status }], workDate, "manual attendance");
-  }
-
-  async function registerBulkAttendance(formData: FormData) {
-    "use server";
-
-    const workDateRaw = String(formData.get("workDate") || "").trim();
-    const workDate = /^\d{4}-\d{2}-\d{2}$/.test(workDateRaw)
-      ? workDateRaw
-      : new Date().toISOString().slice(0, 10);
-    const status = String(formData.get("status") || "") as "present" | "absent" | "half";
-    const workerIdsRaw = String(formData.get("workerIds") || "[]");
-
-    if (!["present", "absent", "half"].includes(status)) return;
-
-    let workerIds: number[] = [];
-    try {
-      workerIds = JSON.parse(workerIdsRaw);
-    } catch {
-      return;
-    }
-
-    const uniqueWorkerIds = Array.from(new Set(workerIds.map((id) => Number(id)).filter(Boolean)));
-    if (uniqueWorkerIds.length === 0) return;
-
-    await submitAttendanceByWorkers(
-      uniqueWorkerIds.map((workerId) => ({ worker_id: workerId, status })),
-      workDate,
-      "bulk attendance",
-    );
-  }
-
   async function reviewAttendanceCheck(formData: FormData) {
     "use server";
     const checkId = Number(formData.get("checkId"));
@@ -151,11 +54,14 @@ export default async function AttendancePage({ searchParams }: Props) {
       : (check.attendance_rounds?.work_date ?? null);
     if (!workDate) return;
 
-    await submitAttendanceByWorkers(
-      [{ worker_id: check.worker_id, status: "present" }],
+    await submitAttendanceByWorkersEngine({
+      items: [{ worker_id: check.worker_id, status: "present" }],
       workDate,
-      "attendance review round",
-    );
+      note: "attendance review round",
+    });
+    revalidatePath("/attendance");
+    revalidatePath("/dashboard");
+    revalidatePath("/approval");
   }
 
   const params = await searchParams;
@@ -313,8 +219,6 @@ export default async function AttendancePage({ searchParams }: Props) {
         <>
           <AttendanceWorkersTable
             rows={workersPage?.rows ?? []}
-            action={registerAttendanceCheck}
-            bulkAction={registerBulkAttendance}
             workDate={workDate}
             initialStatusMap={initialStatusMap}
           />
