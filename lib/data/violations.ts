@@ -48,7 +48,7 @@ export async function getViolationsPage({
     .from("worker_violations")
     .select(
       "id, worker_id, site_id, description, status, occurred_at, workers(name,id_number), sites(name), violation_types(name_ar)",
-      { count: "exact" },
+      { count: "planned" },
     )
     .order("occurred_at", { ascending: false });
 

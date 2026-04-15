@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { unstable_cache } from "next/cache";
 import type {
   AttendanceCheckRow,
   AttendanceDayStats,
@@ -60,7 +61,7 @@ export async function getAttendanceWorkersPage({
     .select(
       "id, name, id_number, contractor_id, current_site_id, is_active, is_deleted, sites(name), contractors(name)",
       {
-      count: "exact",
+      count: "planned",
       },
     )
     .eq("is_active", true)
@@ -100,26 +101,42 @@ export async function getAttendanceWorkersPage({
   };
 }
 
+const getSiteOptionsCached = unstable_cache(
+  async () => {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase.from("sites").select("id, name").order("name");
+    if (error) {
+      throw new Error(`Sites query failed: ${error.message}`);
+    }
+    return (data as SiteOption[]) ?? [];
+  },
+  ["sites-options-v1"],
+  { revalidate: 300, tags: ["sites-options"] },
+);
+
 export async function getSiteOptions(): Promise<SiteOption[]> {
-  const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase.from("sites").select("id, name").order("name");
-  if (error) {
-    throw new Error(`Sites query failed: ${error.message}`);
-  }
-  return (data as SiteOption[]) ?? [];
+  return getSiteOptionsCached();
 }
 
+const getContractorOptionsCached = unstable_cache(
+  async () => {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("contractors")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("name");
+    if (error) {
+      throw new Error(`Contractors query failed: ${error.message}`);
+    }
+    return (data as ContractorOption[]) ?? [];
+  },
+  ["contractors-options-v1"],
+  { revalidate: 300, tags: ["contractors-options"] },
+);
+
 export async function getContractorOptions(): Promise<ContractorOption[]> {
-  const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("contractors")
-    .select("id, name")
-    .eq("is_active", true)
-    .order("name");
-  if (error) {
-    throw new Error(`Contractors query failed: ${error.message}`);
-  }
-  return (data as ContractorOption[]) ?? [];
+  return getContractorOptionsCached();
 }
 
 export async function getAttendanceDayStats(workDate: string, siteId?: number): Promise<AttendanceDayStats> {
@@ -131,24 +148,24 @@ export async function getAttendanceDayStats(workDate: string, siteId?: number): 
 
   let totalWorkersQ = supabase
     .from("workers")
-    .select("*", { count: "exact", head: true })
+    .select("*", { count: "planned", head: true })
     .eq("is_active", true)
     .eq("is_deleted", false);
   if (siteId) totalWorkersQ = totalWorkersQ.eq("current_site_id", siteId);
 
   let presentQ = supabase
     .from("attendance_daily_summary")
-    .select("*", { count: "exact", head: true })
+    .select("*", { count: "planned", head: true })
     .eq("work_date", workDate)
     .eq("final_status", "present");
   let absentQ = supabase
     .from("attendance_daily_summary")
-    .select("*", { count: "exact", head: true })
+    .select("*", { count: "planned", head: true })
     .eq("work_date", workDate)
     .eq("final_status", "absent");
   let halfQ = supabase
     .from("attendance_daily_summary")
-    .select("*", { count: "exact", head: true })
+    .select("*", { count: "planned", head: true })
     .eq("work_date", workDate)
     .eq("final_status", "half");
 
@@ -192,7 +209,7 @@ export async function getAttendanceChecksPage({
     .from("attendance_checks")
     .select(
       "id, round_id, worker_id, status, confirmation_status, checked_at, confirm_note, attendance_rounds!inner(work_date, round_no, site_id, sites(name)), workers(name, id_number)",
-      { count: "exact" },
+      { count: "planned" },
     )
     .order("checked_at", { ascending: false });
 

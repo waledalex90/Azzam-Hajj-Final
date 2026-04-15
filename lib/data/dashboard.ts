@@ -27,21 +27,21 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     safeCount(
       supabase
         .from("attendance_daily_summary")
-        .select("*", { count: "exact", head: true })
+        .select("*", { count: "planned", head: true })
         .eq("work_date", today)
         .eq("final_status", "present"),
     ),
     safeCount(
       supabase
         .from("attendance_daily_summary")
-        .select("*", { count: "exact", head: true })
+        .select("*", { count: "planned", head: true })
         .eq("work_date", today)
         .eq("final_status", "absent"),
     ),
     safeCount(
       supabase
         .from("worker_violations")
-        .select("*", { count: "exact", head: true })
+        .select("*", { count: "planned", head: true })
         .gte("occurred_at", start)
         .lte("occurred_at", end),
     ),
@@ -60,22 +60,22 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   const after30Days = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString().slice(0, 10);
 
   const [contractors, inactiveWorkers, activeWorkers, sites] = await Promise.all([
-    safeCount(supabase.from("contractors").select("*", { count: "exact", head: true })),
+    safeCount(supabase.from("contractors").select("*", { count: "planned", head: true })),
     safeCount(
       supabase
         .from("workers")
-        .select("*", { count: "exact", head: true })
+        .select("*", { count: "planned", head: true })
         .eq("is_active", false)
         .eq("is_deleted", false),
     ),
     safeCount(
       supabase
         .from("workers")
-        .select("*", { count: "exact", head: true })
+        .select("*", { count: "planned", head: true })
         .eq("is_active", true)
         .eq("is_deleted", false),
     ),
-    safeCount(supabase.from("sites").select("*", { count: "exact", head: true })),
+    safeCount(supabase.from("sites").select("*", { count: "planned", head: true })),
   ]);
 
   let iqamaAlertsRaw: IqamaAlert[] = [];
