@@ -99,7 +99,7 @@ export async function getViolationFormOptions(search?: string): Promise<{
 
   let workersQuery = supabase
     .from("workers")
-    .select("id, name, id_number, current_site_id, is_active, is_deleted")
+    .select("id, name, id_number, contractor_id, current_site_id, is_active, is_deleted")
     .eq("is_active", true)
     .eq("is_deleted", false)
     .order("id", { ascending: false })

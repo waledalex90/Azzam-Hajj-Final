@@ -56,7 +56,7 @@ a {
 .card {
   background: white;
   border: 1px solid #e2e8f0;
-  border-radius: 1rem;
+  border-radius: 1.1rem;
   box-shadow: 0 8px 28px rgb(15 23 42 / 0.06);
   transition: box-shadow 180ms ease, border-color 180ms ease;
 }
@@ -76,4 +76,62 @@ a {
 
 .status-half {
   color: #b45309;
+}
+
+.launch-screen {
+  background: radial-gradient(circle at 20% 20%, #1f8a5b 0%, #14532d 45%, #0f3f21 100%);
+  animation: launchFadeIn 240ms ease-out;
+}
+
+.launch-screen__overlay {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.06), rgb(0 0 0 / 0.15));
+}
+
+.launch-screen__logo-wrap {
+  text-align: center;
+  color: #f6e9c3;
+  animation: launchFloatIn 420ms ease-out;
+}
+
+.launch-screen__icon {
+  border-radius: 2rem;
+  box-shadow: 0 16px 44px rgb(0 0 0 / 0.25);
+}
+
+.launch-screen__title {
+  margin-top: 0.95rem;
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.launch-screen__subtitle {
+  margin-top: 0.3rem;
+  font-size: 0.9rem;
+  color: #f8f3df;
+  opacity: 0.9;
+}
+
+@keyframes launchFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes launchFloatIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }

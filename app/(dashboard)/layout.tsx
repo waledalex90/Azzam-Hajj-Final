@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
+import { LogoutButton } from "@/components/layout/logout-button";
 import { Card } from "@/components/ui/card";
 import { getSessionContext } from "@/lib/auth/session";
 
@@ -29,7 +30,12 @@ export default async function DashboardLayout({ children }: Props) {
     <div className="min-h-screen bg-slate-50 lg:flex">
       <AdminSidebar user={appUser} />
       <main className="flex-1 p-4 lg:p-6">
-        <div className="mx-auto w-full max-w-[1200px]">{children}</div>
+        <div className="mx-auto w-full max-w-[1200px] space-y-4">
+          <div className="flex items-center justify-end">
+            <LogoutButton />
+          </div>
+          {children}
+        </div>
       </main>
     </div>
   );

@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { BrandLogo } from "@/components/branding/brand-logo";
 import { PrintButton } from "@/components/violations/print-button";
+import { NoticeLinkedSelects } from "@/components/violations/notice-linked-selects";
 import { getSessionContext } from "@/lib/auth/session";
 import { getInfractionNoticeOptions } from "@/lib/data/violations";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -148,47 +149,16 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
               <Input name="complexNo" />
             </label>
             <label>
-              الموقع (المشعر):
-              <select name="siteKey" defaultValue="mina" required>
-                <option value="mina">منى</option>
-                <option value="arafat">عرفات</option>
-                <option value="muzdalifah">مزدلفة</option>
-              </select>
-            </label>
-          </div>
-
-          <div className="paper-grid three">
-            <label>
-              بيانات المقاول:
-              <select name="contractorId" required defaultValue="">
-                <option value="" disabled>
-                  اختر المقاول
-                </option>
-                {options.contractors.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
               اسم مشرف المقاول:
               <Input name="supervisorName" />
             </label>
-            <label>
-              العامل:
-              <select name="workerId" required defaultValue="">
-                <option value="" disabled>
-                  اختر العامل
-                </option>
-                {options.workers.map((worker) => (
-                  <option key={worker.id} value={worker.id}>
-                    {worker.name} - {worker.id_number}
-                  </option>
-                ))}
-              </select>
-            </label>
           </div>
+
+          <NoticeLinkedSelects
+            workers={options.workers}
+            contractors={options.contractors}
+            siteMapping={options.siteMapping}
+          />
 
           <div className="section-title">تفاصيل المخالفة</div>
           <label className="multi-select-label">

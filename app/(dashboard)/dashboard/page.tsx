@@ -114,7 +114,7 @@ export default async function DashboardHomePage() {
               <p className="text-slate-500">لا توجد إقامات منتهية قريبًا.</p>
             ) : (
               dashboardData.iqamaAlerts.map((item) => (
-                <div key={item.id} className="rounded-md bg-slate-50 px-2 py-1.5">
+                <div key={item.id} className="rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2">
                   <p className="font-bold text-slate-800">{item.name}</p>
                   <p className="text-xs text-slate-500">
                     {item.id_number} - انتهاء: {new Date(item.iqama_expiry).toLocaleDateString("ar-SA")} (
@@ -139,7 +139,11 @@ export default async function DashboardHomePage() {
               <p className="text-slate-500">لا توجد طلبات.</p>
             ) : (
               dashboardData.pendingCorrections.map((item) => (
-                <Link href="/corrections" key={item.id} className="block rounded-md bg-slate-50 px-2 py-1.5 hover:bg-slate-100">
+                <Link
+                  href="/corrections"
+                  key={item.id}
+                  className="block rounded-2xl border border-rose-100 bg-rose-50/50 px-3 py-2 transition hover:bg-rose-100/70"
+                >
                   <p className="font-bold text-slate-800">طلب #{item.id}</p>
                   <p className="text-xs text-slate-500">{item.reason || "بدون وصف"}</p>
                 </Link>
@@ -158,7 +162,11 @@ export default async function DashboardHomePage() {
               <p className="text-slate-500">لا توجد بيانات حديثة.</p>
             ) : (
               dashboardData.latestWorkers.map((item) => (
-                <Link href="/workers?tab=list" key={item.id} className="block rounded-md bg-slate-50 px-2 py-1.5 hover:bg-slate-100">
+                <Link
+                  href="/workers?tab=list"
+                  key={item.id}
+                  className="block rounded-2xl border border-emerald-100 bg-emerald-50/40 px-3 py-2 transition hover:bg-emerald-100/60"
+                >
                   <p className="font-bold text-slate-800">{item.name}</p>
                   <p className="text-xs text-slate-500">{item.id_number}</p>
                 </Link>

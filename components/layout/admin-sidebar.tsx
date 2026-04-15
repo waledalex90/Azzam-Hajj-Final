@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import { clsx } from "clsx";
 import {
   BadgeCheck,
@@ -11,6 +12,7 @@ import {
   FileBarChart2,
   FileWarning,
   Home,
+  LogOut,
   MapPin,
   ShieldCheck,
   Truck,
@@ -20,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { BrandLogo } from "@/components/branding/brand-logo";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { AppUser } from "@/lib/types/db";
 import { ROLE_LABELS } from "@/lib/constants/roles";
 
@@ -50,6 +53,17 @@ function isActive(pathname: string, href: string) {
 
 export function AdminSidebar({ user }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+    await supabase.auth.signOut();
+    router.replace("/login");
+    router.refresh();
+  }
 
   return (
     <aside className="w-full border-b border-slate-200 bg-white/95 text-slate-800 backdrop-blur lg:min-h-screen lg:w-[260px] lg:border-b-0 lg:border-l lg:border-slate-200">
@@ -59,6 +73,15 @@ export function AdminSidebar({ user }: Props) {
           <p className="text-xs text-slate-700">{user.username}</p>
           <p className="mt-1 text-[11px] text-slate-500">{ROLE_LABELS[user.role]}</p>
         </div>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          disabled={isSigningOut}
+          className="mt-3 flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <span>{isSigningOut ? "جاري تسجيل الخروج..." : "تسجيل خروج"}</span>
+          <LogOut className="h-4 w-4" />
+        </button>
       </div>
 
       <nav className="grid gap-1 px-3 pb-4">
