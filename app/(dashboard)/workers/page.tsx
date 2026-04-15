@@ -1,6 +1,5 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { PaginationControls } from "@/components/pagination/pagination-controls";
 import { Card } from "@/components/ui/card";
@@ -11,7 +10,6 @@ import { getContractorOptions, getSiteOptions } from "@/lib/data/attendance";
 import { parsePage } from "@/lib/utils/pagination";
 import { buildPaginationMeta } from "@/lib/utils/pagination";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
-import * as XLSX from "xlsx";
 
 type Props = {
   searchParams: Promise<{
@@ -23,8 +21,6 @@ type Props = {
     contractorId?: string;
     showStopped?: string;
     showDeleted?: string;
-    upload?: string;
-    count?: string;
   }>;
 };
 
@@ -142,105 +138,6 @@ export default async function WorkersPage({ searchParams }: Props) {
     revalidatePath("/dashboard");
   }
 
-  async function uploadWorkersSheet(formData: FormData) {
-    "use server";
-    if (isDemoModeEnabled()) {
-      redirect("/workers?tab=create&upload=demo_mode");
-    }
-
-    const file = formData.get("file");
-    if (!(file instanceof File) || file.size === 0) {
-      redirect("/workers?tab=create&upload=file_missing");
-    }
-
-    const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "array" });
-    const firstSheetName = workbook.SheetNames[0];
-    if (!firstSheetName) {
-      redirect("/workers?tab=create&upload=sheet_missing");
-    }
-
-    const sheet = workbook.Sheets[firstSheetName];
-    const records = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-    if (!records.length) {
-      redirect("/workers?tab=create&upload=sheet_empty");
-    }
-
-    const supabase = createSupabaseAdminClient();
-    const [sitesRes, contractorsRes, existingIdsRes] = await Promise.all([
-      supabase.from("sites").select("id, name"),
-      supabase.from("contractors").select("id, name"),
-      supabase.from("workers").select("id_number"),
-    ]);
-
-    const sitesByName = new Map(
-      ((sitesRes.data ?? []) as { id: number; name: string }[]).map((item) => [item.name.trim(), item.id]),
-    );
-    const contractorsByName = new Map(
-      ((contractorsRes.data ?? []) as { id: number; name: string }[]).map((item) => [item.name.trim(), item.id]),
-    );
-    const existingIds = new Set(
-      ((existingIdsRes.data ?? []) as { id_number: string }[]).map((item) => String(item.id_number).trim()),
-    );
-
-    const inFileIds = new Set<string>();
-    const payload: Array<{
-      name: string;
-      id_number: string;
-      job_title: string | null;
-      payment_type: "salary" | "daily";
-      basic_salary: number | null;
-      iqama_expiry: string | null;
-      current_site_id: number | null;
-      contractor_id: number | null;
-      is_active: boolean;
-      is_deleted: boolean;
-    }> = [];
-
-    for (const record of records) {
-      const name =
-        normalizeText(record["name"]) || normalizeText(record["الاسم"]) || normalizeText(record["اسم العامل"]);
-      const idNumber =
-        normalizeText(record["id_number"]) ||
-        normalizeText(record["رقم الهوية/الإقامة/الجواز"]) ||
-        normalizeText(record["رقم الهوية"]) ||
-        normalizeText(record["رقم الإقامة"]) ||
-        normalizeText(record["رقم الجواز"]);
-      if (!name || !idNumber) continue;
-      if (existingIds.has(idNumber) || inFileIds.has(idNumber)) continue;
-
-      const paymentRaw = normalizeText(record["payment_type"]) || normalizeText(record["نظام الدفع"]);
-      const paymentType =
-        paymentRaw === "daily" || paymentRaw === "يومي" || paymentRaw === "راتب يومي" ? "daily" : "salary";
-      const siteName = normalizeText(record["site"]) || normalizeText(record["الموقع"]);
-      const contractorName = normalizeText(record["contractor"]) || normalizeText(record["المقاول"]);
-      const iqama = normalizeText(record["iqama_expiry"]) || normalizeText(record["تاريخ انتهاء الإقامة"]);
-      const salaryRaw = Number(record["basic_salary"] ?? record["الراتب"] ?? 0);
-
-      payload.push({
-        name,
-        id_number: idNumber,
-        job_title: normalizeText(record["job_title"]) || normalizeText(record["المسمى الوظيفي"]) || null,
-        payment_type: paymentType,
-        basic_salary: Number.isFinite(salaryRaw) && salaryRaw > 0 ? salaryRaw : null,
-        iqama_expiry: /^\d{4}-\d{2}-\d{2}$/.test(iqama) ? iqama : null,
-        current_site_id: sitesByName.get(siteName) ?? null,
-        contractor_id: contractorsByName.get(contractorName) ?? null,
-        is_active: true,
-        is_deleted: false,
-      });
-      inFileIds.add(idNumber);
-    }
-
-    if (payload.length > 0) {
-      await supabase.from("workers").insert(payload);
-      revalidatePath("/workers");
-      revalidatePath("/dashboard");
-      redirect(`/workers?tab=create&upload=success&count=${payload.length}`);
-    }
-    redirect("/workers?tab=create&upload=no_new_rows");
-  }
-
   async function toggleActive(formData: FormData) {
     "use server";
     if (isDemoModeEnabled()) return;
@@ -291,8 +188,6 @@ export default async function WorkersPage({ searchParams }: Props) {
   const contractorId = params.contractorId ? Number(params.contractorId) : undefined;
   const showStopped = boolFlag(params.showStopped);
   const showDeleted = boolFlag(params.showDeleted);
-  const uploadState = params.upload;
-  const uploadedCount = Number(params.count);
 
   const supabase = createSupabaseAdminClient();
 
@@ -375,38 +270,9 @@ export default async function WorkersPage({ searchParams }: Props) {
           <Card className="space-y-3">
             <h2 className="font-extrabold text-slate-900">استيراد من Excel</h2>
             <p className="text-xs text-slate-500">
-              استخدم الشيت الجاهز، والحد الأدنى للأعمدة: الاسم + رقم الهوية/الإقامة/الجواز (رقم فريد غير مكرر).
+              استخدم الشيت الجاهز. يجب أن يطابق اسم <span className="font-bold">الموقع</span> الاسم المسجّل في النظام حرفيًا. يتم
+              الإضافة أو التحديث حسب رقم الهوية (Upsert).
             </p>
-            {uploadState === "success" && (
-              <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
-                تم رفع الملف بنجاح. تمت إضافة {Number.isFinite(uploadedCount) ? uploadedCount : 0} موظف.
-              </p>
-            )}
-            {uploadState === "no_new_rows" && (
-              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
-                تم فحص الملف لكن لا توجد صفوف جديدة للإضافة (قد تكون البيانات مكررة).
-              </p>
-            )}
-            {uploadState === "sheet_empty" && (
-              <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
-                الملف مرفوع لكن الشيت فارغ. تأكد من وجود بيانات قبل الرفع.
-              </p>
-            )}
-            {uploadState === "file_missing" && (
-              <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
-                لم يتم اختيار ملف. اختر ملف Excel ثم أعد المحاولة.
-              </p>
-            )}
-            {uploadState === "sheet_missing" && (
-              <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
-                لم يتم العثور على Sheet داخل الملف. راجع الملف وحاول مجددًا.
-              </p>
-            )}
-            {uploadState === "demo_mode" && (
-              <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700">
-                وضع التجربة مفعل: تم استقبال الملف للمعاينة فقط.
-              </p>
-            )}
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href="/api/workers-template"
@@ -414,8 +280,8 @@ export default async function WorkersPage({ searchParams }: Props) {
               >
                 تحميل ملف Excel عربي
               </Link>
-              <WorkersUploadForm action={uploadWorkersSheet} />
             </div>
+            <WorkersUploadForm />
           </Card>
 
           <Card>
