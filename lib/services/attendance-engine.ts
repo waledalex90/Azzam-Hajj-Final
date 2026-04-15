@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 type AttendanceStatus = "present" | "absent" | "half";
@@ -69,7 +70,8 @@ export async function submitAttendanceByWorkersEngine({
     .filter((item) => Number.isFinite(item.worker_id) && item.worker_id > 0);
   if (payload.length === 0) return;
 
-  const { error } = await supabase.rpc(BULK_ATTENDANCE_PUBLIC_RPC, {
+  const rpcClient = await createSupabaseServerClient();
+  const { error } = await rpcClient.rpc(BULK_ATTENDANCE_PUBLIC_RPC, {
     p_work_date: workDate,
     p_payload: payload,
     p_notes: note,
