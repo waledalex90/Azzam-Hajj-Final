@@ -27,7 +27,10 @@ type Props = {
     showStopped?: string;
     showDeleted?: string;
     upload?: string;
-    count?: string;
+    mode?: string;
+    success?: string;
+    failed?: string;
+    rejectedFile?: string;
   }>;
 };
 
