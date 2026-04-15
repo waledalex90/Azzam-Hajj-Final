@@ -130,6 +130,50 @@ export async function getAttendanceWorkersPage({
   };
 }
 
+export async function getAttendanceWorkerIdsForFilters({
+  siteId,
+  contractorId,
+  search,
+}: Omit<WorkersPageParams, "page" | "pageSize">): Promise<number[]> {
+  const supabase = createSupabaseAdminClient();
+  const pageSize = 1000;
+  let from = 0;
+  const ids: number[] = [];
+
+  while (true) {
+    let query = supabase
+      .from("workers")
+      .select("id")
+      .eq("is_active", true)
+      .eq("is_deleted", false)
+      .order("id", { ascending: true });
+
+    if (siteId) {
+      query = query.eq("current_site_id", siteId);
+    }
+    if (contractorId) {
+      query = query.eq("contractor_id", contractorId);
+    }
+    if (search && search.trim()) {
+      const value = search.trim();
+      query = query.or(`name.ilike.%${value}%,id_number.ilike.%${value}%`);
+    }
+
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) {
+      throw new Error(`Attendance worker ids query failed: ${error.message}`);
+    }
+
+    const chunk = ((data ?? []) as Array<{ id: number }>).map((item) => item.id).filter(Boolean);
+    ids.push(...chunk);
+
+    if (chunk.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return ids;
+}
+
 const getSiteOptionsCached = unstable_cache(
   async () => {
     const supabase = createSupabaseAdminClient();

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import type { WorkerRow } from "@/lib/types/db";
 
@@ -10,6 +11,8 @@ type Props = {
   rows: WorkerRow[];
   workDate: string;
   initialStatusMap?: Record<number, AttendanceStatus>;
+  filteredWorkerIds?: number[];
+  filteredTotalRows?: number;
 };
 
 function statusLabel(status?: AttendanceStatus) {
@@ -60,23 +63,38 @@ function makeIdempotencyKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function AttendanceWorkersTable({ rows, workDate, initialStatusMap = {} }: Props) {
+export function AttendanceWorkersTable({
+  rows,
+  workDate,
+  initialStatusMap = {},
+  filteredWorkerIds = [],
+  filteredTotalRows = 0,
+}: Props) {
+  const router = useRouter();
   const [selected, setSelected] = useState<number[]>([]);
   const [statusMap, setStatusMap] = useState<Record<number, AttendanceStatus>>(initialStatusMap);
   const [pendingWorkerIds, setPendingWorkerIds] = useState<number[]>([]);
   const [bulkPending, setBulkPending] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const isFlushingRef = useRef(false);
 
   const allIds = useMemo(() => rows.map((row) => row.id), [rows]);
-  const allSelected = allIds.length > 0 && selected.length === allIds.length;
+  const allFilteredIds = useMemo(() => {
+    const source = filteredWorkerIds.length > 0 ? filteredWorkerIds : allIds;
+    return Array.from(new Set(source));
+  }, [filteredWorkerIds, allIds]);
+  const pageAllSelected = allIds.length > 0 && allIds.every((id) => selected.includes(id));
+  const allFilteredSelected =
+    allFilteredIds.length > 0 && allFilteredIds.every((id) => selected.includes(id));
 
-  async function flushQueue() {
+  const flushQueue = useCallback(async () => {
     if (isFlushingRef.current) return;
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
     isFlushingRef.current = true;
     try {
       let queue = readQueue();
+      let processedAny = false;
       while (queue.length > 0) {
         const next = queue[0];
         const response = await fetch("/api/attendance/sync", {
@@ -87,13 +105,17 @@ export function AttendanceWorkersTable({ rows, workDate, initialStatusMap = {} }
         if (!response.ok) break;
 
         queue = queue.slice(1);
+        processedAny = true;
         writeQueue(queue);
         setPendingWorkerIds((prev) => prev.filter((id) => !next.workerIds.includes(id)));
+      }
+      if (processedAny) {
+        router.refresh();
       }
     } finally {
       isFlushingRef.current = false;
     }
-  }
+  }, [router]);
 
   function enqueueOperation(operation: QueueOperation) {
     const queue = readQueue();
@@ -125,19 +147,36 @@ export function AttendanceWorkersTable({ rows, workDate, initialStatusMap = {} }
     return () => {
       window.removeEventListener("online", onOnline);
     };
-  }, []);
+  }, [flushQueue]);
 
   function toggle(id: number) {
     setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   }
 
-  function toggleAll() {
-    setSelected((prev) => (prev.length === allIds.length ? [] : allIds));
+  function toggleAllPage() {
+    setSelected((prev) => {
+      const pageSelected = allIds.every((id) => prev.includes(id));
+      if (pageSelected) {
+        return prev.filter((id) => !allIds.includes(id));
+      }
+      return Array.from(new Set([...prev, ...allIds]));
+    });
+  }
+
+  function toggleAllFiltered() {
+    setSelected((prev) => {
+      const filteredSelected = allFilteredIds.every((id) => prev.includes(id));
+      if (filteredSelected) {
+        return prev.filter((id) => !allFilteredIds.includes(id));
+      }
+      return Array.from(new Set([...prev, ...allFilteredIds]));
+    });
   }
 
   function bulkButtons() {
     async function onBulk(status: AttendanceStatus) {
       if (selected.length === 0 || bulkPending) return;
+      const selectedCount = selected.length;
       setBulkPending(true);
       setPendingWorkerIds((prev) => Array.from(new Set([...prev, ...selected])));
       setStatusMap((prev) => {
@@ -158,6 +197,7 @@ export function AttendanceWorkersTable({ rows, workDate, initialStatusMap = {} }
       enqueueOperation(operation);
       try {
         await flushQueue();
+        setSyncMessage(`تم التحضير بنجاح لعدد ${selectedCount} موظف.`);
       } finally {
         const remainingQueue = readQueue();
         const queuedIds = new Set(remainingQueue.flatMap((item) => item.workerIds));
@@ -215,6 +255,7 @@ export function AttendanceWorkersTable({ rows, workDate, initialStatusMap = {} }
       enqueueOperation(operation);
       try {
         await flushQueue();
+        setSyncMessage("تم تحضير الموظف بنجاح.");
       } finally {
         const stillQueued = readQueue().some((op) => op.workerIds.includes(workerId));
         if (!stillQueued) {
@@ -261,10 +302,24 @@ export function AttendanceWorkersTable({ rows, workDate, initialStatusMap = {} }
   return (
     <Card className="overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 p-3">
-        <label className="inline-flex items-center gap-2 text-sm font-bold text-slate-700">
-          <input type="checkbox" checked={allSelected} onChange={toggleAll} />
-          تحديد الكل ({selected.length}/{rows.length})
-        </label>
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="inline-flex items-center gap-2 text-sm font-bold text-slate-700">
+            <input type="checkbox" checked={pageAllSelected} onChange={toggleAllPage} />
+            تحديد الصفحة ({allIds.length})
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm font-bold text-emerald-700">
+            <input type="checkbox" checked={allFilteredSelected} onChange={toggleAllFiltered} />
+            تحديد كل نتائج الفلترة ({filteredTotalRows || allFilteredIds.length})
+          </label>
+          <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
+            المحدد حاليًا: {selected.length}
+          </span>
+          {syncMessage && (
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">
+              {syncMessage}
+            </span>
+          )}
+        </div>
         {bulkButtons()}
       </div>
 
@@ -295,7 +350,7 @@ export function AttendanceWorkersTable({ rows, workDate, initialStatusMap = {} }
           <thead className="bg-slate-100 text-slate-700">
             <tr>
               <th className="px-3 py-2 text-right font-bold">
-                <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+                <input type="checkbox" checked={pageAllSelected} onChange={toggleAllPage} />
               </th>
               <th className="px-3 py-2 text-right font-bold">#</th>
               <th className="px-3 py-2 text-right font-bold">الاسم</th>

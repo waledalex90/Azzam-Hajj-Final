@@ -10,6 +10,7 @@ import {
   getAttendanceChecksPage,
   getAttendanceDayStats,
   getAttendanceLatestStatusMap,
+  getAttendanceWorkerIdsForFilters,
   getAttendanceWorkersPage,
   getContractorOptions,
   getSiteOptions,
@@ -101,6 +102,15 @@ export default async function AttendancePage({ searchParams }: Props) {
           workersPage.rows.map((item) => item.id),
         )
       : {};
+
+  const filteredWorkerIds =
+    activeTab === "workers"
+      ? await getAttendanceWorkerIdsForFilters({
+          siteId: Number.isFinite(siteId) ? siteId : undefined,
+          contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
+          search: q,
+        })
+      : [];
 
   const reviewedPage =
     activeTab === "review"
@@ -223,6 +233,8 @@ export default async function AttendancePage({ searchParams }: Props) {
             rows={workersPage?.rows ?? []}
             workDate={workDate}
             initialStatusMap={initialStatusMap}
+            filteredWorkerIds={filteredWorkerIds}
+            filteredTotalRows={workersPage?.meta.totalRows ?? filteredWorkerIds.length}
           />
           <PaginationControls
             page={workersPage?.meta.page ?? 1}
