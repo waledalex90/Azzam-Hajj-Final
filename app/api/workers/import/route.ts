@@ -6,6 +6,24 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 export const runtime = "nodejs";
+/** Allow long-running imports on Vercel (adjust per plan). */
+export const maxDuration = 300;
+
+/** Node/Vercel may return a Blob-like upload that is not `instanceof File` — accept any Blob with arrayBuffer(). */
+function getFileBlobFromFormData(formData: FormData, fieldName: string): Blob | null {
+  const entry = formData.get(fieldName);
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  if (typeof (entry as Blob).arrayBuffer !== "function") {
+    return null;
+  }
+  const blob = entry as Blob;
+  if (blob.size === 0) {
+    return null;
+  }
+  return blob;
+}
 
 function normalizeText(value: unknown) {
   return String(value ?? "").trim();
@@ -62,6 +80,10 @@ function parseSheetRow(record: Record<string, unknown>, rowIndex: number): Parse
 }
 
 export async function POST(request: Request) {
+  const contentType = request.headers.get("content-type") ?? "";
+  const contentLength = request.headers.get("content-length") ?? "unknown";
+  console.log("[workers/import] POST", { contentType: contentType.slice(0, 80), contentLength });
+
   if (isDemoModeEnabled()) {
     return NextResponse.json({ error: "demo_mode" }, { status: 403 });
   }
@@ -88,26 +110,50 @@ export async function POST(request: Request) {
   let formData: FormData;
   try {
     formData = await request.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid form data" }, { status: 400 });
+  } catch (parseError) {
+    console.error("[workers/import] formData parse failed", parseError);
+    return NextResponse.json(
+      {
+        error: "Invalid form data",
+        detail: parseError instanceof Error ? parseError.message : String(parseError),
+      },
+      { status: 400 },
+    );
   }
 
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return NextResponse.json({ error: "file_required" }, { status: 400 });
+  const formKeys = [...formData.keys()];
+  console.log("[workers/import] form keys:", formKeys);
+
+  const fileBlob = getFileBlobFromFormData(formData, "file");
+  if (!fileBlob) {
+    console.warn("[workers/import] missing or empty file field", {
+      hasFileKey: formData.has("file"),
+      firstKeySample: formKeys[0],
+    });
+    return NextResponse.json(
+      {
+        error: "file_required",
+        detail: "Expected multipart field \"file\" with a non-empty file. Use FormData and do not set Content-Type manually.",
+      },
+      { status: 400 },
+    );
   }
 
-  const buffer = await file.arrayBuffer();
+  const buffer = await fileBlob.arrayBuffer();
+  console.log("[workers/import] file bytes:", buffer.byteLength);
+
   const workbook = XLSX.read(buffer, { type: "array" });
   const firstSheetName = workbook.SheetNames[0];
   if (!firstSheetName) {
-    return NextResponse.json({ error: "sheet_missing" }, { status: 400 });
+    console.warn("[workers/import] workbook has no sheets");
+    return NextResponse.json({ error: "sheet_missing", detail: "No worksheet found in the file." }, { status: 400 });
   }
 
   const sheet = workbook.Sheets[firstSheetName];
   const records = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
   if (!records.length) {
-    return NextResponse.json({ error: "sheet_empty" }, { status: 400 });
+    console.warn("[workers/import] first sheet has no data rows");
+    return NextResponse.json({ error: "sheet_empty", detail: "The first sheet contains no data rows." }, { status: 400 });
   }
 
   const [sitesRes, contractorsRes] = await Promise.all([

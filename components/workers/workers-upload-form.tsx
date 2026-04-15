@@ -23,6 +23,7 @@ type ImportSuccessPayload = {
 
 type ImportErrorPayload = {
   error: string;
+  detail?: string;
 };
 
 export function WorkersUploadForm() {
@@ -45,7 +46,7 @@ export function WorkersUploadForm() {
     }
 
     const body = new FormData();
-    body.set("file", file);
+    body.set("file", file, file.name);
 
     setPending(true);
     try {
@@ -59,12 +60,25 @@ export function WorkersUploadForm() {
 
       if (!response.ok) {
         const err = "error" in data ? data.error : "فشل الرفع";
+        const detail = "detail" in data && typeof data.detail === "string" ? data.detail : "";
         if (response.status === 401) {
           setErrorMessage("يجب تسجيل الدخول أولاً.");
         } else if (response.status === 403) {
           setErrorMessage(err === "demo_mode" ? "وضع التجربة مفعل ولا يُسمح بالرفع." : "ليس لديك صلاحية لاستيراد الموظفين.");
+        } else if (response.status === 400) {
+          const code = typeof err === "string" ? err : "";
+          const map: Record<string, string> = {
+            file_required: "الملف مفقود أو فارغ. تأكد من اختيار ملف صالح.",
+            "Invalid form data": "تعذر قراءة النموذج (multipart). جرّب ملفًا أصغر أو تحقق من الشبكة.",
+            sheet_missing: "لا يوجد ورقة عمل داخل الملف.",
+            sheet_empty: "الورقة الأولى لا تحتوي بيانات.",
+          };
+          const base = map[code] ?? (typeof err === "string" ? err : "طلب غير صالح (400).");
+          setErrorMessage(detail ? `${base} (${detail})` : base);
         } else {
-          setErrorMessage(typeof err === "string" ? err : "حدث خطأ أثناء معالجة الملف.");
+          setErrorMessage(
+            detail ? `${typeof err === "string" ? err : "خطأ"}: ${detail}` : typeof err === "string" ? err : "حدث خطأ أثناء معالجة الملف.",
+          );
         }
         return;
       }
