@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import {
   getAttendanceChecksPage,
   getAttendanceDayStats,
+  getAttendanceLatestStatusMap,
   getAttendanceWorkersPage,
   getContractorOptions,
   getSiteOptions,
@@ -185,6 +186,14 @@ export default async function AttendancePage({ searchParams }: Props) {
         })
       : null;
 
+  const initialStatusMap =
+    activeTab === "workers" && workersPage
+      ? await getAttendanceLatestStatusMap(
+          workDate,
+          workersPage.rows.map((item) => item.id),
+        )
+      : {};
+
   const reviewedPage =
     activeTab === "review"
       ? await getAttendanceChecksPage({
@@ -307,6 +316,7 @@ export default async function AttendancePage({ searchParams }: Props) {
             action={registerAttendanceCheck}
             bulkAction={registerBulkAttendance}
             workDate={workDate}
+            initialStatusMap={initialStatusMap}
           />
           <PaginationControls
             page={workersPage?.meta.page ?? 1}

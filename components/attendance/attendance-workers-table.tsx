@@ -4,15 +4,42 @@ import { useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import type { WorkerRow } from "@/lib/types/db";
 
+type AttendanceStatus = "present" | "absent" | "half";
+
 type Props = {
   rows: WorkerRow[];
   action: (formData: FormData) => Promise<void>;
   bulkAction: (formData: FormData) => Promise<void>;
   workDate: string;
+  initialStatusMap?: Record<number, AttendanceStatus>;
 };
 
-export function AttendanceWorkersTable({ rows, action, bulkAction, workDate }: Props) {
+function statusLabel(status?: AttendanceStatus) {
+  if (status === "present") return "حاضر";
+  if (status === "absent") return "غائب";
+  if (status === "half") return "نصف يوم";
+  return "غير محدد";
+}
+
+function statusBadgeClass(status?: AttendanceStatus) {
+  if (status === "present") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (status === "absent") return "bg-rose-50 text-rose-700 border-rose-200";
+  if (status === "half") return "bg-amber-50 text-amber-700 border-amber-200";
+  return "bg-slate-50 text-slate-600 border-slate-200";
+}
+
+export function AttendanceWorkersTable({
+  rows,
+  action,
+  bulkAction,
+  workDate,
+  initialStatusMap = {},
+}: Props) {
   const [selected, setSelected] = useState<number[]>([]);
+  const [statusMap, setStatusMap] = useState<Record<number, AttendanceStatus>>(initialStatusMap);
+  const [pendingWorkerIds, setPendingWorkerIds] = useState<number[]>([]);
+  const [bulkPending, setBulkPending] = useState(false);
+
   const allIds = useMemo(() => rows.map((row) => row.id), [rows]);
   const allSelected = allIds.length > 0 && selected.length === allIds.length;
 
@@ -25,69 +52,114 @@ export function AttendanceWorkersTable({ rows, action, bulkAction, workDate }: P
   }
 
   function bulkButtons() {
+    async function onBulk(status: AttendanceStatus) {
+      if (selected.length === 0 || bulkPending) return;
+      setBulkPending(true);
+      setPendingWorkerIds((prev) => Array.from(new Set([...prev, ...selected])));
+      setStatusMap((prev) => {
+        const next = { ...prev };
+        selected.forEach((id) => {
+          next[id] = status;
+        });
+        return next;
+      });
+
+      const fd = new FormData();
+      fd.set("workDate", workDate);
+      fd.set("status", status);
+      fd.set("workerIds", JSON.stringify(selected));
+      try {
+        await bulkAction(fd);
+      } finally {
+        setPendingWorkerIds((prev) => prev.filter((id) => !selected.includes(id)));
+        setSelected([]);
+        setBulkPending(false);
+      }
+    }
+
     return (
-      <form action={bulkAction} className="flex flex-wrap items-center gap-2">
-        <input type="hidden" name="workDate" value={workDate} />
-        <input type="hidden" name="workerIds" value={JSON.stringify(selected)} />
+      <div className="flex flex-wrap items-center gap-2">
         <button
-          type="submit"
-          name="status"
-          value="present"
+          type="button"
+          onClick={() => onBulk("present")}
           className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-          disabled={selected.length === 0}
+          disabled={selected.length === 0 || bulkPending}
         >
           تحضير المحدد كـ حاضر
         </button>
         <button
-          type="submit"
-          name="status"
-          value="absent"
+          type="button"
+          onClick={() => onBulk("absent")}
           className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-          disabled={selected.length === 0}
+          disabled={selected.length === 0 || bulkPending}
         >
           تحضير المحدد كـ غائب
         </button>
         <button
-          type="submit"
-          name="status"
-          value="half"
+          type="button"
+          onClick={() => onBulk("half")}
           className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-          disabled={selected.length === 0}
+          disabled={selected.length === 0 || bulkPending}
         >
           تحضير المحدد كنصف يوم
         </button>
-      </form>
+      </div>
     );
   }
 
-  const statusButtons = (workerId: number) => (
+  const statusButtons = (workerId: number) => {
+    const pending = pendingWorkerIds.includes(workerId);
+
+    async function onStatusClick(status: AttendanceStatus) {
+      if (pending || bulkPending) return;
+      setPendingWorkerIds((prev) => [...prev, workerId]);
+      setStatusMap((prev) => ({ ...prev, [workerId]: status }));
+
+      const fd = new FormData();
+      fd.set("workerId", String(workerId));
+      fd.set("workDate", workDate);
+      fd.set("status", status);
+      try {
+        await action(fd);
+      } finally {
+        setPendingWorkerIds((prev) => prev.filter((id) => id !== workerId));
+      }
+    }
+
+    return (
     <div className="flex flex-wrap items-center gap-2">
-      <form action={action}>
-        <input type="hidden" name="workerId" value={workerId} />
-        <input type="hidden" name="workDate" value={workDate} />
-        <input type="hidden" name="status" value="present" />
-        <button type="submit" className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white">
+      <button
+        type="button"
+        onClick={() => onStatusClick("present")}
+        className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+        disabled={pending || bulkPending}
+      >
           حاضر
-        </button>
-      </form>
-      <form action={action}>
-        <input type="hidden" name="workerId" value={workerId} />
-        <input type="hidden" name="workDate" value={workDate} />
-        <input type="hidden" name="status" value="absent" />
-        <button type="submit" className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-bold text-white">
+      </button>
+      <button
+        type="button"
+        onClick={() => onStatusClick("absent")}
+        className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+        disabled={pending || bulkPending}
+      >
           غائب
-        </button>
-      </form>
-      <form action={action}>
-        <input type="hidden" name="workerId" value={workerId} />
-        <input type="hidden" name="workDate" value={workDate} />
-        <input type="hidden" name="status" value="half" />
-        <button type="submit" className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white">
+      </button>
+      <button
+        type="button"
+        onClick={() => onStatusClick("half")}
+        className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+        disabled={pending || bulkPending}
+      >
           نصف
-        </button>
-      </form>
+      </button>
+      <span
+        className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${statusBadgeClass(statusMap[workerId])}`}
+      >
+        {pending ? "جارٍ الحفظ..." : statusLabel(statusMap[workerId])}
+      </span>
     </div>
-  );
+    );
+  };
 
   return (
     <Card className="overflow-hidden p-0">
@@ -113,6 +185,9 @@ export function AttendanceWorkersTable({ rows, action, bulkAction, workDate }: P
             <p className="font-bold text-slate-800">{worker.name}</p>
             <p className="text-xs text-slate-500">{worker.id_number}</p>
             <p className="mt-1 text-xs text-slate-500">{worker.sites?.name ?? "غير محدد"}</p>
+            <p className="mt-1 text-[11px] text-slate-500">
+              الحالة الحالية: <span className="font-bold">{statusLabel(statusMap[worker.id])}</span>
+            </p>
             <div className="mt-3">{statusButtons(worker.id)}</div>
           </div>
         ))}

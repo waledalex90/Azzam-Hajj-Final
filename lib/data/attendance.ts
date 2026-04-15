@@ -45,6 +45,35 @@ type RawAttendanceCheckRow = Omit<AttendanceCheckRow, "attendance_rounds" | "wor
   workers?: { name: string; id_number: string } | { name: string; id_number: string }[] | null;
 };
 
+export async function getAttendanceLatestStatusMap(
+  workDate: string,
+  workerIds: number[],
+): Promise<Record<number, "present" | "absent" | "half">> {
+  const uniqueIds = Array.from(new Set(workerIds.filter(Boolean)));
+  if (uniqueIds.length === 0) return {};
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("attendance_checks")
+    .select("worker_id, status, checked_at, attendance_rounds!inner(work_date)")
+    .in("worker_id", uniqueIds)
+    .eq("attendance_rounds.work_date", workDate)
+    .order("checked_at", { ascending: false });
+
+  if (error || !data) return {};
+
+  const map: Record<number, "present" | "absent" | "half"> = {};
+  for (const row of data as Array<{
+    worker_id: number;
+    status: "present" | "absent" | "half";
+  }>) {
+    if (!map[row.worker_id]) {
+      map[row.worker_id] = row.status;
+    }
+  }
+  return map;
+}
+
 export async function getAttendanceWorkersPage({
   page,
   pageSize,
