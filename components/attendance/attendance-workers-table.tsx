@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import type { WorkerRow } from "@/lib/types/db";
@@ -37,30 +37,13 @@ type QueueOperation = {
   createdAt: string;
 };
 
-const QUEUE_STORAGE_KEY = "attendance-offline-queue-v1";
+const CONNECTION_ERROR_MESSAGE = "فشل الاتصال.. لم يتم حفظ البيانات، يرجى المحاولة مرة أخرى.";
 
 type SyncProgress = {
   active: boolean;
   processed: number;
   total: number;
 };
-
-function readQueue(): QueueOperation[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(QUEUE_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as QueueOperation[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeQueue(queue: QueueOperation[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
-}
 
 function makeIdempotencyKey() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -97,7 +80,6 @@ export function AttendanceWorkersTable({
     processed: 0,
     total: 0,
   });
-  const isFlushingRef = useRef(false);
 
   const visibleRows = useMemo(
     () => rows.filter((row) => !completedWorkerIds.includes(row.id)),
@@ -120,82 +102,25 @@ export function AttendanceWorkersTable({
   }, [router]);
 
   async function postSyncOperation(operation: QueueOperation) {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      throw new Error(CONNECTION_ERROR_MESSAGE);
+    }
+
     const response = await fetch("/api/attendance/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(operation),
     });
-    return response.ok;
-  }
 
-  const flushQueue = useCallback(async () => {
-    if (isFlushingRef.current) return;
-    if (typeof navigator !== "undefined" && !navigator.onLine) return;
-
-    isFlushingRef.current = true;
-    const processedWorkerIds = new Set<number>();
-    try {
-      let queue = readQueue();
-      let processedAny = false;
-      while (queue.length > 0) {
-        const next = queue[0];
-        const ok = await postSyncOperation(next);
-        if (!ok) break;
-
-        queue = queue.slice(1);
-        processedAny = true;
-        next.workerIds.forEach((id) => processedWorkerIds.add(id));
-        writeQueue(queue);
-        setPendingWorkerIds((prev) => prev.filter((id) => !next.workerIds.includes(id)));
-      }
-      if (processedAny) {
-        mutate();
-      }
-    } finally {
-      isFlushingRef.current = false;
-    }
-    return Array.from(processedWorkerIds);
-  }, [mutate]);
-
-  function enqueueOperation(operation: QueueOperation) {
-    const queue = readQueue();
-    if (queue.some((item) => item.idempotencyKey === operation.idempotencyKey)) return;
-    queue.push(operation);
-    writeQueue(queue);
-  }
-
-  useEffect(() => {
-    const queue = readQueue();
-    if (queue.length > 0) {
-      setPendingWorkerIds(Array.from(new Set(queue.flatMap((item) => item.workerIds))));
-      setStatusMap((prev) => {
-        const next = { ...prev };
-        for (const op of queue) {
-          op.workerIds.forEach((id) => {
-            next[id] = op.status;
-          });
-        }
-        return next;
-      });
+    if (!response.ok) {
+      throw new Error(CONNECTION_ERROR_MESSAGE);
     }
 
-    const onOnline = () => {
-      void flushQueue().then((processed) => {
-        if (processed && processed.length > 0) {
-          setCompletedWorkerIds((prev) => Array.from(new Set([...prev, ...processed])));
-        }
-      });
-    };
-    window.addEventListener("online", onOnline);
-    void flushQueue().then((processed) => {
-      if (processed && processed.length > 0) {
-        setCompletedWorkerIds((prev) => Array.from(new Set([...prev, ...processed])));
-      }
-    });
-    return () => {
-      window.removeEventListener("online", onOnline);
-    };
-  }, [flushQueue]);
+    const payload = (await response.json().catch(() => ({}))) as { ok?: boolean };
+    if (!payload.ok) {
+      throw new Error(CONNECTION_ERROR_MESSAGE);
+    }
+  }
 
   function toggle(id: number) {
     setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
@@ -230,13 +155,6 @@ export function AttendanceWorkersTable({
       setSyncMessage(null);
       setSyncProgress({ active: true, processed: 0, total: selectedCount });
       setPendingWorkerIds((prev) => Array.from(new Set([...prev, ...selected])));
-      setStatusMap((prev) => {
-        const next = { ...prev };
-        selected.forEach((id) => {
-          next[id] = status;
-        });
-        return next;
-      });
 
       const operations = chunkArray(selectedIdsSnapshot, 500).map((workerIds) => ({
         idempotencyKey: makeIdempotencyKey(),
@@ -246,60 +164,37 @@ export function AttendanceWorkersTable({
         createdAt: new Date().toISOString(),
       }));
       try {
-        const processedDirectly = new Set<number>();
-        const failedOperations: QueueOperation[] = [];
-
-        if (typeof navigator !== "undefined" && navigator.onLine) {
-          for (const operation of operations) {
-            const ok = await postSyncOperation(operation);
-            if (!ok) {
-              failedOperations.push(operation);
-              continue;
-            }
-            operation.workerIds.forEach((id) => processedDirectly.add(id));
-            setSyncProgress((prev) => ({
-              ...prev,
-              processed: Math.min(prev.total, prev.processed + operation.workerIds.length),
-            }));
-          }
-        } else {
-          failedOperations.push(...operations);
+        const processedIds: number[] = [];
+        for (const operation of operations) {
+          await postSyncOperation(operation);
+          processedIds.push(...operation.workerIds);
+          setSyncProgress((prev) => ({
+            ...prev,
+            processed: Math.min(prev.total, processedIds.length),
+          }));
+          setPendingWorkerIds((prev) => prev.filter((id) => !operation.workerIds.includes(id)));
         }
 
-        failedOperations.forEach(enqueueOperation);
-
-        if (processedDirectly.size > 0) {
-          const processedIds = Array.from(processedDirectly);
+        if (processedIds.length > 0) {
+          setStatusMap((prev) => {
+            const next = { ...prev };
+            processedIds.forEach((id) => {
+              next[id] = status;
+            });
+            return next;
+          });
           setCompletedWorkerIds((prev) => Array.from(new Set([...prev, ...processedIds])));
-          setPendingWorkerIds((prev) => prev.filter((id) => !processedDirectly.has(id)));
-          mutate();
         }
-
-        if (failedOperations.length > 0 && (typeof navigator === "undefined" || navigator.onLine)) {
-          const processedQueued = (await flushQueue()) ?? [];
-          if (processedQueued.length > 0) {
-            setCompletedWorkerIds((prev) => Array.from(new Set([...prev, ...processedQueued])));
-          }
-        }
-
-        const remainingQueue = readQueue();
-        const stillQueued = remainingQueue.some((item) =>
-          item.workerIds.some((id) => selectedIdsSnapshot.includes(id)),
-        );
-        if (stillQueued) {
-          setSyncMessage(
-            `تم حفظ ${selectedCount - remainingQueue.flatMap((q) => q.workerIds).filter((id) => selectedIdsSnapshot.includes(id)).length} عامل، والباقي في انتظار المزامنة.`,
-          );
-        } else {
-          setSyncMessage(`تم التحضير بنجاح لعدد ${selectedCount} موظف.`);
-        }
-      } finally {
-        const remainingQueue = readQueue();
-        const queuedIds = new Set(remainingQueue.flatMap((item) => item.workerIds));
-        setPendingWorkerIds((prev) => prev.filter((id) => queuedIds.has(id)));
+        setSyncMessage(`تم التحضير بنجاح لعدد ${selectedCount} موظف.`);
         setSelected([]);
+        mutate();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : CONNECTION_ERROR_MESSAGE;
+        setSyncMessage(message || CONNECTION_ERROR_MESSAGE);
+      } finally {
         setBulkPending(false);
-        setSyncProgress({ active: false, processed: selectedCount, total: selectedCount });
+        setPendingWorkerIds([]);
+        setSyncProgress((prev) => ({ active: false, processed: prev.processed, total: prev.total }));
       }
     }
 
@@ -339,7 +234,8 @@ export function AttendanceWorkersTable({
     async function onStatusClick(status: AttendanceStatus) {
       if (pending || bulkPending) return;
       setPendingWorkerIds((prev) => [...prev, workerId]);
-      setStatusMap((prev) => ({ ...prev, [workerId]: status }));
+      setSyncMessage(null);
+      setSyncProgress({ active: true, processed: 0, total: 1 });
 
       const operation: QueueOperation = {
         idempotencyKey: makeIdempotencyKey(),
@@ -349,28 +245,18 @@ export function AttendanceWorkersTable({
         createdAt: new Date().toISOString(),
       };
       try {
-        const directOk = typeof navigator !== "undefined" && navigator.onLine && (await postSyncOperation(operation));
-        if (directOk) {
-          setCompletedWorkerIds((prev) => Array.from(new Set([...prev, workerId])));
-          setPendingWorkerIds((prev) => prev.filter((id) => id !== workerId));
-          setSyncMessage("تم تحضير الموظف بنجاح.");
-          mutate();
-          return;
-        }
-
-        enqueueOperation(operation);
-        const processed = (await flushQueue()) ?? [];
-        if (processed.includes(workerId)) {
-          setCompletedWorkerIds((prev) => Array.from(new Set([...prev, ...processed])));
-          setSyncMessage("تم تحضير الموظف بنجاح.");
-          return;
-        }
-        setSyncMessage("تمت جدولة تحضير الموظف وسيتم إكمال المزامنة تلقائيًا.");
+        await postSyncOperation(operation);
+        setStatusMap((prev) => ({ ...prev, [workerId]: status }));
+        setCompletedWorkerIds((prev) => Array.from(new Set([...prev, workerId])));
+        setSyncProgress({ active: true, processed: 1, total: 1 });
+        setSyncMessage("تم تحضير الموظف بنجاح.");
+        mutate();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : CONNECTION_ERROR_MESSAGE;
+        setSyncMessage(message || CONNECTION_ERROR_MESSAGE);
       } finally {
-        const stillQueued = readQueue().some((op) => op.workerIds.includes(workerId));
-        if (!stillQueued) {
-          setPendingWorkerIds((prev) => prev.filter((id) => id !== workerId));
-        }
+        setPendingWorkerIds((prev) => prev.filter((id) => id !== workerId));
+        setSyncProgress((prev) => ({ active: false, processed: prev.processed, total: prev.total }));
       }
     }
 
@@ -432,7 +318,7 @@ export function AttendanceWorkersTable({
           {syncProgress.active && syncProgress.total > 0 && (
             <div className="min-w-[260px] rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
               <p className="text-[11px] font-bold text-emerald-700">
-                جارٍ مزامنة التحضير {syncProgress.processed} / {syncProgress.total} عامل...
+                جاري الحفظ الفعلي في قاعدة البيانات ({syncProgress.processed} / {syncProgress.total})...
               </p>
               <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-emerald-100">
                 <div
