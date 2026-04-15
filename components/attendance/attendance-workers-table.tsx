@@ -39,6 +39,12 @@ type QueueOperation = {
 
 const QUEUE_STORAGE_KEY = "attendance-offline-queue-v1";
 
+type SyncProgress = {
+  active: boolean;
+  processed: number;
+  total: number;
+};
+
 function readQueue(): QueueOperation[] {
   if (typeof window === "undefined") return [];
   try {
@@ -86,6 +92,11 @@ export function AttendanceWorkersTable({
   const [completedWorkerIds, setCompletedWorkerIds] = useState<number[]>([]);
   const [bulkPending, setBulkPending] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [syncProgress, setSyncProgress] = useState<SyncProgress>({
+    active: false,
+    processed: 0,
+    total: 0,
+  });
   const isFlushingRef = useRef(false);
 
   const visibleRows = useMemo(
@@ -100,6 +111,22 @@ export function AttendanceWorkersTable({
   const pageAllSelected = allIds.length > 0 && allIds.every((id) => selected.includes(id));
   const allFilteredSelected =
     allFilteredIds.length > 0 && allFilteredIds.every((id) => selected.includes(id));
+  const progressPercent = syncProgress.total
+    ? Math.min(100, Math.round((syncProgress.processed / syncProgress.total) * 100))
+    : 0;
+
+  const mutate = useCallback(() => {
+    router.refresh();
+  }, [router]);
+
+  async function postSyncOperation(operation: QueueOperation) {
+    const response = await fetch("/api/attendance/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(operation),
+    });
+    return response.ok;
+  }
 
   const flushQueue = useCallback(async () => {
     if (isFlushingRef.current) return;
@@ -112,12 +139,8 @@ export function AttendanceWorkersTable({
       let processedAny = false;
       while (queue.length > 0) {
         const next = queue[0];
-        const response = await fetch("/api/attendance/sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(next),
-        });
-        if (!response.ok) break;
+        const ok = await postSyncOperation(next);
+        if (!ok) break;
 
         queue = queue.slice(1);
         processedAny = true;
@@ -126,13 +149,13 @@ export function AttendanceWorkersTable({
         setPendingWorkerIds((prev) => prev.filter((id) => !next.workerIds.includes(id)));
       }
       if (processedAny) {
-        router.refresh();
+        mutate();
       }
     } finally {
       isFlushingRef.current = false;
     }
     return Array.from(processedWorkerIds);
-  }, [router]);
+  }, [mutate]);
 
   function enqueueOperation(operation: QueueOperation) {
     const queue = readQueue();
@@ -204,6 +227,8 @@ export function AttendanceWorkersTable({
       const selectedCount = selected.length;
       const selectedIdsSnapshot = [...selected];
       setBulkPending(true);
+      setSyncMessage(null);
+      setSyncProgress({ active: true, processed: 0, total: selectedCount });
       setPendingWorkerIds((prev) => Array.from(new Set([...prev, ...selected])));
       setStatusMap((prev) => {
         const next = { ...prev };
@@ -213,25 +238,58 @@ export function AttendanceWorkersTable({
         return next;
       });
 
-      const operations = chunkArray(selectedIdsSnapshot, 200).map((workerIds) => ({
+      const operations = chunkArray(selectedIdsSnapshot, 500).map((workerIds) => ({
         idempotencyKey: makeIdempotencyKey(),
         workDate,
         status,
         workerIds,
         createdAt: new Date().toISOString(),
       }));
-      operations.forEach(enqueueOperation);
       try {
-        const processed = (await flushQueue()) ?? [];
-        if (processed.length > 0) {
-          setCompletedWorkerIds((prev) => Array.from(new Set([...prev, ...processed])));
+        const processedDirectly = new Set<number>();
+        const failedOperations: QueueOperation[] = [];
+
+        if (typeof navigator !== "undefined" && navigator.onLine) {
+          for (const operation of operations) {
+            const ok = await postSyncOperation(operation);
+            if (!ok) {
+              failedOperations.push(operation);
+              continue;
+            }
+            operation.workerIds.forEach((id) => processedDirectly.add(id));
+            setSyncProgress((prev) => ({
+              ...prev,
+              processed: Math.min(prev.total, prev.processed + operation.workerIds.length),
+            }));
+          }
+        } else {
+          failedOperations.push(...operations);
         }
+
+        failedOperations.forEach(enqueueOperation);
+
+        if (processedDirectly.size > 0) {
+          const processedIds = Array.from(processedDirectly);
+          setCompletedWorkerIds((prev) => Array.from(new Set([...prev, ...processedIds])));
+          setPendingWorkerIds((prev) => prev.filter((id) => !processedDirectly.has(id)));
+          mutate();
+        }
+
+        if (failedOperations.length > 0 && (typeof navigator === "undefined" || navigator.onLine)) {
+          const processedQueued = (await flushQueue()) ?? [];
+          if (processedQueued.length > 0) {
+            setCompletedWorkerIds((prev) => Array.from(new Set([...prev, ...processedQueued])));
+          }
+        }
+
         const remainingQueue = readQueue();
         const stillQueued = remainingQueue.some((item) =>
           item.workerIds.some((id) => selectedIdsSnapshot.includes(id)),
         );
         if (stillQueued) {
-          setSyncMessage("تمت جدولة التحضير وسيتم إكمال المزامنة تلقائيًا.");
+          setSyncMessage(
+            `تم حفظ ${selectedCount - remainingQueue.flatMap((q) => q.workerIds).filter((id) => selectedIdsSnapshot.includes(id)).length} عامل، والباقي في انتظار المزامنة.`,
+          );
         } else {
           setSyncMessage(`تم التحضير بنجاح لعدد ${selectedCount} موظف.`);
         }
@@ -241,6 +299,7 @@ export function AttendanceWorkersTable({
         setPendingWorkerIds((prev) => prev.filter((id) => queuedIds.has(id)));
         setSelected([]);
         setBulkPending(false);
+        setSyncProgress({ active: false, processed: selectedCount, total: selectedCount });
       }
     }
 
@@ -289,18 +348,24 @@ export function AttendanceWorkersTable({
         workerIds: [workerId],
         createdAt: new Date().toISOString(),
       };
-      enqueueOperation(operation);
       try {
-        const processed = (await flushQueue()) ?? [];
-        if (processed.length > 0) {
-          setCompletedWorkerIds((prev) => Array.from(new Set([...prev, ...processed])));
-        }
-        const stillQueued = readQueue().some((op) => op.workerIds.includes(workerId));
-        if (stillQueued) {
-          setSyncMessage("تمت جدولة تحضير الموظف وسيتم إكمال المزامنة تلقائيًا.");
-        } else {
+        const directOk = typeof navigator !== "undefined" && navigator.onLine && (await postSyncOperation(operation));
+        if (directOk) {
+          setCompletedWorkerIds((prev) => Array.from(new Set([...prev, workerId])));
+          setPendingWorkerIds((prev) => prev.filter((id) => id !== workerId));
           setSyncMessage("تم تحضير الموظف بنجاح.");
+          mutate();
+          return;
         }
+
+        enqueueOperation(operation);
+        const processed = (await flushQueue()) ?? [];
+        if (processed.includes(workerId)) {
+          setCompletedWorkerIds((prev) => Array.from(new Set([...prev, ...processed])));
+          setSyncMessage("تم تحضير الموظف بنجاح.");
+          return;
+        }
+        setSyncMessage("تمت جدولة تحضير الموظف وسيتم إكمال المزامنة تلقائيًا.");
       } finally {
         const stillQueued = readQueue().some((op) => op.workerIds.includes(workerId));
         if (!stillQueued) {
@@ -363,6 +428,19 @@ export function AttendanceWorkersTable({
             <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">
               {syncMessage}
             </span>
+          )}
+          {syncProgress.active && syncProgress.total > 0 && (
+            <div className="min-w-[260px] rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+              <p className="text-[11px] font-bold text-emerald-700">
+                جارٍ مزامنة التحضير {syncProgress.processed} / {syncProgress.total} عامل...
+              </p>
+              <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-emerald-100">
+                <div
+                  className="h-full rounded-full bg-emerald-700 transition-all duration-300"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            </div>
           )}
         </div>
         {bulkButtons()}
