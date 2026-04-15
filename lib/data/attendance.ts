@@ -1,22 +1,53 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { AttendanceDayStats, PaginationMeta, SiteOption, WorkerRow } from "@/lib/types/db";
+import type {
+  AttendanceCheckRow,
+  AttendanceDayStats,
+  ContractorOption,
+  PaginationMeta,
+  SiteOption,
+  WorkerRow,
+} from "@/lib/types/db";
 import { buildPaginationMeta } from "@/lib/utils/pagination";
 
 type WorkersPageParams = {
   page: number;
   pageSize: number;
   siteId?: number;
+  contractorId?: number;
   search?: string;
 };
 
 type RawWorkerRow = Omit<WorkerRow, "sites"> & {
   sites?: { name: string } | { name: string }[] | null;
+  contractors?: { name: string } | { name: string }[] | null;
+};
+
+type ChecksPageParams = {
+  page: number;
+  pageSize: number;
+  workDate?: string;
+  siteId?: number;
+  search?: string;
+  confirmationStatus?: "pending" | "confirmed" | "rejected";
+};
+
+type RawAttendanceCheckRow = Omit<AttendanceCheckRow, "attendance_rounds" | "workers" | "sites"> & {
+  attendance_rounds?:
+    | {
+        work_date: string;
+        round_no: number;
+        site_id: number;
+        sites?: { name: string } | { name: string }[] | null;
+      }[]
+    | null;
+  workers?: { name: string; id_number: string } | { name: string; id_number: string }[] | null;
 };
 
 export async function getAttendanceWorkersPage({
   page,
   pageSize,
   siteId,
+  contractorId,
   search,
 }: WorkersPageParams): Promise<{ rows: WorkerRow[]; meta: PaginationMeta }> {
   const from = (page - 1) * pageSize;
@@ -25,15 +56,21 @@ export async function getAttendanceWorkersPage({
 
   let query = supabase
     .from("workers")
-    .select("id, name, id_number, current_site_id, is_active, is_deleted, sites(name)", {
+    .select(
+      "id, name, id_number, contractor_id, current_site_id, is_active, is_deleted, sites(name), contractors(name)",
+      {
       count: "exact",
-    })
+      },
+    )
     .eq("is_active", true)
     .eq("is_deleted", false)
     .order("id", { ascending: true });
 
   if (siteId) {
     query = query.eq("current_site_id", siteId);
+  }
+  if (contractorId) {
+    query = query.eq("contractor_id", contractorId);
   }
 
   if (search && search.trim()) {
@@ -51,6 +88,9 @@ export async function getAttendanceWorkersPage({
     ((data as RawWorkerRow[]) ?? []).map((item) => ({
       ...item,
       sites: Array.isArray(item.sites) ? (item.sites[0] ?? null) : (item.sites ?? null),
+      contractors: Array.isArray(item.contractors)
+        ? (item.contractors[0] ?? null)
+        : (item.contractors ?? null),
     })) ?? [];
 
   return {
@@ -68,8 +108,25 @@ export async function getSiteOptions(): Promise<SiteOption[]> {
   return (data as SiteOption[]) ?? [];
 }
 
+export async function getContractorOptions(): Promise<ContractorOption[]> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("contractors")
+    .select("id, name")
+    .eq("is_active", true)
+    .order("name");
+  if (error) {
+    throw new Error(`Contractors query failed: ${error.message}`);
+  }
+  return (data as ContractorOption[]) ?? [];
+}
+
 export async function getAttendanceDayStats(workDate: string, siteId?: number): Promise<AttendanceDayStats> {
   const supabase = createSupabaseAdminClient();
+  const safeCount = async <T>(query: PromiseLike<{ count: number | null; error: T | null }>) => {
+    const { count, error } = await query;
+    return error ? 0 : (count ?? 0);
+  };
 
   let totalWorkersQ = supabase
     .from("workers")
@@ -100,22 +157,12 @@ export async function getAttendanceDayStats(workDate: string, siteId?: number): 
     halfQ = halfQ.eq("site_id", siteId);
   }
 
-  const [
-    { count: total, error: totalErr },
-    { count: present, error: presentErr },
-    { count: absent, error: absentErr },
-    { count: half, error: halfErr },
-  ] = await Promise.all([totalWorkersQ, presentQ, absentQ, halfQ]);
-
-  if (totalErr) throw new Error(`Attendance total workers failed: ${totalErr.message}`);
-  if (presentErr) throw new Error(`Attendance present count failed: ${presentErr.message}`);
-  if (absentErr) throw new Error(`Attendance absent count failed: ${absentErr.message}`);
-  if (halfErr) throw new Error(`Attendance half count failed: ${halfErr.message}`);
-
-  const totalNum = total ?? 0;
-  const presentNum = present ?? 0;
-  const absentNum = absent ?? 0;
-  const halfNum = half ?? 0;
+  const [totalNum, presentNum, absentNum, halfNum] = await Promise.all([
+    safeCount(totalWorkersQ),
+    safeCount(presentQ),
+    safeCount(absentQ),
+    safeCount(halfQ),
+  ]);
   const pendingNum = Math.max(0, totalNum - (presentNum + absentNum + halfNum));
 
   return {
@@ -124,5 +171,68 @@ export async function getAttendanceDayStats(workDate: string, siteId?: number): 
     present: presentNum,
     absent: absentNum,
     half: halfNum,
+  };
+}
+
+export async function getAttendanceChecksPage({
+  page,
+  pageSize,
+  workDate,
+  siteId,
+  search,
+  confirmationStatus,
+}: ChecksPageParams): Promise<{ rows: AttendanceCheckRow[]; meta: PaginationMeta }> {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+  const supabase = createSupabaseAdminClient();
+
+  let query = supabase
+    .from("attendance_checks")
+    .select(
+      "id, round_id, worker_id, status, confirmation_status, checked_at, confirm_note, attendance_rounds!inner(work_date, round_no, site_id, sites(name)), workers(name, id_number)",
+      { count: "exact" },
+    )
+    .order("checked_at", { ascending: false });
+
+  if (confirmationStatus) {
+    query = query.eq("confirmation_status", confirmationStatus);
+  }
+
+  if (workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+    query = query.eq("attendance_rounds.work_date", workDate);
+  }
+
+  if (siteId) {
+    query = query.eq("attendance_rounds.site_id", siteId);
+  }
+
+  if (search && search.trim()) {
+    const value = search.trim();
+    query = query.or(`workers.name.ilike.%${value}%,workers.id_number.ilike.%${value}%`);
+  }
+
+  const { data, count, error } = await query.range(from, to);
+  if (error) {
+    throw new Error(`Attendance checks query failed: ${error.message}`);
+  }
+
+  const rows =
+    ((data as RawAttendanceCheckRow[]) ?? []).map((item) => ({
+      ...item,
+      attendance_rounds: item.attendance_rounds?.[0]
+        ? {
+            work_date: item.attendance_rounds[0].work_date,
+            round_no: item.attendance_rounds[0].round_no,
+          }
+        : null,
+      workers: Array.isArray(item.workers) ? (item.workers[0] ?? null) : (item.workers ?? null),
+      sites: Array.isArray(item.attendance_rounds?.[0]?.sites)
+        ? (item.attendance_rounds?.[0]?.sites?.[0] ?? null)
+        : (item.attendance_rounds?.[0]?.sites ?? null),
+    })) ?? [];
+
+  return {
+    rows,
+    meta: buildPaginationMeta(count ?? 0, page, pageSize),
   };
 }

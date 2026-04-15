@@ -12,10 +12,12 @@ export type WorkerRow = {
   id: number;
   name: string;
   id_number: string;
+  contractor_id?: number | null;
   current_site_id: number | null;
   is_active: boolean;
   is_deleted: boolean;
   sites?: { name: string } | null;
+  contractors?: { name: string } | null;
 };
 
 export type ViolationRow = {
@@ -64,6 +66,19 @@ export type AttendanceDayStats = {
   present: number;
   absent: number;
   half: number;
+};
+
+export type AttendanceCheckRow = {
+  id: number;
+  round_id: number;
+  worker_id: number;
+  status: "present" | "absent" | "half";
+  confirmation_status: "pending" | "confirmed" | "rejected";
+  checked_at: string;
+  confirm_note: string | null;
+  attendance_rounds?: { work_date: string; round_no: number } | null;
+  workers?: { name: string; id_number: string } | null;
+  sites?: { name: string } | null;
 };
 
 export type TopStats = {

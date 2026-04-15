@@ -4,7 +4,12 @@ import { PaginationControls } from "@/components/pagination/pagination-controls"
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { getAttendanceDayStats, getAttendanceWorkersPage, getSiteOptions } from "@/lib/data/attendance";
+import {
+  getAttendanceDayStats,
+  getAttendanceWorkersPage,
+  getContractorOptions,
+  getSiteOptions,
+} from "@/lib/data/attendance";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { parsePage } from "@/lib/utils/pagination";
 
@@ -13,6 +18,7 @@ type Props = {
     page?: string;
     q?: string;
     siteId?: string;
+    contractorId?: string;
     date?: string;
   }>;
 };
@@ -61,20 +67,23 @@ export default async function AttendancePage({ searchParams }: Props) {
   const params = await searchParams;
   const page = parsePage(params.page, 1);
   const siteId = params.siteId ? Number(params.siteId) : undefined;
+  const contractorId = params.contractorId ? Number(params.contractorId) : undefined;
   const q = params.q?.trim();
   const workDate =
     params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)
       ? params.date
       : new Date().toISOString().slice(0, 10);
 
-  const [{ rows, meta }, sites, dayStats] = await Promise.all([
+  const [{ rows, meta }, sites, contractors, dayStats] = await Promise.all([
     getAttendanceWorkersPage({
       page,
       pageSize: PAGE_SIZE,
       siteId: Number.isFinite(siteId) ? siteId : undefined,
+      contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
       search: q,
     }),
     getSiteOptions(),
+    getContractorOptions(),
     getAttendanceDayStats(workDate, Number.isFinite(siteId) ? siteId : undefined),
   ]);
 
@@ -86,7 +95,7 @@ export default async function AttendancePage({ searchParams }: Props) {
           عرض العمال عبر Server-side Pagination لتقليل الضغط عند 6000 عامل.
         </p>
 
-        <form className="mt-4 grid gap-2 sm:grid-cols-4" method="get">
+        <form className="mt-4 grid gap-2 sm:grid-cols-5" method="get">
           <Input name="date" type="date" defaultValue={workDate} />
           <Input name="q" defaultValue={q} placeholder="بحث بالاسم أو رقم الهوية" />
           <select
@@ -98,6 +107,18 @@ export default async function AttendancePage({ searchParams }: Props) {
             {sites.map((site) => (
               <option key={site.id} value={site.id}>
                 {site.name}
+              </option>
+            ))}
+          </select>
+          <select
+            name="contractorId"
+            defaultValue={params.contractorId}
+            className="min-h-12 w-full rounded-lg border border-[#d8c99a] bg-white px-4 py-3 text-base"
+          >
+            <option value="">كل المقاولين</option>
+            {contractors.map((contractor) => (
+              <option key={contractor.id} value={contractor.id}>
+                {contractor.name}
               </option>
             ))}
           </select>
@@ -132,7 +153,7 @@ export default async function AttendancePage({ searchParams }: Props) {
         page={meta.page}
         totalPages={meta.totalPages}
         basePath="/attendance"
-        query={{ q, siteId: params.siteId, date: workDate }}
+        query={{ q, siteId: params.siteId, contractorId: params.contractorId, date: workDate }}
       />
     </section>
   );
