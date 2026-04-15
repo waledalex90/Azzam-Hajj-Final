@@ -1,9 +1,11 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { PaginationControls } from "@/components/pagination/pagination-controls";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { WorkersUploadForm } from "@/components/workers/workers-upload-form";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getContractorOptions, getSiteOptions } from "@/lib/data/attendance";
 import { parsePage } from "@/lib/utils/pagination";
@@ -21,6 +23,8 @@ type Props = {
     contractorId?: string;
     showStopped?: string;
     showDeleted?: string;
+    upload?: string;
+    count?: string;
   }>;
 };
 
@@ -140,19 +144,27 @@ export default async function WorkersPage({ searchParams }: Props) {
 
   async function uploadWorkersSheet(formData: FormData) {
     "use server";
-    if (isDemoModeEnabled()) return;
+    if (isDemoModeEnabled()) {
+      redirect("/workers?tab=create&upload=demo_mode");
+    }
 
     const file = formData.get("file");
-    if (!(file instanceof File) || file.size === 0) return;
+    if (!(file instanceof File) || file.size === 0) {
+      redirect("/workers?tab=create&upload=file_missing");
+    }
 
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array" });
     const firstSheetName = workbook.SheetNames[0];
-    if (!firstSheetName) return;
+    if (!firstSheetName) {
+      redirect("/workers?tab=create&upload=sheet_missing");
+    }
 
     const sheet = workbook.Sheets[firstSheetName];
     const records = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-    if (!records.length) return;
+    if (!records.length) {
+      redirect("/workers?tab=create&upload=sheet_empty");
+    }
 
     const supabase = createSupabaseAdminClient();
     const [sitesRes, contractorsRes, existingIdsRes] = await Promise.all([
@@ -222,10 +234,11 @@ export default async function WorkersPage({ searchParams }: Props) {
 
     if (payload.length > 0) {
       await supabase.from("workers").insert(payload);
+      revalidatePath("/workers");
+      revalidatePath("/dashboard");
+      redirect(`/workers?tab=create&upload=success&count=${payload.length}`);
     }
-
-    revalidatePath("/workers");
-    revalidatePath("/dashboard");
+    redirect("/workers?tab=create&upload=no_new_rows");
   }
 
   async function toggleActive(formData: FormData) {
@@ -278,6 +291,8 @@ export default async function WorkersPage({ searchParams }: Props) {
   const contractorId = params.contractorId ? Number(params.contractorId) : undefined;
   const showStopped = boolFlag(params.showStopped);
   const showDeleted = boolFlag(params.showDeleted);
+  const uploadState = params.upload;
+  const uploadedCount = Number(params.count);
 
   const supabase = createSupabaseAdminClient();
 
@@ -362,6 +377,36 @@ export default async function WorkersPage({ searchParams }: Props) {
             <p className="text-xs text-slate-500">
               استخدم الشيت الجاهز، والحد الأدنى للأعمدة: الاسم + رقم الهوية/الإقامة/الجواز (رقم فريد غير مكرر).
             </p>
+            {uploadState === "success" && (
+              <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+                تم رفع الملف بنجاح. تمت إضافة {Number.isFinite(uploadedCount) ? uploadedCount : 0} موظف.
+              </p>
+            )}
+            {uploadState === "no_new_rows" && (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
+                تم فحص الملف لكن لا توجد صفوف جديدة للإضافة (قد تكون البيانات مكررة).
+              </p>
+            )}
+            {uploadState === "sheet_empty" && (
+              <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+                الملف مرفوع لكن الشيت فارغ. تأكد من وجود بيانات قبل الرفع.
+              </p>
+            )}
+            {uploadState === "file_missing" && (
+              <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+                لم يتم اختيار ملف. اختر ملف Excel ثم أعد المحاولة.
+              </p>
+            )}
+            {uploadState === "sheet_missing" && (
+              <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+                لم يتم العثور على Sheet داخل الملف. راجع الملف وحاول مجددًا.
+              </p>
+            )}
+            {uploadState === "demo_mode" && (
+              <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700">
+                أنت على نسخة تجريبية محلية: تم استقبال الملف لكن لم يتم حفظ أي بيانات.
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href="/api/workers-template"
@@ -369,10 +414,7 @@ export default async function WorkersPage({ searchParams }: Props) {
               >
                 تحميل ملف Excel عربي
               </Link>
-              <form action={uploadWorkersSheet} className="flex items-center gap-2">
-                <Input type="file" name="file" accept=".xlsx,.xls,.csv" />
-                <button className="rounded bg-[#0f766e] px-4 py-2 text-xs font-bold text-white">رفع الملف</button>
-              </form>
+              <WorkersUploadForm action={uploadWorkersSheet} />
             </div>
           </Card>
 
