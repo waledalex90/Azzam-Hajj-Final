@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Bell, Building2, Compass, MapPin, ShieldAlert, TrendingUp, UserCheck2, UserMinus2, Users2 } from "lucide-react";
+import Link from "next/link";
 import { getSessionContext } from "@/lib/auth/session";
 import { ROLE_LABELS } from "@/lib/constants/roles";
 import { getAdminDashboardData, getDashboardStats } from "@/lib/data/dashboard";
@@ -25,7 +26,8 @@ export default async function DashboardHomePage() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="bg-white">
+        <Link href="/sites">
+        <Card className="bg-white transition hover:-translate-y-0.5 hover:shadow-md cursor-pointer">
           <div className="text-center">
             <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
               <MapPin className="h-5 w-5" />
@@ -34,7 +36,9 @@ export default async function DashboardHomePage() {
             <p className="mt-1 text-xs text-slate-500">المواقع</p>
           </div>
         </Card>
-        <Card className="bg-white">
+        </Link>
+        <Link href="/workers?tab=list">
+        <Card className="bg-white transition hover:-translate-y-0.5 hover:shadow-md cursor-pointer">
           <div className="text-center">
             <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
               <Users2 className="h-5 w-5" />
@@ -43,7 +47,9 @@ export default async function DashboardHomePage() {
             <p className="mt-1 text-xs text-slate-500">العمال النشطون</p>
           </div>
         </Card>
-        <Card className="bg-white">
+        </Link>
+        <Link href="/workers?tab=list&showStopped=1">
+        <Card className="bg-white transition hover:-translate-y-0.5 hover:shadow-md cursor-pointer">
           <div className="text-center">
             <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
               <UserMinus2 className="h-5 w-5" />
@@ -52,7 +58,9 @@ export default async function DashboardHomePage() {
             <p className="mt-1 text-xs text-slate-500">العمال الموقوفون</p>
           </div>
         </Card>
-        <Card className="bg-white">
+        </Link>
+        <Link href="/contractors">
+        <Card className="bg-white transition hover:-translate-y-0.5 hover:shadow-md cursor-pointer">
           <div className="text-center">
             <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
               <Building2 className="h-5 w-5" />
@@ -61,6 +69,7 @@ export default async function DashboardHomePage() {
             <p className="mt-1 text-xs text-slate-500">المقاولون</p>
           </div>
         </Card>
+        </Link>
       </div>
 
       <div className="grid gap-3 xl:grid-cols-2">
@@ -130,10 +139,10 @@ export default async function DashboardHomePage() {
               <p className="text-slate-500">لا توجد طلبات.</p>
             ) : (
               dashboardData.pendingCorrections.map((item) => (
-                <div key={item.id} className="rounded-md bg-slate-50 px-2 py-1.5">
+                <Link href="/corrections" key={item.id} className="block rounded-md bg-slate-50 px-2 py-1.5 hover:bg-slate-100">
                   <p className="font-bold text-slate-800">طلب #{item.id}</p>
                   <p className="text-xs text-slate-500">{item.reason || "بدون وصف"}</p>
-                </div>
+                </Link>
               ))
             )}
           </div>
@@ -149,10 +158,10 @@ export default async function DashboardHomePage() {
               <p className="text-slate-500">لا توجد بيانات حديثة.</p>
             ) : (
               dashboardData.latestWorkers.map((item) => (
-                <div key={item.id} className="rounded-md bg-slate-50 px-2 py-1.5">
+                <Link href="/workers?tab=list" key={item.id} className="block rounded-md bg-slate-50 px-2 py-1.5 hover:bg-slate-100">
                   <p className="font-bold text-slate-800">{item.name}</p>
                   <p className="text-xs text-slate-500">{item.id_number}</p>
-                </div>
+                </Link>
               ))
             )}
           </div>
