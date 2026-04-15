@@ -22,6 +22,7 @@ const menuItems = [
   { href: "/transfers", label: "نقل الموظفين", icon: "⇄" },
   { href: "/reports", label: "التقارير", icon: "📊" },
   { href: "/corrections", label: "طلبات التعديل", icon: "✎" },
+  { href: "/violations/notice", label: "إشعار المخالفة", icon: "📄" },
   { href: "/users", label: "المستخدمين", icon: "👥" },
   { href: "/roles", label: "الأدوار والصلاحيات", icon: "🛡" },
 ];

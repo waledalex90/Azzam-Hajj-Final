@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { PaginationControls } from "@/components/pagination/pagination-controls";
 import { Button } from "@/components/ui/button";
@@ -80,7 +81,12 @@ export default async function ViolationsPage({ searchParams }: Props) {
   return (
     <section className="space-y-4">
       <Card>
-        <h1 className="text-lg font-extrabold text-slate-900">شاشة المخالفات</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-lg font-extrabold text-slate-900">شاشة المخالفات</h1>
+          <Link href="/violations/notice">
+            <Button variant="secondary">فتح إشعار مخالفة 1447هـ</Button>
+          </Link>
+        </div>
         <p className="mt-1 text-sm text-slate-600">
           جلب البيانات يتم من السيرفر مع Pagination ودعم فلاتر الحالة والموقع.
         </p>

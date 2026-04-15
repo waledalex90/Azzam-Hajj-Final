@@ -47,6 +47,11 @@ export type ViolationTypeOption = {
   name_ar: string;
 };
 
+export type ContractorOption = {
+  id: number;
+  name: string;
+};
+
 export type DashboardStats = {
   presentToday: number;
   absentToday: number;
