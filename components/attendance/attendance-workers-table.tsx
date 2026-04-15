@@ -83,13 +83,14 @@ export function AttendanceWorkersTable({
   const [selected, setSelected] = useState<number[]>([]);
   const [statusMap, setStatusMap] = useState<Record<number, AttendanceStatus>>(initialStatusMap);
   const [pendingWorkerIds, setPendingWorkerIds] = useState<number[]>([]);
+  const [completedWorkerIds, setCompletedWorkerIds] = useState<number[]>([]);
   const [bulkPending, setBulkPending] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const isFlushingRef = useRef(false);
 
   const visibleRows = useMemo(
-    () => rows.filter((row) => statusMap[row.id] === undefined),
-    [rows, statusMap],
+    () => rows.filter((row) => !completedWorkerIds.includes(row.id)),
+    [rows, completedWorkerIds],
   );
   const allIds = useMemo(() => visibleRows.map((row) => row.id), [visibleRows]);
   const allFilteredIds = useMemo(() => {
@@ -105,6 +106,7 @@ export function AttendanceWorkersTable({
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
     isFlushingRef.current = true;
+    const processedWorkerIds = new Set<number>();
     try {
       let queue = readQueue();
       let processedAny = false;
@@ -119,6 +121,7 @@ export function AttendanceWorkersTable({
 
         queue = queue.slice(1);
         processedAny = true;
+        next.workerIds.forEach((id) => processedWorkerIds.add(id));
         writeQueue(queue);
         setPendingWorkerIds((prev) => prev.filter((id) => !next.workerIds.includes(id)));
       }
@@ -128,6 +131,7 @@ export function AttendanceWorkersTable({
     } finally {
       isFlushingRef.current = false;
     }
+    return Array.from(processedWorkerIds);
   }, [router]);
 
   function enqueueOperation(operation: QueueOperation) {
@@ -153,10 +157,18 @@ export function AttendanceWorkersTable({
     }
 
     const onOnline = () => {
-      void flushQueue();
+      void flushQueue().then((processed) => {
+        if (processed && processed.length > 0) {
+          setCompletedWorkerIds((prev) => Array.from(new Set([...prev, ...processed])));
+        }
+      });
     };
     window.addEventListener("online", onOnline);
-    void flushQueue();
+    void flushQueue().then((processed) => {
+      if (processed && processed.length > 0) {
+        setCompletedWorkerIds((prev) => Array.from(new Set([...prev, ...processed])));
+      }
+    });
     return () => {
       window.removeEventListener("online", onOnline);
     };
@@ -210,7 +222,10 @@ export function AttendanceWorkersTable({
       }));
       operations.forEach(enqueueOperation);
       try {
-        await flushQueue();
+        const processed = (await flushQueue()) ?? [];
+        if (processed.length > 0) {
+          setCompletedWorkerIds((prev) => Array.from(new Set([...prev, ...processed])));
+        }
         const remainingQueue = readQueue();
         const stillQueued = remainingQueue.some((item) =>
           item.workerIds.some((id) => selectedIdsSnapshot.includes(id)),
@@ -276,7 +291,10 @@ export function AttendanceWorkersTable({
       };
       enqueueOperation(operation);
       try {
-        await flushQueue();
+        const processed = (await flushQueue()) ?? [];
+        if (processed.length > 0) {
+          setCompletedWorkerIds((prev) => Array.from(new Set([...prev, ...processed])));
+        }
         const stillQueued = readQueue().some((op) => op.workerIds.includes(workerId));
         if (stillQueued) {
           setSyncMessage("تمت جدولة تحضير الموظف وسيتم إكمال المزامنة تلقائيًا.");
