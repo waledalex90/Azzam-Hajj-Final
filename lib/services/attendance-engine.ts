@@ -10,6 +10,8 @@ type SubmitPayload = {
   items: Array<{ worker_id: number; status: AttendanceStatus }>;
   workDate: string;
   note: string;
+  /** 1 = صباحي، 2 = مسائي — يُمرَّر لـ RPC كـ p_round_no */
+  roundNo?: number;
   idempotencyKey?: string | null;
 };
 
@@ -20,7 +22,7 @@ type ApprovalDecisionPayload = {
 };
 
 type IdempotencyScope = "attendance_sync" | "approval_sync";
-/** يجب أن تكون الدالة `public.submit_attendance_bulk_checks` منشأة في Supabase (انظر `final_fix.sql` → `app.submit_attendance_bulk_checks`). */
+/** يجب أن تكون `public.submit_attendance_bulk_checks(date,jsonb,text,int)` منشأة — انظر `supabase_shift_round_rpc.sql`. */
 const BULK_ATTENDANCE_PUBLIC_RPC = "submit_attendance_bulk_checks";
 
 async function hasProcessedIdempotencyKey(idempotencyKey: string) {
@@ -56,6 +58,7 @@ export async function submitAttendanceByWorkersEngine({
   items,
   workDate,
   note,
+  roundNo: roundNoRaw,
   idempotencyKey,
 }: SubmitPayload) {
   if (items.length === 0) return;
@@ -71,11 +74,14 @@ export async function submitAttendanceByWorkersEngine({
     .filter((item) => Number.isFinite(item.worker_id) && item.worker_id > 0);
   if (payload.length === 0) return;
 
+  const roundNo = Math.max(1, Math.min(Number(roundNoRaw) || 1, 9));
+
   const rpcClient = await createSupabaseServerClient();
   const { error } = await rpcClient.rpc(BULK_ATTENDANCE_PUBLIC_RPC, {
     p_work_date: workDate,
     p_payload: payload,
     p_notes: note,
+    p_round_no: roundNo,
   });
   if (error) {
     throw new Error(error.message || "submit_attendance_bulk_checks_failed");

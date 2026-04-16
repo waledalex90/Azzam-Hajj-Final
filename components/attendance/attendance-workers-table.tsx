@@ -13,6 +13,7 @@ type AttendanceStatus = "present" | "absent" | "half";
 type Props = {
   rows: WorkerRow[];
   workDate: string;
+  roundNo?: number;
   initialStatusMap?: Record<number, AttendanceStatus | undefined>;
   filteredWorkerIds?: number[];
   filteredTotalRows?: number;
@@ -42,6 +43,7 @@ const MOBILE_H = "min(55vh,560px)";
 export function AttendanceWorkersTable({
   rows,
   workDate,
+  roundNo = 1,
   initialStatusMap = {},
   filteredWorkerIds = [],
   filteredTotalRows = 0,
@@ -92,7 +94,7 @@ export function AttendanceWorkersTable({
     }
     setIsSaving(true);
     try {
-      const res = await submitAttendancePrepBulk(workDate, status, ids);
+      const res = await submitAttendancePrepBulk(workDate, status, ids, roundNo);
       if (!res.ok) {
         toast.error(res.error);
         if (skipServerRefresh) void router.refresh();
@@ -149,7 +151,7 @@ export function AttendanceWorkersTable({
       }
       setIsSaving(true);
       try {
-        const res = await submitAttendancePrepBulk(workDate, status, [workerId]);
+        const res = await submitAttendancePrepBulk(workDate, status, [workerId], roundNo);
         if (!res.ok) {
           toast.error(res.error);
           if (skipServerRefresh) void router.refresh();

@@ -18,6 +18,7 @@ export async function submitAttendancePrepBulk(
   workDate: string,
   status: Status,
   workerIds: number[],
+  roundNo: number = 1,
 ): Promise<PrepActionResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser } = await getSessionContext();
@@ -39,6 +40,7 @@ export async function submitAttendancePrepBulk(
         items: chunk.map((worker_id) => ({ worker_id, status })),
         workDate,
         note: "bulk prep server action",
+        roundNo: Math.max(1, Math.min(Number(roundNo) || 1, 9)),
       });
     }
     revalidatePath("/attendance");

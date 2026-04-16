@@ -10,6 +10,14 @@ import type {
 } from "@/lib/types/db";
 import { buildPaginationMeta } from "@/lib/utils/pagination";
 
+/** 1 = صباحي، 2 = مسائي — يطابق attendance_rounds.round_no */
+export const SHIFT_ROUND = { morning: 1, evening: 2 } as const;
+
+export function normalizeShiftRound(value: unknown): 1 | 2 {
+  const n = Number(value);
+  return n === 2 ? 2 : 1;
+}
+
 type WorkersPageParams = {
   page: number;
   pageSize: number;
@@ -18,6 +26,8 @@ type WorkersPageParams = {
   search?: string;
   /** يُستبعد من قائمة التحضير من لديهم سجل حضور لهذا التاريخ (ربط attendance_checks + attendance_rounds) */
   workDate?: string;
+  /** وردية التحضير: 1 صباحي، 2 مسائي — المسائي يستبعد من حضّر صباحاً */
+  roundNo?: number;
 };
 
 type RawWorkerRow = Omit<WorkerRow, "sites"> & {
@@ -33,6 +43,8 @@ type ChecksPageParams = {
   search?: string;
   status?: "present" | "absent" | "half";
   confirmationStatus?: "pending" | "confirmed" | "rejected";
+  /** فلترة مراجعة/اعتماد حسب الوردية */
+  roundNo?: number;
 };
 
 type RawAttendanceCheckRow = Omit<AttendanceCheckRow, "attendance_rounds" | "workers" | "sites"> & {
@@ -50,16 +62,19 @@ type RawAttendanceCheckRow = Omit<AttendanceCheckRow, "attendance_rounds" | "wor
 export async function getAttendanceLatestStatusMap(
   workDate: string,
   workerIds: number[],
+  roundNo: number = SHIFT_ROUND.morning,
 ): Promise<Record<number, "present" | "absent" | "half">> {
   const uniqueIds = Array.from(new Set(workerIds.filter(Boolean)));
   if (uniqueIds.length === 0) return {};
 
+  const r = normalizeShiftRound(roundNo);
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from("attendance_checks")
-    .select("worker_id, status, checked_at, attendance_rounds!inner(work_date)")
+    .select("worker_id, status, checked_at, attendance_rounds!inner(work_date, round_no)")
     .in("worker_id", uniqueIds)
     .eq("attendance_rounds.work_date", workDate)
+    .eq("attendance_rounds.round_no", r)
     .order("checked_at", { ascending: false });
 
   if (error || !data) return {};
@@ -80,16 +95,19 @@ export async function getAttendanceLatestStatusMap(
 export async function getAttendanceCheckIdMap(
   workDate: string,
   workerIds: number[],
+  roundNo: number = SHIFT_ROUND.morning,
 ): Promise<Record<number, number>> {
   const uniqueIds = Array.from(new Set(workerIds.filter(Boolean)));
   if (uniqueIds.length === 0) return {};
 
+  const r = normalizeShiftRound(roundNo);
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from("attendance_checks")
-    .select("id, worker_id, checked_at, attendance_rounds!inner(work_date)")
+    .select("id, worker_id, checked_at, attendance_rounds!inner(work_date, round_no)")
     .in("worker_id", uniqueIds)
     .eq("attendance_rounds.work_date", workDate)
+    .eq("attendance_rounds.round_no", r)
     .order("checked_at", { ascending: false });
 
   if (error || !data) return {};
@@ -108,16 +126,20 @@ export async function getPendingApprovalCheckIds(params: {
   workDate: string;
   siteId?: number;
   search?: string;
+  roundNo?: number;
 }): Promise<number[]> {
   const supabase = createSupabaseAdminClient();
   let query = supabase
     .from("attendance_checks")
-    .select("id, attendance_rounds!inner(work_date, site_id), workers!inner(name, id_number)")
+    .select("id, attendance_rounds!inner(work_date, site_id, round_no), workers!inner(name, id_number)")
     .eq("confirmation_status", "pending")
     .eq("attendance_rounds.work_date", params.workDate);
 
   if (params.siteId) {
     query = query.eq("attendance_rounds.site_id", params.siteId);
+  }
+  if (params.roundNo !== undefined && Number.isFinite(params.roundNo)) {
+    query = query.eq("attendance_rounds.round_no", normalizeShiftRound(params.roundNo));
   }
   if (params.search?.trim()) {
     const v = params.search.trim();
@@ -148,29 +170,52 @@ const PREP_WORKERS_PAGE_SIZE = 50000;
  * ```
  * (صياغة «WHERE check_id IS NULL» تُقصد بها عدم وجود صف تحضير لليوم قبل الإنشاء.)
  */
-export async function getPreppedWorkerIdsForDate(workDate: string, siteId?: number): Promise<number[]> {
+/** عمال لديهم سجل تحضير في هذه الوردية (round_no) لهذا اليوم. */
+export async function getPreppedWorkerIdsForDate(
+  workDate: string,
+  siteId?: number,
+  roundNo: number = SHIFT_ROUND.morning,
+): Promise<number[]> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return [];
+  const r = normalizeShiftRound(roundNo);
   const supabase = createSupabaseAdminClient();
   let query = supabase
     .from("attendance_checks")
-    .select("worker_id, attendance_rounds!inner(work_date, site_id)")
-    .eq("attendance_rounds.work_date", workDate);
+    .select("worker_id, attendance_rounds!inner(work_date, site_id, round_no)")
+    .eq("attendance_rounds.work_date", workDate)
+    .eq("attendance_rounds.round_no", r);
   if (siteId !== undefined && Number.isFinite(siteId)) {
     query = query.eq("attendance_rounds.site_id", siteId);
   }
   const { data, error } = await query.limit(50000);
   if (error || !data) return [];
-  const ids = (data as Array<{ worker_id: number }>).map((r) => r.worker_id).filter(Boolean);
+  const ids = (data as Array<{ worker_id: number }>).map((row) => row.worker_id).filter(Boolean);
   return Array.from(new Set(ids));
 }
 
-/** إحصائيات تبويب التحضير: نفس نطاق الفلتر، مع استبعاد المُحضَّرين من «معلق» وحساب الحالات من السجلات الفعلية. */
+/** من يُستبعدون من قائمة التحضير للوردية الحالية: المسائي يستبعد صباحي+مسائي. */
+export async function getPrepExclusionWorkerIds(
+  workDate: string,
+  siteId: number | undefined,
+  roundNo: number,
+): Promise<number[]> {
+  const r = normalizeShiftRound(roundNo);
+  const evening = r === SHIFT_ROUND.evening;
+  const forShift = await getPreppedWorkerIdsForDate(workDate, siteId, r);
+  if (!evening) return forShift;
+  const morning = await getPreppedWorkerIdsForDate(workDate, siteId, SHIFT_ROUND.morning);
+  return Array.from(new Set([...forShift, ...morning]));
+}
+
+/** إحصائيات تبويب التحضير: نفس نطاق الفلتر، مع استبعاد المُحضَّرين حسب الوردية وحساب الحالات لهذه الوردية فقط. */
 export async function getAttendancePrepTabStats(
   workDate: string,
   siteId?: number,
   contractorId?: number,
   search?: string,
+  roundNo: number = SHIFT_ROUND.morning,
 ): Promise<AttendanceDayStats> {
+  const r = normalizeShiftRound(roundNo);
   const filteredIds = await getAttendanceWorkerIdsForFilters({
     siteId,
     contractorId,
@@ -179,11 +224,12 @@ export async function getAttendancePrepTabStats(
   const total = filteredIds.length;
   if (total === 0) return { total: 0, pending: 0, present: 0, absent: 0, half: 0 };
 
-  const preppedList = await getPreppedWorkerIdsForDate(workDate, siteId);
-  const preppedSet = new Set(preppedList);
-  const pending = filteredIds.filter((id) => !preppedSet.has(id)).length;
+  const excludeList = await getPrepExclusionWorkerIds(workDate, siteId, r);
+  const excludeSet = new Set(excludeList);
+  const pending = filteredIds.filter((id) => !excludeSet.has(id)).length;
 
-  const preppedInFilter = filteredIds.filter((id) => preppedSet.has(id));
+  const preppedThisRound = await getPreppedWorkerIdsForDate(workDate, siteId, r);
+  const preppedInFilter = filteredIds.filter((id) => preppedThisRound.includes(id));
   let present = 0;
   let absent = 0;
   let half = 0;
@@ -194,9 +240,10 @@ export async function getAttendancePrepTabStats(
     const chunk = preppedInFilter.slice(i, i + CH);
     let q = supabase
       .from("attendance_checks")
-      .select("status, attendance_rounds!inner(work_date)")
+      .select("status, attendance_rounds!inner(work_date, round_no)")
       .in("worker_id", chunk)
-      .eq("attendance_rounds.work_date", workDate);
+      .eq("attendance_rounds.work_date", workDate)
+      .eq("attendance_rounds.round_no", r);
     if (siteId !== undefined && Number.isFinite(siteId)) {
       q = q.eq("attendance_rounds.site_id", siteId);
     }
@@ -219,14 +266,16 @@ export async function getAttendanceWorkersPage({
   contractorId,
   search,
   workDate,
+  roundNo,
 }: WorkersPageParams): Promise<{ rows: WorkerRow[]; meta: PaginationMeta }> {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
   const supabase = createSupabaseAdminClient();
 
+  const rn = normalizeShiftRound(roundNo);
   let preppedExclude: number[] | null = null;
   if (workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
-    preppedExclude = await getPreppedWorkerIdsForDate(workDate, siteId);
+    preppedExclude = await getPrepExclusionWorkerIds(workDate, siteId, rn);
   }
 
   let query = supabase
@@ -294,6 +343,7 @@ export async function getAttendanceWorkerIdsForFilters({
   contractorId,
   search,
   workDate,
+  roundNo,
 }: Omit<WorkersPageParams, "page" | "pageSize">): Promise<number[]> {
   const supabase = createSupabaseAdminClient();
   const pageSize = 1000;
@@ -302,7 +352,7 @@ export async function getAttendanceWorkerIdsForFilters({
 
   let preppedExclude: number[] | null = null;
   if (workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
-    preppedExclude = await getPreppedWorkerIdsForDate(workDate, siteId);
+    preppedExclude = await getPrepExclusionWorkerIds(workDate, siteId, normalizeShiftRound(roundNo));
   }
 
   while (true) {
@@ -516,6 +566,27 @@ export async function getAttendanceDayStats(
   return getAttendanceDayStatsUnscoped(workDate, sid);
 }
 
+/** بطاقات مراجعة/اعتماد حسب السجلات المحمّلة لهذه الوردية */
+export function summarizeAttendanceChecksForRound(rows: AttendanceCheckRow[]): AttendanceDayStats {
+  let pendingApproval = 0;
+  let present = 0;
+  let absent = 0;
+  let half = 0;
+  for (const r of rows) {
+    if (r.confirmation_status === "pending") pendingApproval++;
+    if (r.status === "present") present++;
+    else if (r.status === "absent") absent++;
+    else if (r.status === "half") half++;
+  }
+  return {
+    total: rows.length,
+    pending: pendingApproval,
+    present,
+    absent,
+    half,
+  };
+}
+
 export async function getAttendanceChecksPage({
   page,
   pageSize,
@@ -524,6 +595,7 @@ export async function getAttendanceChecksPage({
   search,
   status,
   confirmationStatus,
+  roundNo,
 }: ChecksPageParams): Promise<{ rows: AttendanceCheckRow[]; meta: PaginationMeta }> {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
@@ -553,6 +625,10 @@ export async function getAttendanceChecksPage({
 
   if (siteId) {
     query = query.eq("attendance_rounds.site_id", siteId);
+  }
+
+  if (roundNo !== undefined && Number.isFinite(roundNo)) {
+    query = query.eq("attendance_rounds.round_no", normalizeShiftRound(roundNo));
   }
 
   if (search && search.trim()) {

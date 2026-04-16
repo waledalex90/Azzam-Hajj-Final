@@ -63,12 +63,13 @@ const { data: rpcData, error: rpcErr } = await supabase.rpc("submit_attendance_b
   p_work_date: probeDate,
   p_payload: [],
   p_notes: "verify_script",
+  p_round_no: 1,
 });
 
 if (rpcErr) {
   const msg = rpcErr.message ?? "";
   if (rpcErr.code === "42883" || /function .* does not exist/i.test(msg) || /Could not find the function/i.test(msg)) {
-    console.error("❌ الدالة غير موجودة في public. نفّذ في SQL Editor مشروع Azzam: `final_fix.sql` ثم تأكد من وجود `app.submit_attendance_bulk_checks`.");
+    console.error("❌ الدالة غير موجودة في public. نفّذ في SQL Editor: `supabase_shift_round_rpc.sql` (وردية) و`final_fix.sql` إن لزم، ثم تأكد من `app.submit_attendance_bulk_checks`.");
     process.exit(1);
   }
   if (/Unauthorized user|not authorized|JWT/i.test(msg)) {

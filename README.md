@@ -18,7 +18,7 @@
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon public |
 | `SUPABASE_SERVICE_ROLE_KEY` | service_role (سيرفر/استيراد Excel؛ لا يُعرض للمتصفح) |
 
-3. تأكد أن دالة الحضور الجماعي منشأة في نفس المشروع: نفّذ في **SQL Editor** محتوى `final_fix.sql` (يُعرّف `public.submit_attendance_bulk_checks` ويربطها بـ `app.submit_attendance_bulk_checks` وجولات `attendance_rounds`).
+3. تأكد أن دالة الحضور الجماعي منشأة في نفس المشروع: نفّذ في **SQL Editor** محتوى `final_fix.sql` ثم **`supabase_shift_round_rpc.sql`** (يضيف وسيط `p_round_no` للوردية صباحي/مسائي = `round_no` 1 و 2). بدون هذا الملف الأخير قد يفشل الحفظ من التطبيق بعد التحديث.
 4. اختبار الاتصال محلياً:
 
 ```bash

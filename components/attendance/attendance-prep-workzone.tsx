@@ -12,6 +12,8 @@ type Props = {
   initialWorkers: WorkerRow[];
   initialStatusMap: Record<number, AttendanceStatus | undefined>;
   workDate: string;
+  /** 1 صباحي، 2 مسائي */
+  roundNo: number;
 };
 
 function applyPrepToStats(
@@ -33,6 +35,7 @@ export function AttendancePrepWorkzone({
   initialWorkers,
   initialStatusMap,
   workDate,
+  roundNo,
 }: Props) {
   const [dayStats, setDayStats] = useState(initialDayStats);
   const [workers, setWorkers] = useState(initialWorkers);
@@ -119,6 +122,7 @@ export function AttendancePrepWorkzone({
       <AttendanceWorkersTable
         rows={filteredRows}
         workDate={workDate}
+        roundNo={roundNo}
         initialStatusMap={initialStatusMap}
         filteredWorkerIds={scopeIds}
         filteredTotalRows={scopeIds.length}

@@ -8,8 +8,10 @@ import {
   getAttendanceDayStats,
   getAttendanceLatestStatusMap,
   getAttendancePrepTabStats,
+  summarizeAttendanceChecksForRound,
   getContractorOptions,
   getSiteOptions,
+  normalizeShiftRound,
 } from "@/lib/data/attendance";
 import { AttendancePrepWorkzone } from "@/components/attendance/attendance-prep-workzone";
 import { AttendanceReviewTab } from "@/components/attendance/attendance-review-tab";
@@ -24,6 +26,8 @@ type Props = {
     siteId?: string;
     contractorId?: string;
     date?: string;
+    /** 1 = صباحي، 2 = مسائي */
+    shift?: string;
   }>;
 };
 
@@ -44,6 +48,8 @@ export default async function AttendancePage({ searchParams }: Props) {
       ? params.date
       : new Date().toISOString().slice(0, 10);
 
+  const roundNo = normalizeShiftRound(params.shift);
+
   const [sites, contractors, dayStats] = await Promise.all([
     getSiteOptions(),
     getContractorOptions(),
@@ -53,6 +59,7 @@ export default async function AttendancePage({ searchParams }: Props) {
           Number.isFinite(siteId) ? siteId : undefined,
           Number.isFinite(contractorId) ? contractorId : undefined,
           undefined,
+          roundNo,
         )
       : getAttendanceDayStats(
           workDate,
@@ -69,6 +76,7 @@ export default async function AttendancePage({ searchParams }: Props) {
           contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
           search: undefined,
           workDate,
+          roundNo,
         })
       : null;
 
@@ -77,6 +85,7 @@ export default async function AttendancePage({ searchParams }: Props) {
       ? await getAttendanceLatestStatusMap(
           workDate,
           prepWorkers.rows.map((item) => item.id),
+          roundNo,
         )
       : {};
 
@@ -88,10 +97,13 @@ export default async function AttendancePage({ searchParams }: Props) {
           workDate,
           siteId: Number.isFinite(siteId) ? siteId : undefined,
           search: undefined,
+          roundNo,
         })
       : null;
 
   const reviewedRows = reviewedPage?.rows ?? [];
+  const reviewRoundStats =
+    activeTab === "review" ? summarizeAttendanceChecksForRound(reviewedRows) : null;
 
   return (
     <section className="space-y-4">
@@ -104,7 +116,7 @@ export default async function AttendancePage({ searchParams }: Props) {
 
         <div className="mt-3 flex items-center gap-2 border-b border-slate-200 text-sm">
           <Link
-            href={`/attendance?tab=workers&date=${workDate}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
+            href={`/attendance?tab=workers&date=${workDate}&shift=${roundNo}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
             className={`rounded-t-xl px-3 py-2 font-extrabold ${
               activeTab === "workers"
                 ? "bg-emerald-50 text-emerald-700"
@@ -114,7 +126,7 @@ export default async function AttendancePage({ searchParams }: Props) {
             الموظفون والتحضير
           </Link>
           <Link
-            href={`/attendance?tab=review&date=${workDate}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
+            href={`/attendance?tab=review&date=${workDate}&shift=${roundNo}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
             className={`rounded-t-xl px-3 py-2 font-extrabold ${
               activeTab === "review"
                 ? "bg-emerald-50 text-emerald-700"
@@ -127,14 +139,22 @@ export default async function AttendancePage({ searchParams }: Props) {
 
         <p className="mt-2 text-xs text-slate-600">
           {activeTab === "workers"
-            ? "تحميل كامل للقائمة بدون ترقيم صفحات. بحث فوري على العميل. معلّق التحضير = لا صف attendance_checks لهذا اليوم."
-            : "تحميل كامل للسجلات. بحث فوري على العميل."}
+            ? "الوردية: صباحي/مسائي — جولة منفصلة لكل وردية. المسائي لا يعرض من حُضِّر صباحاً. بحث فوري تحت الجدول."
+            : "نفس الوردية المختارة لعرض سجلات المراجعة والاعتماد المعلّق لهذه الجولة فقط."}
         </p>
         {activeTab === "workers" ? (
-          <form className="mt-4 grid gap-2 sm:grid-cols-5" method="get">
+          <form className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6" method="get">
             <input type="hidden" name="tab" value="workers" />
             <DatePickerField name="date" defaultValue={workDate} />
-            <div className="min-h-12 rounded border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
+            <select
+              name="shift"
+              defaultValue={String(roundNo)}
+              className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base font-bold"
+            >
+              <option value="1">وردية صباحي</option>
+              <option value="2">وردية مسائي</option>
+            </select>
+            <div className="min-h-12 rounded border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600 lg:col-span-1">
               بحث فوري تحت الجدول
             </div>
             <select
@@ -166,9 +186,17 @@ export default async function AttendancePage({ searchParams }: Props) {
             </Button>
           </form>
         ) : (
-          <form className="mt-4 grid gap-2 sm:grid-cols-5" method="get">
+          <form className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6" method="get">
             <input type="hidden" name="tab" value="review" />
             <DatePickerField name="date" defaultValue={workDate} />
+            <select
+              name="shift"
+              defaultValue={String(roundNo)}
+              className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base font-bold"
+            >
+              <option value="1">وردية صباحي</option>
+              <option value="2">وردية مسائي</option>
+            </select>
             <div className="min-h-12 rounded border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
               بحث فوري تحت الجدول
             </div>
@@ -196,30 +224,31 @@ export default async function AttendancePage({ searchParams }: Props) {
 
       {activeTab === "workers" ? (
         <AttendancePrepWorkzone
-          key={`prep-${workDate}-${params.siteId ?? ""}-${params.contractorId ?? ""}`}
+          key={`prep-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}`}
           initialDayStats={dayStats}
           initialWorkers={prepWorkers?.rows ?? []}
           initialStatusMap={initialStatusMap}
           workDate={workDate}
+          roundNo={roundNo}
         />
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-4">
             <Card className="text-center">
-              <p className="text-xs text-slate-500">معلّق</p>
-              <p className="mt-1 text-2xl font-extrabold text-slate-700">{dayStats.pending}</p>
+              <p className="text-xs text-slate-500">معلّق اعتماد</p>
+              <p className="mt-1 text-2xl font-extrabold text-slate-700">{reviewRoundStats?.pending ?? 0}</p>
             </Card>
             <Card className="text-center">
               <p className="text-xs text-slate-500">حاضر</p>
-              <p className="mt-1 text-2xl font-extrabold text-emerald-700">{dayStats.present}</p>
+              <p className="mt-1 text-2xl font-extrabold text-emerald-700">{reviewRoundStats?.present ?? 0}</p>
             </Card>
             <Card className="text-center">
               <p className="text-xs text-slate-500">غائب</p>
-              <p className="mt-1 text-2xl font-extrabold text-red-700">{dayStats.absent}</p>
+              <p className="mt-1 text-2xl font-extrabold text-red-700">{reviewRoundStats?.absent ?? 0}</p>
             </Card>
             <Card className="text-center">
               <p className="text-xs text-slate-500">نصف يوم</p>
-              <p className="mt-1 text-2xl font-extrabold text-amber-700">{dayStats.half}</p>
+              <p className="mt-1 text-2xl font-extrabold text-amber-700">{reviewRoundStats?.half ?? 0}</p>
             </Card>
           </div>
           <Card className="border-dashed border-slate-200 bg-white/80">
@@ -232,9 +261,10 @@ export default async function AttendancePage({ searchParams }: Props) {
           </Card>
 
           <AttendanceReviewTab
-            key={`rev-${workDate}-${params.siteId ?? ""}`}
+            key={`rev-${workDate}-${roundNo}-${params.siteId ?? ""}`}
             initialRows={reviewedRows}
             canCorrection={canCorrection}
+            shiftLabel={roundNo === 2 ? "مسائي" : "صباحي"}
             reviewAttendanceCheck={reviewAttendanceCheck}
             returnAttendanceToPreparation={returnAttendanceToPreparation}
           />
