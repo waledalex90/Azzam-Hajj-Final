@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import type { WorkerRow } from "@/lib/types/db";
@@ -15,14 +15,10 @@ type Props = {
   filteredTotalRows?: number;
   /** يُستدعى بعد كل طلب ناجح (بما فيه كل جزء من التحضير الجماعي) لتحديث العدادات وإخفاء الصف محلياً */
   onAttendanceChunkSaved?: (workerIds: number[], status: AttendanceStatus) => void;
-  /** يُستدعى مرة واحدة بعد اكتمال العملية بالكامل (فردي أو جماعي) — مثلاً للانتقال لتبويب المراجعة */
+  /** يُستدعى بعد اكتمال التحضير الجماعي فقط — للانتقال لتبويب المراجعة */
   onAttendanceSessionComplete?: () => void;
   /** إخفاء رسالة «لا توجد بيانات» عندما يعرض الأب رسالة بديلة (مثلاً بعد إخفاء الصف محلياً) */
   suppressEmptyMessage?: boolean;
-  /** worker_id → attendance_checks.id لهذا اليوم */
-  checkIdByWorkerId?: Record<number, number>;
-  /** عرض زر طلب تعديل للمراقب الميداني بعد التحضير */
-  enableCorrectionRequest?: boolean;
 };
 
 function statusLabel(status?: AttendanceStatus) {
@@ -57,22 +53,10 @@ export function AttendanceWorkersTable({
   onAttendanceChunkSaved,
   onAttendanceSessionComplete,
   suppressEmptyMessage = false,
-  checkIdByWorkerId = {},
-  enableCorrectionRequest = false,
 }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<number[]>([]);
-  const [correctionBusyId, setCorrectionBusyId] = useState<number | null>(null);
-  /** يُحدَّث بعد حفظ التحضير محلياً حتى يظهر الشارة و«طلب تعديل» قبل اكتمال refresh */
-  const [savedStatusByWorker, setSavedStatusByWorker] = useState<
-    Record<number, AttendanceStatus>
-  >({});
-
-  useEffect(() => {
-    setSavedStatusByWorker({});
-  }, [workDate]);
-
-  const statusMap = useMemo(() => ({ ...initialStatusMap, ...savedStatusByWorker }), [initialStatusMap, savedStatusByWorker]);
+  const statusMap = initialStatusMap;
   const [isSaving, setIsSaving] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [isSyncError, setIsSyncError] = useState(false);
@@ -154,11 +138,6 @@ export function AttendanceWorkersTable({
         for (let i = 0; i < selectedIdsSnapshot.length; i += BULK_CHUNK_SIZE) {
           const chunk = selectedIdsSnapshot.slice(i, i + BULK_CHUNK_SIZE);
           await submitAttendance(status, chunk);
-          setSavedStatusByWorker((prev) => {
-            const next = { ...prev };
-            for (const id of chunk) next[id] = status;
-            return next;
-          });
           router.refresh();
           onAttendanceChunkSaved?.(chunk, status);
           setSelected((prev) => prev.filter((id) => !chunk.includes(id)));
@@ -211,34 +190,6 @@ export function AttendanceWorkersTable({
     );
   }
 
-  async function submitCorrectionRequest(workerId: number) {
-    const checkId = checkIdByWorkerId[workerId];
-    if (!checkId || correctionBusyId !== null) return;
-    setCorrectionBusyId(workerId);
-    setSyncMessage(null);
-    setIsSyncError(false);
-    try {
-      const response = await fetch("/api/attendance/correction-request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          checkId,
-          reason: "طلب تعديل حضور — مراقب ميداني",
-        }),
-      });
-      if (!response.ok) throw new Error(SAVE_ERROR_MESSAGE);
-      const payload = (await response.json().catch(() => ({}))) as { ok?: boolean };
-      if (!payload.ok) throw new Error(SAVE_ERROR_MESSAGE);
-      setSyncMessage("تم إرسال طلب التعديل للإدارة.");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : SAVE_ERROR_MESSAGE;
-      setSyncMessage(message || SAVE_ERROR_MESSAGE);
-      setIsSyncError(true);
-    } finally {
-      setCorrectionBusyId(null);
-    }
-  }
-
   const statusButtons = (workerId: number) => {
     async function onStatusClick(status: AttendanceStatus) {
       if (isSaving) return;
@@ -248,12 +199,10 @@ export function AttendanceWorkersTable({
       setSyncProgress({ active: true, processed: 0, total: 1 });
       try {
         await submitAttendance(status, [workerId]);
-        setSavedStatusByWorker((prev) => ({ ...prev, [workerId]: status }));
         router.refresh();
         onAttendanceChunkSaved?.([workerId], status);
         setSyncProgress({ active: true, processed: 1, total: 1 });
         setSyncMessage("تم تحضير الموظف بنجاح.");
-        onAttendanceSessionComplete?.();
       } catch (error) {
         const message = error instanceof Error ? error.message : SAVE_ERROR_MESSAGE;
         setSyncMessage(message || SAVE_ERROR_MESSAGE);
@@ -264,53 +213,37 @@ export function AttendanceWorkersTable({
       }
     }
 
-    const prepared = Boolean(statusMap[workerId]);
-    const checkId = checkIdByWorkerId[workerId];
-    const showCorr = enableCorrectionRequest && prepared && checkId;
-
     return (
-      <div className="flex flex-col gap-1.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onStatusClick("present")}
-            className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-            disabled={isSaving}
-          >
-            حاضر
-          </button>
-          <button
-            type="button"
-            onClick={() => onStatusClick("absent")}
-            className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-            disabled={isSaving}
-          >
-            غائب
-          </button>
-          <button
-            type="button"
-            onClick={() => onStatusClick("half")}
-            className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-            disabled={isSaving}
-          >
-            نصف
-          </button>
-          <span
-            className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${statusBadgeClass(statusMap[workerId])}`}
-          >
-            {isSaving ? "جارٍ الحفظ..." : statusLabel(statusMap[workerId])}
-          </span>
-        </div>
-        {showCorr ? (
-          <button
-            type="button"
-            onClick={() => void submitCorrectionRequest(workerId)}
-            disabled={correctionBusyId !== null}
-            className="w-fit rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-900 disabled:opacity-50"
-          >
-            {correctionBusyId === workerId ? "جاري الإرسال..." : "طلب تعديل"}
-          </button>
-        ) : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onStatusClick("present")}
+          className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+          disabled={isSaving}
+        >
+          حاضر
+        </button>
+        <button
+          type="button"
+          onClick={() => onStatusClick("absent")}
+          className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+          disabled={isSaving}
+        >
+          غائب
+        </button>
+        <button
+          type="button"
+          onClick={() => onStatusClick("half")}
+          className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+          disabled={isSaving}
+        >
+          نصف
+        </button>
+        <span
+          className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${statusBadgeClass(statusMap[workerId])}`}
+        >
+          {isSaving ? "جارٍ الحفظ..." : statusLabel(statusMap[workerId])}
+        </span>
       </div>
     );
   };

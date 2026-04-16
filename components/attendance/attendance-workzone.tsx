@@ -52,8 +52,6 @@ type Props = {
   contractorId?: string;
   q?: string;
   pagination: React.ReactNode;
-  checkIdByWorkerId?: Record<number, number>;
-  enableCorrectionRequest?: boolean;
 };
 
 export function AttendanceWorkzone({
@@ -67,8 +65,6 @@ export function AttendanceWorkzone({
   contractorId,
   q,
   pagination,
-  checkIdByWorkerId = {},
-  enableCorrectionRequest = false,
 }: Props) {
   const router = useRouter();
   const key = useMemo(
@@ -109,23 +105,19 @@ export function AttendanceWorkzone({
         }
         return s;
       });
-      // للمراقب الميداني: نُبقي الصفوف ظاهرة بعد التحضير حتى يمكن استخدام «طلب تعديل».
-      if (!enableCorrectionRequest) {
-        setHidden((prev) => {
-          const next = new Set(prev);
-          workerIds.forEach((id) => next.add(id));
-          writeHiddenSet(key, next);
-          return next;
-        });
-      }
+      setHidden((prev) => {
+        const next = new Set(prev);
+        workerIds.forEach((id) => next.add(id));
+        writeHiddenSet(key, next);
+        return next;
+      });
     },
-    [key, enableCorrectionRequest],
+    [key],
   );
 
   const onAttendanceSessionComplete = useCallback(() => {
-    if (enableCorrectionRequest) return;
     navigateToReview();
-  }, [enableCorrectionRequest, navigateToReview]);
+  }, [navigateToReview]);
 
   const visibleRows = useMemo(
     () => serverRows.filter((r) => !hidden.has(r.id)),
@@ -190,8 +182,6 @@ export function AttendanceWorkzone({
         onAttendanceChunkSaved={onAttendanceChunkSaved}
         onAttendanceSessionComplete={onAttendanceSessionComplete}
         suppressEmptyMessage={serverRows.length > 0 && visibleRows.length === 0}
-        checkIdByWorkerId={checkIdByWorkerId}
-        enableCorrectionRequest={enableCorrectionRequest}
       />
 
       {visibleRows.length === 0 && serverRows.length > 0 && (

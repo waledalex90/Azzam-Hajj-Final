@@ -7,7 +7,6 @@ import { Card } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import {
-  getAttendanceCheckIdMap,
   getAttendanceChecksPage,
   getAttendanceDayStats,
   getAttendanceLatestStatusMap,
@@ -89,6 +88,38 @@ export default async function AttendancePage({ searchParams }: Props) {
     revalidateTag("dashboard-admin", "max");
   }
 
+  async function submitAttendanceCorrectionReview(formData: FormData) {
+    "use server";
+    if (isDemoModeEnabled()) return;
+    const { appUser: actor } = await getSessionContext();
+    if (!actor || !hasPermission(actor, PERM.CORRECTION_REQUEST)) return;
+
+    const checkId = Number(formData.get("checkId"));
+    const reason = String(formData.get("reason") || "طلب تعديل حضور — مراجعة تحضير اليوم").trim();
+    if (!checkId) return;
+
+    const supabase = createSupabaseAdminClient();
+    const insertRes = await supabase.from("correction_requests").insert({
+      attendance_id: checkId,
+      requester_id: actor.id,
+      reason,
+      status: "pending",
+    });
+
+    if (insertRes.error) {
+      await supabase
+        .from("attendance_checks")
+        .update({ confirm_note: `طلب تعديل حضور: ${reason}` })
+        .eq("id", checkId);
+    }
+
+    revalidatePath("/attendance");
+    revalidatePath("/corrections");
+    revalidatePath("/dashboard");
+    revalidateTag("dashboard-stats", "max");
+    revalidateTag("dashboard-admin", "max");
+  }
+
   const { appUser } = await getSessionContext();
   const params = await searchParams;
   const page = parsePage(params.page, 1);
@@ -121,14 +152,6 @@ export default async function AttendancePage({ searchParams }: Props) {
   const initialStatusMap =
     activeTab === "workers" && workersPage
       ? await getAttendanceLatestStatusMap(
-          workDate,
-          workersPage.rows.map((item) => item.id),
-        )
-      : {};
-
-  const checkIdByWorkerId =
-    activeTab === "workers" && workersPage
-      ? await getAttendanceCheckIdMap(
           workDate,
           workersPage.rows.map((item) => item.id),
         )
@@ -171,9 +194,10 @@ export default async function AttendancePage({ searchParams }: Props) {
   return (
     <section className="space-y-4">
       <Card>
-        <h1 className="text-lg font-extrabold text-slate-900">شاشة التحضير - مراقب فني</h1>
+        <h1 className="text-lg font-extrabold text-slate-900">تسجيل الحضور والمراجعة</h1>
         <p className="mt-1 text-sm text-slate-600">
-          متابعة حضور العمال بسرعة وبشكل واضح حتى مع الأعداد الكبيرة.
+          تبويب «الموظفون والتحضير» للتسجيل فقط (حاضر / غائب / نصف يوم). تبويب «مراجعة تحضير اليوم» لمراجعة السجلات
+          وطلب التعديل أو إعادة التحضير للعامل.
         </p>
 
         <div className="mt-3 flex items-center gap-2 border-b border-slate-200 text-sm">
@@ -254,8 +278,6 @@ export default async function AttendancePage({ searchParams }: Props) {
           siteId={params.siteId}
           contractorId={params.contractorId}
           q={q}
-          checkIdByWorkerId={checkIdByWorkerId}
-          enableCorrectionRequest={hasPermission(appUser, PERM.CORRECTION_REQUEST)}
           pagination={
             <PaginationControls
               page={workersPage?.meta.page ?? 1}
@@ -298,16 +320,10 @@ export default async function AttendancePage({ searchParams }: Props) {
                 إجمالي السجلات: {reviewedPage?.meta.totalRows ?? 0}
               </p>
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <button
-                type="button"
-                disabled
-                className="rounded-lg bg-[#166534] px-3 py-1.5 text-xs font-bold text-white opacity-90"
-              >
-                مراجعة حضور
-              </button>
-              <span>هذا الزر ينشئ جولة جديدة لنفس العامل كي يتم إعادة الاعتماد من المراقب الميداني.</span>
-            </div>
+            <p className="mt-2 text-xs text-slate-600">
+              من هنا يمكن مراجعة تسجيل الحضور، أو طلب تعديل للإدارة، أو إعادة العامل لقائمة التحضير، أو إنشاء جولة
+              مراجعة جديدة.
+            </p>
           </Card>
 
           <Card className="overflow-hidden p-0">
@@ -342,6 +358,22 @@ export default async function AttendancePage({ searchParams }: Props) {
                         مراجعة حضور
                       </button>
                     </form>
+                    {appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST) && (
+                      <form action={submitAttendanceCorrectionReview} className="flex w-full flex-col gap-2">
+                        <input type="hidden" name="checkId" value={row.id} />
+                        <Input
+                          name="reason"
+                          placeholder="سبب طلب التعديل (اختياري)"
+                          className="min-h-10 text-xs"
+                        />
+                        <button
+                          type="submit"
+                          className="w-full rounded-lg border border-amber-400 bg-amber-100 px-3 py-2 text-xs font-bold text-amber-950"
+                        >
+                          طلب تعديل
+                        </button>
+                      </form>
+                    )}
                     <form action={returnAttendanceToPreparation}>
                       <input type="hidden" name="checkId" value={row.id} />
                       <button
@@ -364,7 +396,7 @@ export default async function AttendancePage({ searchParams }: Props) {
                     <th className="px-3 py-2 text-right font-bold">الموقع</th>
                     <th className="px-3 py-2 text-right font-bold">الجولة</th>
                     <th className="px-3 py-2 text-right font-bold">الاعتماد</th>
-                    <th className="px-3 py-2 text-right font-bold">إجراء المراقب</th>
+                    <th className="px-3 py-2 text-right font-bold">مراجعة وتصحيح</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -387,15 +419,31 @@ export default async function AttendancePage({ searchParams }: Props) {
                           {reviewLabel(row.confirmation_status)}
                         </span>
                       </td>
-                      <td className="px-3 py-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <form action={reviewAttendanceCheck}>
+                      <td className="px-3 py-2 align-top">
+                        <div className="flex min-w-[200px] flex-col gap-2">
+                          <form action={reviewAttendanceCheck} className="inline-flex">
                             <input type="hidden" name="checkId" value={row.id} />
                             <button className="rounded-lg bg-[#166534] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#14532d]">
                               مراجعة حضور
                             </button>
                           </form>
-                          <form action={returnAttendanceToPreparation}>
+                          {appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST) && (
+                            <form action={submitAttendanceCorrectionReview} className="flex flex-col gap-1.5">
+                              <input type="hidden" name="checkId" value={row.id} />
+                              <Input
+                                name="reason"
+                                placeholder="سبب طلب التعديل"
+                                className="min-h-9 min-w-[140px] px-2 py-1 text-xs"
+                              />
+                              <button
+                                type="submit"
+                                className="w-fit rounded-lg border border-amber-400 bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-950"
+                              >
+                                طلب تعديل
+                              </button>
+                            </form>
+                          )}
+                          <form action={returnAttendanceToPreparation} className="inline-flex">
                             <input type="hidden" name="checkId" value={row.id} />
                             <button
                               type="submit"
