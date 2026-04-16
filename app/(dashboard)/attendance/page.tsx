@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import {
+  getAttendanceCheckIdMap,
   getAttendanceChecksPage,
   getAttendanceDayStats,
   getAttendanceLatestStatusMap,
@@ -15,6 +16,7 @@ import {
   getContractorOptions,
   getSiteOptions,
 } from "@/lib/data/attendance";
+import { getSessionContext } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { submitAttendanceByWorkersEngine } from "@/lib/services/attendance-engine";
 import { parsePage } from "@/lib/utils/pagination";
@@ -85,6 +87,7 @@ export default async function AttendancePage({ searchParams }: Props) {
     revalidateTag("dashboard-admin", "max");
   }
 
+  const { appUser } = await getSessionContext();
   const params = await searchParams;
   const page = parsePage(params.page, 1);
   const activeTab = params.tab === "review" ? "review" : "workers";
@@ -116,6 +119,14 @@ export default async function AttendancePage({ searchParams }: Props) {
   const initialStatusMap =
     activeTab === "workers" && workersPage
       ? await getAttendanceLatestStatusMap(
+          workDate,
+          workersPage.rows.map((item) => item.id),
+        )
+      : {};
+
+  const checkIdByWorkerId =
+    activeTab === "workers" && workersPage
+      ? await getAttendanceCheckIdMap(
           workDate,
           workersPage.rows.map((item) => item.id),
         )
@@ -241,6 +252,8 @@ export default async function AttendancePage({ searchParams }: Props) {
           siteId={params.siteId}
           contractorId={params.contractorId}
           q={q}
+          checkIdByWorkerId={checkIdByWorkerId}
+          enableCorrectionRequest={appUser?.role === "field_observer"}
           pagination={
             <PaginationControls
               page={workersPage?.meta.page ?? 1}

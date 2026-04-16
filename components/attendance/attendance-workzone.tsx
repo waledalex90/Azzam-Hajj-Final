@@ -35,27 +35,10 @@ function writeHiddenSet(key: string, ids: Set<number>) {
   sessionStorage.setItem(key, JSON.stringify([...ids]));
 }
 
-function applyStatsDelta(
-  prev: AttendanceDayStats,
-  old: AttendanceStatus | undefined,
-  next: AttendanceStatus,
-): AttendanceDayStats {
-  if (old === next) return prev;
-  const out = { ...prev };
-  const dec = (k: keyof Pick<AttendanceDayStats, "pending" | "present" | "absent" | "half">) => {
-    out[k] = Math.max(0, out[k] - 1);
-  };
-  const inc = (k: keyof Pick<AttendanceDayStats, "pending" | "present" | "absent" | "half">) => {
-    out[k] = out[k] + 1;
-  };
-  if (old === undefined) dec("pending");
-  else if (old === "present") dec("present");
-  else if (old === "absent") dec("absent");
-  else if (old === "half") dec("half");
-  if (next === "present") inc("present");
-  else if (next === "absent") inc("absent");
-  else if (next === "half") inc("half");
-  return out;
+/** يقلّص «معلق» فقط عند أول تحضير؛ حاضر/غائب/نصف في العداد يأتي من السيرفر بعد اعتماد الإدارة (confirmed في الملخص). */
+function applyPreparationPendingOnly(prev: AttendanceDayStats, old: AttendanceStatus | undefined): AttendanceDayStats {
+  if (old !== undefined) return prev;
+  return { ...prev, pending: Math.max(0, prev.pending - 1) };
 }
 
 type Props = {
@@ -69,6 +52,8 @@ type Props = {
   contractorId?: string;
   q?: string;
   pagination: React.ReactNode;
+  checkIdByWorkerId?: Record<number, number>;
+  enableCorrectionRequest?: boolean;
 };
 
 export function AttendanceWorkzone({
@@ -82,6 +67,8 @@ export function AttendanceWorkzone({
   contractorId,
   q,
   pagination,
+  checkIdByWorkerId = {},
+  enableCorrectionRequest = false,
 }: Props) {
   const router = useRouter();
   const key = useMemo(
@@ -113,28 +100,32 @@ export function AttendanceWorkzone({
   }, [router, workDate, siteId, q]);
 
   const onAttendanceChunkSaved = useCallback(
-    (workerIds: number[], status: AttendanceStatus) => {
+    (workerIds: number[], _status: AttendanceStatus) => {
       setDayStats((prev) => {
         let s = prev;
         for (const id of workerIds) {
           const old = initialStatusMapRef.current[id];
-          s = applyStatsDelta(s, old, status);
+          s = applyPreparationPendingOnly(s, old);
         }
         return s;
       });
-      setHidden((prev) => {
-        const next = new Set(prev);
-        workerIds.forEach((id) => next.add(id));
-        writeHiddenSet(key, next);
-        return next;
-      });
+      // للمراقب الميداني: نُبقي الصفوف ظاهرة بعد التحضير حتى يمكن استخدام «طلب تعديل».
+      if (!enableCorrectionRequest) {
+        setHidden((prev) => {
+          const next = new Set(prev);
+          workerIds.forEach((id) => next.add(id));
+          writeHiddenSet(key, next);
+          return next;
+        });
+      }
     },
-    [key],
+    [key, enableCorrectionRequest],
   );
 
   const onAttendanceSessionComplete = useCallback(() => {
+    if (enableCorrectionRequest) return;
     navigateToReview();
-  }, [navigateToReview]);
+  }, [enableCorrectionRequest, navigateToReview]);
 
   const visibleRows = useMemo(
     () => serverRows.filter((r) => !hidden.has(r.id)),
@@ -199,6 +190,8 @@ export function AttendanceWorkzone({
         onAttendanceChunkSaved={onAttendanceChunkSaved}
         onAttendanceSessionComplete={onAttendanceSessionComplete}
         suppressEmptyMessage={serverRows.length > 0 && visibleRows.length === 0}
+        checkIdByWorkerId={checkIdByWorkerId}
+        enableCorrectionRequest={enableCorrectionRequest}
       />
 
       {visibleRows.length === 0 && serverRows.length > 0 && (

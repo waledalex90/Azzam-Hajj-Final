@@ -1,4 +1,4 @@
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import Link from "next/link";
 
 import { ApprovalQueueTable } from "@/components/approval/approval-queue-table";
@@ -9,9 +9,12 @@ import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import { getSessionContext } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { getAttendanceChecksPage, getSiteOptions } from "@/lib/data/attendance";
+import { getAttendanceChecksPage, getPendingApprovalCheckIds, getSiteOptions } from "@/lib/data/attendance";
 import { parsePage } from "@/lib/utils/pagination";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { applyApprovalDecisionsEngine } from "@/lib/services/attendance-engine";
+
+const APPROVE_ALL_CHUNK = 500;
 
 type Props = {
   searchParams: Promise<{
@@ -59,6 +62,39 @@ export default async function ApprovalPage({ searchParams }: Props) {
     revalidatePath("/approval");
     revalidatePath("/corrections");
     revalidatePath("/dashboard");
+  }
+
+  async function approveAllPendingAttendance(formData: FormData) {
+    "use server";
+    if (isDemoModeEnabled()) return;
+
+    const { appUser } = await getSessionContext();
+    if (!appUser || !["admin", "hr"].includes(appUser.role)) return;
+
+    const workDate = String(formData.get("workDate") || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
+    const siteRaw = formData.get("siteId");
+    const siteIdStr = siteRaw != null ? String(siteRaw).trim() : "";
+    const siteId = siteIdStr ? Number(siteIdStr) : undefined;
+    const q = String(formData.get("q") || "").trim();
+
+    const ids = await getPendingApprovalCheckIds({
+      workDate,
+      siteId: Number.isFinite(siteId) ? siteId : undefined,
+      search: q || undefined,
+    });
+    if (ids.length === 0) return;
+
+    for (let i = 0; i < ids.length; i += APPROVE_ALL_CHUNK) {
+      const chunk = ids.slice(i, i + APPROVE_ALL_CHUNK);
+      await applyApprovalDecisionsEngine({ checkIds: chunk, decision: "confirm" });
+    }
+
+    revalidatePath("/approval");
+    revalidatePath("/dashboard");
+    revalidatePath("/attendance");
+    revalidateTag("dashboard-stats", "max");
+    revalidateTag("dashboard-admin", "max");
   }
 
   const params = await searchParams;
@@ -124,6 +160,22 @@ export default async function ApprovalPage({ searchParams }: Props) {
           <Button type="submit">تطبيق</Button>
         </form>
       </Card>
+
+      {activeTab === "pending" && appUser && ["admin", "hr"].includes(appUser.role) && (
+        <Card className="border-dashed border-emerald-200 bg-emerald-50/60">
+          <form action={approveAllPendingAttendance} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <input type="hidden" name="workDate" value={workDate} />
+            <input type="hidden" name="siteId" value={params.siteId ?? ""} />
+            <input type="hidden" name="q" value={q ?? ""} />
+            <p className="text-sm font-bold text-slate-800">
+              اعتماد جماعي: يتم اعتماد كل السجلات المعلّقة المطابقة للتاريخ والموقع والبحث أعلاه (وليس الصفحة الحالية فقط).
+            </p>
+            <Button type="submit" className="bg-[#166534] font-extrabold text-white hover:bg-[#14532d]">
+              اعتماد جماعي لجميع المعلّقين
+            </Button>
+          </form>
+        </Card>
+      )}
 
       {activeTab === "pending" ? (
         <ApprovalQueueTable rows={rows} />

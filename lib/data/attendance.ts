@@ -74,6 +74,60 @@ export async function getAttendanceLatestStatusMap(
   return map;
 }
 
+/** أحدث check_id لكل عامل في التاريخ (لطلبات التعديل وربط correction_requests). */
+export async function getAttendanceCheckIdMap(
+  workDate: string,
+  workerIds: number[],
+): Promise<Record<number, number>> {
+  const uniqueIds = Array.from(new Set(workerIds.filter(Boolean)));
+  if (uniqueIds.length === 0) return {};
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("attendance_checks")
+    .select("id, worker_id, checked_at, attendance_rounds!inner(work_date)")
+    .in("worker_id", uniqueIds)
+    .eq("attendance_rounds.work_date", workDate)
+    .order("checked_at", { ascending: false });
+
+  if (error || !data) return {};
+
+  const map: Record<number, number> = {};
+  for (const row of data as Array<{ id: number; worker_id: number }>) {
+    if (!map[row.worker_id]) {
+      map[row.worker_id] = row.id;
+    }
+  }
+  return map;
+}
+
+/** كل معرفات السجلات المعلّقة (اعتماد ميداني) للتاريخ/الموقع/البحث — بدون ترقيم صفحات. */
+export async function getPendingApprovalCheckIds(params: {
+  workDate: string;
+  siteId?: number;
+  search?: string;
+}): Promise<number[]> {
+  const supabase = createSupabaseAdminClient();
+  let query = supabase
+    .from("attendance_checks")
+    .select("id, attendance_rounds!inner(work_date, site_id), workers!inner(name, id_number)")
+    .eq("confirmation_status", "pending")
+    .eq("attendance_rounds.work_date", params.workDate);
+
+  if (params.siteId) {
+    query = query.eq("attendance_rounds.site_id", params.siteId);
+  }
+  if (params.search?.trim()) {
+    const v = params.search.trim();
+    query = query.or(`workers.name.ilike.%${v}%,workers.id_number.ilike.%${v}%`);
+  }
+
+  const { data, error } = await query.limit(20000);
+  if (error || !data) return [];
+
+  return (data as Array<{ id: number }>).map((r) => r.id).filter(Boolean);
+}
+
 export async function getAttendanceWorkersPage({
   page,
   pageSize,

@@ -46,7 +46,7 @@ export async function POST(request: Request) {
   const mode = body.mode ?? "attendance_submit";
 
   if (mode === "attendance_submit") {
-    if (!appUser || !["admin", "hr", "technical_observer"].includes(appUser.role)) {
+    if (!appUser || !["admin", "hr", "technical_observer", "field_observer"].includes(appUser.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (
