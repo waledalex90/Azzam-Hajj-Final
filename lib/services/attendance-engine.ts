@@ -20,6 +20,7 @@ type ApprovalDecisionPayload = {
 };
 
 type IdempotencyScope = "attendance_sync" | "approval_sync";
+/** يجب أن تكون الدالة `public.submit_attendance_bulk_checks` منشأة في Supabase (انظر `final_fix.sql` → `app.submit_attendance_bulk_checks`). */
 const BULK_ATTENDANCE_PUBLIC_RPC = "submit_attendance_bulk_checks";
 
 async function hasProcessedIdempotencyKey(idempotencyKey: string) {

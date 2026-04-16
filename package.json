@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "verify:supabase": "node scripts/verify-azzam-supabase.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.2",

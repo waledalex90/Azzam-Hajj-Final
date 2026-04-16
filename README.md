@@ -7,15 +7,25 @@
 1. **تحضير فوري** (`components/attendance/attendance-workzone.tsx` + `attendance-workers-table.tsx`): عند الضغط (فردي أو جماعي) يُخفى العامل من الجدول محلياً، تُحدَّث العدادات (معلّق / حاضر / غائب / نصف يوم) فوراً، ثم الانتقال لتبويب **مراجعة تحضير اليوم** بعد الحفظ.
 2. **استيراد Excel على دفعات 200** مع شريط تقدّم (`components/workers/workers-upload-form.tsx` — `CHUNK_SIZE = 200`)، وتحضير جماعي بنفس حجم الدفعة (`BULK_CHUNK_SIZE = 200` في جدول التحضير).
 
-## المتطلبات البيئية (Supabase — مشروع Azzam)
+## المتطلبات البيئية (Supabase — مشروع Azzam Hajj فقط)
 
-انسخ `.env.example` إلى `.env.local` وعبّئ من لوحة Supabase → **Project Settings → API**:
+1. أنشئ/افتح مشروع **Azzam Hajj** في Supabase (لا تستخدم ref لمشروع آخر).
+2. انسخ `.env.example` إلى `.env.local` واملأ القيم من **Settings → API** لنفس المشروع:
 
 | المتغير | الوصف |
 |--------|--------|
-| `NEXT_PUBLIC_SUPABASE_URL` | رابط المشروع |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | مفتاح anon العام |
-| `SUPABASE_SERVICE_ROLE_KEY` | مفتاح service role (سيرفر فقط؛ لا تُعرضه في الواجهة) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon public |
+| `SUPABASE_SERVICE_ROLE_KEY` | service_role (سيرفر/استيراد Excel؛ لا يُعرض للمتصفح) |
+
+3. تأكد أن دالة الحضور الجماعي منشأة في نفس المشروع: نفّذ في **SQL Editor** محتوى `final_fix.sql` (يُعرّف `public.submit_attendance_bulk_checks` ويربطها بـ `app.submit_attendance_bulk_checks` وجولات `attendance_rounds`).
+4. اختبار الاتصال محلياً:
+
+```bash
+npm run verify:supabase
+```
+
+كل الـ APIs و`attendance-engine.ts` تقرأ من `lib/env.ts` — أي أن نفس الثلاثة متغيرات توجه كل البيانات إلى قاعدة Azzam.
 
 ## رفع الكود إلى الريبو الجديد `Azzam-Hajj-Final`
 
