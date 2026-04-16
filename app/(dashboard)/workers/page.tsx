@@ -71,6 +71,7 @@ export default async function WorkersPage({ searchParams }: Props) {
       is_deleted: false,
     });
     revalidatePath("/workers");
+    revalidatePath("/attendance");
     revalidatePath("/dashboard");
   }
 
@@ -115,6 +116,7 @@ export default async function WorkersPage({ searchParams }: Props) {
       .eq("id", workerId);
 
     revalidatePath("/workers");
+    revalidatePath("/attendance");
     revalidatePath("/dashboard");
   }
 
@@ -128,6 +130,7 @@ export default async function WorkersPage({ searchParams }: Props) {
     const supabase = createSupabaseAdminClient();
     await supabase.from("workers").update({ is_active: !isActive }).eq("id", workerId);
     revalidatePath("/workers");
+    revalidatePath("/attendance");
     revalidatePath("/dashboard");
   }
 
@@ -139,6 +142,7 @@ export default async function WorkersPage({ searchParams }: Props) {
     const supabase = createSupabaseAdminClient();
     await supabase.from("workers").update({ is_deleted: true, is_active: false }).eq("id", workerId);
     revalidatePath("/workers");
+    revalidatePath("/attendance");
     revalidatePath("/dashboard");
   }
 
@@ -150,6 +154,7 @@ export default async function WorkersPage({ searchParams }: Props) {
     const supabase = createSupabaseAdminClient();
     await supabase.from("workers").update({ is_deleted: false }).eq("id", workerId);
     revalidatePath("/workers");
+    revalidatePath("/attendance");
     revalidatePath("/dashboard");
   }
 

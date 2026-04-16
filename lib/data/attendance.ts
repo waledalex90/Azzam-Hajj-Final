@@ -35,10 +35,64 @@ type WorkersPageParams = {
   shiftRoundFilter?: number;
 };
 
-type RawWorkerRow = Omit<WorkerRow, "sites"> & {
-  sites?: { name: string } | { name: string }[] | null;
-  contractors?: { name: string } | { name: string }[] | null;
+/** صف عامل من استعلام workers بدون embed (يُكمل لاحقاً عبر hydrate). */
+type RawWorkerRowFlat = {
+  id: number;
+  name: string;
+  id_number: string;
+  contractor_id: number | null;
+  current_site_id: number | null;
+  shift_round: number | null;
+  is_active: boolean;
+  is_deleted: boolean;
 };
+
+const HYDRATE_ID_CHUNK = 200;
+
+async function fetchIdNameMap(
+  table: "sites" | "contractors",
+  ids: number[],
+): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  if (ids.length === 0) return map;
+  const supabase = createSupabaseAdminClient();
+  const unique = Array.from(new Set(ids.filter((id) => Number.isFinite(id))));
+  for (let o = 0; o < unique.length; o += HYDRATE_ID_CHUNK) {
+    const batch = unique.slice(o, o + HYDRATE_ID_CHUNK);
+    const { data, error } = await supabase.from(table).select("id, name").in("id", batch);
+    if (error || !data) continue;
+    for (const row of data as Array<{ id: number; name: string }>) {
+      map.set(row.id, row.name);
+    }
+  }
+  return map;
+}
+
+/** يملأ sites / contractors من جداول sites و contractors مباشرة حسب current_site_id و contractor_id. */
+export async function hydrateWorkerRowsSitesAndContractors(rows: WorkerRow[]): Promise<WorkerRow[]> {
+  if (rows.length === 0) return rows;
+  const siteIds = rows
+    .map((r) => r.current_site_id)
+    .filter((id): id is number => id != null && Number.isFinite(id));
+  const contractorIds = rows
+    .map((r) => r.contractor_id)
+    .filter((id): id is number => id != null && Number.isFinite(id));
+  const [siteMap, contractorMap] = await Promise.all([
+    fetchIdNameMap("sites", siteIds),
+    fetchIdNameMap("contractors", contractorIds),
+  ]);
+  return rows.map((r) => ({
+    ...r,
+    sites:
+      r.current_site_id != null && Number.isFinite(r.current_site_id)
+        ? { name: siteMap.get(r.current_site_id) ?? "—" }
+        : null,
+    contractors:
+      r.contractor_id != null && Number.isFinite(r.contractor_id)
+        ? { name: contractorMap.get(r.contractor_id) ?? "—" }
+        : null,
+  }));
+}
 
 type ChecksPageParams = {
   page: number;
@@ -332,7 +386,7 @@ export async function getAttendanceWorkersPage({
   let query = supabase
     .from("workers")
     .select(
-      "id, name, id_number, contractor_id, current_site_id, shift_round, is_active, is_deleted, sites(name), contractors(name)",
+      "id, name, id_number, contractor_id, current_site_id, shift_round, is_active, is_deleted",
       {
       count: "planned",
       },
@@ -368,12 +422,10 @@ export async function getAttendanceWorkersPage({
 
   const totalRows = count ?? 0;
   const rows: WorkerRow[] =
-    ((data as RawWorkerRow[]) ?? []).map((item) => ({
+    ((data as RawWorkerRowFlat[]) ?? []).map((item) => ({
       ...item,
-      sites: Array.isArray(item.sites) ? (item.sites[0] ?? null) : (item.sites ?? null),
-      contractors: Array.isArray(item.contractors)
-        ? (item.contractors[0] ?? null)
-        : (item.contractors ?? null),
+      sites: null,
+      contractors: null,
     })) ?? [];
 
   return {
@@ -400,9 +452,10 @@ export async function getAllPendingPrepWorkers(
     page += 1;
     if (page * CHUNK > PREP_WORKERS_PAGE_SIZE) break;
   }
+  const hydrated = await hydrateWorkerRowsSitesAndContractors(allRows);
   return {
-    rows: allRows,
-    meta: buildPaginationMeta(allRows.length, 1, Math.max(allRows.length, 1)),
+    rows: hydrated,
+    meta: buildPaginationMeta(hydrated.length, 1, Math.max(hydrated.length, 1)),
   };
 }
 
@@ -509,6 +562,29 @@ const getContractorOptionsCached = unstable_cache(
 
 export async function getContractorOptions(): Promise<ContractorOption[]> {
   return getContractorOptionsCached();
+}
+
+/** بدون unstable_cache — لصفحة التحضير فقط (أسماء المواقع/المقاولين حديثة). */
+export async function getSiteOptionsLive(): Promise<SiteOption[]> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.from("sites").select("id, name").order("name");
+  if (error) {
+    throw new Error(`Sites query failed: ${error.message}`);
+  }
+  return (data as SiteOption[]) ?? [];
+}
+
+export async function getContractorOptionsLive(): Promise<ContractorOption[]> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("contractors")
+    .select("id, name")
+    .eq("is_active", true)
+    .order("name");
+  if (error) {
+    throw new Error(`Contractors query failed: ${error.message}`);
+  }
+  return (data as ContractorOption[]) ?? [];
 }
 
 /** إحصائيات اليوم: بدون فلتر مقاول/بحث — استعلامات aggregate سريعة (مثل لوحة التحكم). */

@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { Card } from "@/components/ui/card";
 import { AttendanceFilterToolbar } from "@/components/attendance/attendance-filter-toolbar";
 import { AttendanceResetButton } from "@/components/attendance/attendance-reset-button";
@@ -9,8 +11,8 @@ import {
   getAttendanceLatestStatusMap,
   getAttendancePrepTabStats,
   summarizeAttendanceChecksForRound,
-  getContractorOptions,
-  getSiteOptions,
+  getContractorOptionsLive,
+  getSiteOptionsLive,
   normalizeShiftRound,
 } from "@/lib/data/attendance";
 import { AttendancePrepWorkzone } from "@/components/attendance/attendance-prep-workzone";
@@ -32,8 +34,12 @@ type Props = {
 const FULL_LOAD = 50000;
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 export default async function AttendancePage({ searchParams }: Props) {
+  noStore();
+  const prepMountKey = randomUUID();
   const { appUser } = await getSessionContext();
   const canCorrection = Boolean(appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST));
   const canResetAttendance = Boolean(
@@ -52,8 +58,8 @@ export default async function AttendancePage({ searchParams }: Props) {
   const roundNo = normalizeShiftRound(params.shift);
 
   const [sites, contractors, dayStats] = await Promise.all([
-    getSiteOptions(),
-    getContractorOptions(),
+    getSiteOptionsLive(),
+    getContractorOptionsLive(),
     activeTab === "workers"
       ? getAttendancePrepTabStats(
           workDate,
@@ -171,7 +177,7 @@ export default async function AttendancePage({ searchParams }: Props) {
 
       {activeTab === "workers" ? (
         <AttendancePrepWorkzone
-          key={`prep-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}`}
+          key={`prep-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${prepMountKey}`}
           initialDayStats={dayStats}
           initialWorkers={prepWorkers?.rows ?? []}
           initialStatusMap={initialStatusMap}

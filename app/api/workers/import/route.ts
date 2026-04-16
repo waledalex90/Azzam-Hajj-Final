@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
@@ -267,6 +268,10 @@ export async function POST(request: Request) {
   if (upsertError) {
     return NextResponse.json({ error: upsertError.message }, { status: 500 });
   }
+
+  revalidatePath("/workers");
+  revalidatePath("/attendance");
+  revalidatePath("/dashboard");
 
   let inserted = 0;
   let updated = 0;
