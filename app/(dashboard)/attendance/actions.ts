@@ -19,6 +19,7 @@ export async function submitAttendancePrepBulk(
   status: Status,
   workerIds: number[],
   roundNo: number = 1,
+  opts?: { revalidate?: boolean },
 ): Promise<PrepActionResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser } = await getSessionContext();
@@ -33,21 +34,23 @@ export async function submitAttendancePrepBulk(
   }
   const ids = Array.from(new Set(workerIds.map((id) => Number(id)).filter(Boolean)));
   if (ids.length === 0) return { ok: false, error: "لم يُحدد أي عامل." };
+  if (ids.length > CHUNK) {
+    return { ok: false, error: `الحد الأقصى ${CHUNK} عاملًا لكل طلب — يُجمع من الواجهة.` };
+  }
   try {
-    for (let i = 0; i < ids.length; i += CHUNK) {
-      const chunk = ids.slice(i, i + CHUNK);
-      await submitAttendanceByWorkersEngine({
-        items: chunk.map((worker_id) => ({ worker_id, status })),
-        workDate,
-        note: "bulk prep server action",
-        roundNo: Math.max(1, Math.min(Number(roundNo) || 1, 9)),
-      });
+    await submitAttendanceByWorkersEngine({
+      items: ids.map((worker_id) => ({ worker_id, status })),
+      workDate,
+      note: "bulk prep server action",
+      roundNo: Math.max(1, Math.min(Number(roundNo) || 1, 9)),
+    });
+    if (opts?.revalidate !== false) {
+      revalidatePath("/attendance");
+      revalidatePath("/dashboard");
+      revalidatePath("/approval");
+      revalidateTag("dashboard-stats", "max");
+      revalidateTag("dashboard-admin", "max");
     }
-    revalidatePath("/attendance");
-    revalidatePath("/dashboard");
-    revalidatePath("/approval");
-    revalidateTag("dashboard-stats", "max");
-    revalidateTag("dashboard-admin", "max");
     return { ok: true };
   } catch {
     return { ok: false, error: "فشل الاتصال أو الحفظ." };

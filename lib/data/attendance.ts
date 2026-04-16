@@ -52,6 +52,23 @@ type ChecksPageParams = {
   roundNo?: number;
 };
 
+/** PostgREST يتعثر مع قوائم in/not-in الطويلة — نقسّم إلى شرائح. */
+const FILTER_IN_CHUNK = 200;
+const STATUS_MAP_IN_CHUNK = 500;
+
+function applyNotInIdChunks<T extends { not: (c: string, o: string, v: string) => T }>(
+  query: T,
+  ids: number[],
+): T {
+  let q = query;
+  for (let i = 0; i < ids.length; i += FILTER_IN_CHUNK) {
+    const chunk = ids.slice(i, i + FILTER_IN_CHUNK);
+    if (chunk.length === 0) continue;
+    q = q.not("id", "in", `(${chunk.join(",")})`) as T;
+  }
+  return q;
+}
+
 type RawAttendanceCheckRow = Omit<AttendanceCheckRow, "attendance_rounds" | "workers" | "sites"> & {
   attendance_rounds?:
     | {
@@ -74,23 +91,27 @@ export async function getAttendanceLatestStatusMap(
 
   const r = normalizeShiftRound(roundNo);
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("attendance_checks")
-    .select("worker_id, status, checked_at, attendance_rounds!inner(work_date, round_no)")
-    .in("worker_id", uniqueIds)
-    .eq("attendance_rounds.work_date", workDate)
-    .eq("attendance_rounds.round_no", r)
-    .order("checked_at", { ascending: false });
-
-  if (error || !data) return {};
-
   const map: Record<number, "present" | "absent" | "half"> = {};
-  for (const row of data as Array<{
-    worker_id: number;
-    status: "present" | "absent" | "half";
-  }>) {
-    if (!map[row.worker_id]) {
-      map[row.worker_id] = row.status;
+
+  for (let o = 0; o < uniqueIds.length; o += STATUS_MAP_IN_CHUNK) {
+    const batch = uniqueIds.slice(o, o + STATUS_MAP_IN_CHUNK);
+    const { data, error } = await supabase
+      .from("attendance_checks")
+      .select("worker_id, status, checked_at, attendance_rounds!inner(work_date, round_no)")
+      .in("worker_id", batch)
+      .eq("attendance_rounds.work_date", workDate)
+      .eq("attendance_rounds.round_no", r)
+      .order("checked_at", { ascending: false });
+
+    if (error || !data) continue;
+
+    for (const row of data as Array<{
+      worker_id: number;
+      status: "present" | "absent" | "half";
+    }>) {
+      if (!map[row.worker_id]) {
+        map[row.worker_id] = row.status;
+      }
     }
   }
   return map;
@@ -107,20 +128,24 @@ export async function getAttendanceCheckIdMap(
 
   const r = normalizeShiftRound(roundNo);
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("attendance_checks")
-    .select("id, worker_id, checked_at, attendance_rounds!inner(work_date, round_no)")
-    .in("worker_id", uniqueIds)
-    .eq("attendance_rounds.work_date", workDate)
-    .eq("attendance_rounds.round_no", r)
-    .order("checked_at", { ascending: false });
-
-  if (error || !data) return {};
-
   const map: Record<number, number> = {};
-  for (const row of data as Array<{ id: number; worker_id: number }>) {
-    if (!map[row.worker_id]) {
-      map[row.worker_id] = row.id;
+
+  for (let o = 0; o < uniqueIds.length; o += STATUS_MAP_IN_CHUNK) {
+    const batch = uniqueIds.slice(o, o + STATUS_MAP_IN_CHUNK);
+    const { data, error } = await supabase
+      .from("attendance_checks")
+      .select("id, worker_id, checked_at, attendance_rounds!inner(work_date, round_no)")
+      .in("worker_id", batch)
+      .eq("attendance_rounds.work_date", workDate)
+      .eq("attendance_rounds.round_no", r)
+      .order("checked_at", { ascending: false });
+
+    if (error || !data) continue;
+
+    for (const row of data as Array<{ id: number; worker_id: number }>) {
+      if (!map[row.worker_id]) {
+        map[row.worker_id] = row.id;
+      }
     }
   }
   return map;
@@ -184,18 +209,30 @@ export async function getPreppedWorkerIdsForDate(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return [];
   const r = normalizeShiftRound(roundNo);
   const supabase = createSupabaseAdminClient();
-  let query = supabase
-    .from("attendance_checks")
-    .select("worker_id, attendance_rounds!inner(work_date, site_id, round_no)")
-    .eq("attendance_rounds.work_date", workDate)
-    .eq("attendance_rounds.round_no", r);
-  if (siteId !== undefined && Number.isFinite(siteId)) {
-    query = query.eq("attendance_rounds.site_id", siteId);
+  const pageSize = 1000;
+  let from = 0;
+  const all: number[] = [];
+
+  while (true) {
+    let query = supabase
+      .from("attendance_checks")
+      .select("worker_id, attendance_rounds!inner(work_date, site_id, round_no)")
+      .eq("attendance_rounds.work_date", workDate)
+      .eq("attendance_rounds.round_no", r);
+    if (siteId !== undefined && Number.isFinite(siteId)) {
+      query = query.eq("attendance_rounds.site_id", siteId);
+    }
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error || !data) break;
+    const chunk = data as Array<{ worker_id: number }>;
+    for (const row of chunk) {
+      if (row.worker_id) all.push(row.worker_id);
+    }
+    if (chunk.length < pageSize) break;
+    from += pageSize;
   }
-  const { data, error } = await query.limit(50000);
-  if (error || !data) return [];
-  const ids = (data as Array<{ worker_id: number }>).map((row) => row.worker_id).filter(Boolean);
-  return Array.from(new Set(ids));
+
+  return Array.from(new Set(all));
 }
 
 /** من يُستبعدون من قائمة التحضير للوردية الحالية: المسائي يستبعد صباحي+مسائي. */
@@ -321,7 +358,7 @@ export async function getAttendanceWorkersPage({
   }
 
   if (preppedExclude && preppedExclude.length > 0) {
-    query = query.not("id", "in", `(${preppedExclude.join(",")})`);
+    query = applyNotInIdChunks(query, preppedExclude);
   }
 
   const { data, count, error } = await query.range(from, to);
@@ -405,7 +442,7 @@ export async function getAttendanceWorkerIdsForFilters({
     }
 
     if (preppedExclude && preppedExclude.length > 0) {
-      query = query.not("id", "in", `(${preppedExclude.join(",")})`);
+      query = applyNotInIdChunks(query, preppedExclude);
     }
 
     const { data, error } = await query.range(from, from + pageSize - 1);

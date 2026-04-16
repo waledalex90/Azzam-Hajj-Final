@@ -40,6 +40,8 @@ function statusBadgeClass(status?: AttendanceStatus) {
 
 const TABLE_H = "min(70vh,900px)";
 const MOBILE_H = "min(55vh,560px)";
+/** يطابق الحد في `submitAttendancePrepBulk` — دفعات متتابعة مع شريط تقدّم */
+const CLIENT_PREP_CHUNK = 500;
 
 export function AttendanceWorkersTable({
   rows,
@@ -90,23 +92,43 @@ export function AttendanceWorkersTable({
       toast.error("لا يوجد عامل ضمن النطاق.");
       return;
     }
-    if (skipServerRefresh) {
-      flushSync(() => {
-        onAttendanceChunkSaved?.(ids, status);
-      });
+
+    const chunks: number[][] = [];
+    for (let i = 0; i < ids.length; i += CLIENT_PREP_CHUNK) {
+      chunks.push(ids.slice(i, i + CLIENT_PREP_CHUNK));
     }
+
     setIsSaving(true);
+    const progressId = chunks.length > 1 ? toast.loading(`جاري التحضير… 1/${chunks.length}`) : undefined;
+
     try {
-      const res = await submitAttendancePrepBulk(workDate, status, ids, roundNo);
-      if (!res.ok) {
-        toast.error(res.error);
-        if (skipServerRefresh) void router.refresh();
-        return;
+      for (let i = 0; i < chunks.length; i += 1) {
+        if (chunks.length > 1 && progressId !== undefined) {
+          toast.loading(`جاري التحضير… ${i + 1}/${chunks.length}`, { id: progressId });
+        }
+        const res = await submitAttendancePrepBulk(workDate, status, chunks[i], roundNo, {
+          revalidate: i === chunks.length - 1,
+        });
+        if (!res.ok) {
+          toast.error(res.error, { id: progressId });
+          if (skipServerRefresh) void router.refresh();
+          return;
+        }
+        if (skipServerRefresh) {
+          flushSync(() => {
+            onAttendanceChunkSaved?.(chunks[i], status);
+          });
+        } else {
+          onAttendanceChunkSaved?.(chunks[i], status);
+        }
       }
-      toast.success("تم التحضير ✅");
+
+      toast.success(
+        chunks.length > 1 ? `تم التحضير — ${chunks.length} دفعة (${ids.length} عامل)` : "تم التحضير ✅",
+        { id: progressId },
+      );
       setSelected([]);
       if (!skipServerRefresh) {
-        onAttendanceChunkSaved?.(ids, status);
         void router.refresh();
       }
       onAttendanceSessionComplete?.();
@@ -149,11 +171,6 @@ export function AttendanceWorkersTable({
   const statusButtons = (workerId: number) => {
     async function onStatusClick(status: AttendanceStatus) {
       if (isSaving) return;
-      if (skipServerRefresh) {
-        flushSync(() => {
-          onAttendanceChunkSaved?.([workerId], status);
-        });
-      }
       setIsSaving(true);
       try {
         const res = await submitAttendancePrepBulk(workDate, status, [workerId], roundNo);
@@ -163,7 +180,11 @@ export function AttendanceWorkersTable({
           return;
         }
         toast.success("تم التحضير ✅");
-        if (!skipServerRefresh) {
+        if (skipServerRefresh) {
+          flushSync(() => {
+            onAttendanceChunkSaved?.([workerId], status);
+          });
+        } else {
           onAttendanceChunkSaved?.([workerId], status);
           void router.refresh();
         }
