@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { flushSync } from "react-dom";
 import { AttendanceWorkersTable } from "@/components/attendance/attendance-workers-table";
 import { Card } from "@/components/ui/card";
+import { matchesClientSearch } from "@/lib/utils/client-search";
 import type { AttendanceDayStats, WorkerRow } from "@/lib/types/db";
 
 type AttendanceStatus = "present" | "absent" | "half";
@@ -51,11 +52,9 @@ export function AttendancePrepWorkzone({
   }, [initialWorkers]);
 
   const filteredRows = useMemo(() => {
-    const s = search.trim().toLowerCase();
+    const s = search.trim();
     if (!s) return workers;
-    return workers.filter(
-      (w) => w.name.toLowerCase().includes(s) || String(w.id_number).toLowerCase().includes(s),
-    );
+    return workers.filter((w) => matchesClientSearch(w.name, w.id_number, s));
   }, [workers, search]);
 
   const scopeIds = useMemo(() => workers.map((w) => w.id), [workers]);

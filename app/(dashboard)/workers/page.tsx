@@ -1,44 +1,28 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 
-import { PaginationControls } from "@/components/pagination/pagination-controls";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { WorkersListClient, type WorkersListRow } from "@/components/workers/workers-list-client";
 import { WorkersUploadForm } from "@/components/workers/workers-upload-form";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getContractorOptions, getSiteOptions } from "@/lib/data/attendance";
-import { parsePage } from "@/lib/utils/pagination";
-import { buildPaginationMeta } from "@/lib/utils/pagination";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 type Props = {
   searchParams: Promise<{
-    page?: string;
     tab?: string;
     editId?: string;
-    q?: string;
     siteId?: string;
     contractorId?: string;
+    /** 1 صباحي، 2 مسائي — يطابق منطق التحضير (يشمل من ليس له وردية محددة) */
+    shiftRound?: string;
     showStopped?: string;
     showDeleted?: string;
   }>;
 };
 
-const PAGE_SIZE = 20;
-
-type WorkerListRow = {
-  id: number;
-  name: string;
-  id_number: string;
-  job_title: string | null;
-  payment_type: "salary" | "daily";
-  basic_salary: number | null;
-  iqama_expiry: string | null;
-  contractor_id: number | null;
-  current_site_id: number | null;
-  shift_round: number | null;
-  is_active: boolean;
-  is_deleted: boolean;
+type RawWorkerListRow = Omit<WorkersListRow, "sites" | "contractors"> & {
   sites?: { name: string } | { name: string }[] | null;
   contractors?: { name: string } | { name: string }[] | null;
 };
@@ -53,14 +37,6 @@ function boolFlag(value?: string) {
 
 function normalizeText(value: unknown) {
   return String(value ?? "").trim();
-}
-
-function buildWorkersHref(query: Record<string, string | undefined>) {
-  const params = new URLSearchParams();
-  Object.entries(query).forEach(([key, value]) => {
-    if (value && value.length > 0) params.set(key, value);
-  });
-  return `/workers?${params.toString()}`;
 }
 
 export default async function WorkersPage({ searchParams }: Props) {
@@ -184,40 +160,58 @@ export default async function WorkersPage({ searchParams }: Props) {
   }
 
   const params = await searchParams;
-  const page = parsePage(params.page, 1);
   const tab = params.tab === "create" ? "create" : "list";
   const editId = Number(params.editId) || null;
-  const q = params.q?.trim();
   const siteId = params.siteId ? Number(params.siteId) : undefined;
   const contractorId = params.contractorId ? Number(params.contractorId) : undefined;
+  const shiftRoundRaw = params.shiftRound?.trim();
+  const shiftRoundFilter: 1 | 2 | undefined =
+    shiftRoundRaw === "1" ? 1 : shiftRoundRaw === "2" ? 2 : undefined;
   const showStopped = boolFlag(params.showStopped);
   const showDeleted = boolFlag(params.showDeleted);
 
   const supabase = createSupabaseAdminClient();
 
-  let query = supabase
-    .from("workers")
-    .select(
-      "id, name, id_number, job_title, payment_type, basic_salary, iqama_expiry, contractor_id, current_site_id, shift_round, is_active, is_deleted, sites(name), contractors(name)",
-      { count: "exact" },
-    )
-    .order("id", { ascending: false });
+  async function fetchWorkersListAll(): Promise<WorkersListRow[]> {
+    const CHUNK = 1000;
+    const out: WorkersListRow[] = [];
+    let from = 0;
+    while (true) {
+      let q = supabase
+        .from("workers")
+        .select(
+          "id, name, id_number, job_title, payment_type, basic_salary, iqama_expiry, contractor_id, current_site_id, shift_round, is_active, is_deleted, sites(name), contractors(name)",
+        )
+        .order("id", { ascending: false });
 
-  if (showDeleted) {
-    query = query.eq("is_deleted", true);
-  } else {
-    query = query.eq("is_deleted", false);
-    if (showStopped) query = query.eq("is_active", false);
+      if (showDeleted) {
+        q = q.eq("is_deleted", true);
+      } else {
+        q = q.eq("is_deleted", false);
+        if (showStopped) q = q.eq("is_active", false);
+      }
+      if (Number.isFinite(siteId)) q = q.eq("current_site_id", siteId);
+      if (Number.isFinite(contractorId)) q = q.eq("contractor_id", contractorId);
+      if (shiftRoundFilter !== undefined) {
+        q = q.or(`shift_round.is.null,shift_round.eq.${shiftRoundFilter}`);
+      }
+
+      const { data, error } = await q.range(from, from + CHUNK - 1);
+      if (error) break;
+      const chunk = ((data ?? []) as RawWorkerListRow[]).map((worker) => ({
+        ...worker,
+        sites: relationValue(worker.sites),
+        contractors: relationValue(worker.contractors),
+      }));
+      out.push(...chunk);
+      if (chunk.length < CHUNK) break;
+      from += CHUNK;
+    }
+    return out;
   }
-  if (Number.isFinite(siteId)) query = query.eq("current_site_id", siteId);
-  if (Number.isFinite(contractorId)) query = query.eq("contractor_id", contractorId);
-  if (q) query = query.or(`name.ilike.%${q}%,id_number.ilike.%${q}%`);
 
-  const from = (page - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
-
-  const [listRes, sites, contractors, totalRes, activeRes, stoppedRes, deletedRes] = await Promise.all([
-    query.range(from, to),
+  const [workers, sites, contractors, totalRes, activeRes, stoppedRes, deletedRes] = await Promise.all([
+    fetchWorkersListAll(),
     getSiteOptions(),
     getContractorOptions(),
     supabase.from("workers").select("*", { count: "exact", head: true }).eq("is_deleted", false),
@@ -230,18 +224,12 @@ export default async function WorkersPage({ searchParams }: Props) {
     supabase.from("workers").select("*", { count: "exact", head: true }).eq("is_deleted", true),
   ]);
 
-  const workers = ((listRes.data ?? []) as WorkerListRow[]).map((worker) => ({
-    ...worker,
-    sites: relationValue(worker.sites),
-    contractors: relationValue(worker.contractors),
-  }));
-  const meta = buildPaginationMeta(listRes.count ?? 0, page, PAGE_SIZE);
-
   const queryBase = {
     tab: "list",
-    q: q || undefined,
     siteId: params.siteId,
     contractorId: params.contractorId,
+    shiftRound:
+      shiftRoundFilter === 1 ? "1" : shiftRoundFilter === 2 ? "2" : undefined,
     showStopped: showStopped ? "1" : undefined,
     showDeleted: showDeleted ? "1" : undefined,
   };
@@ -352,9 +340,8 @@ export default async function WorkersPage({ searchParams }: Props) {
           </div>
 
           <Card>
-            <form className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4" method="get">
+            <form className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5" method="get">
               <input type="hidden" name="tab" value="list" />
-              <Input name="q" defaultValue={q} placeholder="بحث (الاسم أو الهوية)" />
               <select
                 name="siteId"
                 defaultValue={params.siteId}
@@ -379,198 +366,33 @@ export default async function WorkersPage({ searchParams }: Props) {
                   </option>
                 ))}
               </select>
-              <button className="rounded bg-[#0f766e] px-4 py-2 text-sm font-bold text-white">بحث وتصفية</button>
+              <select
+                name="shiftRound"
+                defaultValue={params.shiftRound ?? ""}
+                className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3"
+              >
+                <option value="">كل الورديات</option>
+                <option value="1">صباحي</option>
+                <option value="2">مسائي</option>
+              </select>
+              <button className="rounded bg-[#0f766e] px-4 py-2 text-sm font-bold text-white">تطبيق التصفية</button>
             </form>
           </Card>
 
-          <Card>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href={buildWorkersHref({
-                  ...queryBase,
-                  showStopped: showStopped ? undefined : "1",
-                  showDeleted: undefined,
-                  page: "1",
-                })}
-                className="rounded bg-amber-500 px-3 py-2 text-xs font-bold text-white"
-              >
-                {showStopped ? "إلغاء عرض الموقوفين" : "عرض الموقوفين"}
-              </Link>
-              <Link
-                href={buildWorkersHref({
-                  ...queryBase,
-                  showDeleted: showDeleted ? undefined : "1",
-                  showStopped: undefined,
-                  page: "1",
-                })}
-                className="rounded bg-red-600 px-3 py-2 text-xs font-bold text-white"
-              >
-                {showDeleted ? `إخفاء المحذوفين (${deletedRes.count ?? 0})` : `عرض المحذوفين (${deletedRes.count ?? 0})`}
-              </Link>
-              <form action={refreshWorkers}>
-                <button className="rounded bg-slate-700 px-3 py-2 text-xs font-bold text-white">تحديث</button>
-              </form>
-            </div>
-          </Card>
-
-          <div className="space-y-3">
-            {workers.map((worker) => {
-              const isEditing = editId === worker.id;
-              return (
-                <Card key={worker.id}>
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <p className="flex flex-wrap items-center gap-2 font-extrabold text-slate-900">
-                        <span>{worker.name}</span>
-                        {worker.shift_round === 1 ? (
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900">
-                            صباحي
-                          </span>
-                        ) : worker.shift_round === 2 ? (
-                          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-900">
-                            مسائي
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                            الورديتان
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {worker.id_number} | {worker.sites?.name ?? "بدون موقع"} |{" "}
-                        {worker.contractors?.name ?? "بدون مقاول"}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      {!worker.is_deleted && (
-                        <form action={toggleActive}>
-                          <input type="hidden" name="workerId" value={worker.id} />
-                          <input type="hidden" name="isActive" value={String(worker.is_active)} />
-                          <button
-                            className={`rounded px-3 py-1 text-xs font-bold text-white ${
-                              worker.is_active ? "bg-emerald-600" : "bg-slate-500"
-                            }`}
-                          >
-                            {worker.is_active ? "نشط" : "موقوف"}
-                          </button>
-                        </form>
-                      )}
-
-                      <Link
-                        href={buildWorkersHref({
-                          ...queryBase,
-                          editId: isEditing ? undefined : String(worker.id),
-                          page: String(meta.page),
-                        })}
-                        className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-700"
-                      >
-                        {isEditing ? "إلغاء التعديل" : "تعديل"}
-                      </Link>
-
-                      {worker.is_deleted ? (
-                        <form action={restoreWorker}>
-                          <input type="hidden" name="workerId" value={worker.id} />
-                          <button className="rounded bg-[#0f766e] px-3 py-1 text-xs font-bold text-white">
-                            استرجاع
-                          </button>
-                        </form>
-                      ) : (
-                        <form action={softDeleteWorker}>
-                          <input type="hidden" name="workerId" value={worker.id} />
-                          <button className="rounded bg-red-600 px-3 py-1 text-xs font-bold text-white">حذف</button>
-                        </form>
-                      )}
-                    </div>
-                  </div>
-
-                  {isEditing && (
-                    <form action={updateWorker} className="mt-3 grid gap-2 border-t border-slate-200 pt-3 sm:grid-cols-2">
-                      <input type="hidden" name="workerId" value={worker.id} />
-                      <Input name="name" defaultValue={worker.name} required />
-                      <Input name="idNumber" defaultValue={worker.id_number} required />
-                      <Input name="jobTitle" defaultValue={worker.job_title ?? ""} placeholder="المسمى الوظيفي" />
-                      <Input
-                        name="basicSalary"
-                        type="number"
-                        step="0.01"
-                        defaultValue={worker.basic_salary ?? ""}
-                        placeholder="الراتب"
-                      />
-                      <Input name="iqamaExpiry" type="date" defaultValue={worker.iqama_expiry ?? ""} />
-                      <select
-                        name="paymentType"
-                        defaultValue={worker.payment_type}
-                        className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
-                      >
-                        <option value="salary">راتب شهري</option>
-                        <option value="daily">راتب يومي</option>
-                      </select>
-                      <select
-                        name="contractorId"
-                        defaultValue={worker.contractor_id ?? ""}
-                        className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
-                      >
-                        <option value="">المقاول</option>
-                        {contractors.map((contractor) => (
-                          <option key={contractor.id} value={contractor.id}>
-                            {contractor.name}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        name="siteId"
-                        defaultValue={worker.current_site_id ?? ""}
-                        className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
-                      >
-                        <option value="">الموقع</option>
-                        {sites.map((site) => (
-                          <option key={site.id} value={site.id}>
-                            {site.name}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        name="shiftRound"
-                        defaultValue={
-                          worker.shift_round === 1 ? "1" : worker.shift_round === 2 ? "2" : ""
-                        }
-                        className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
-                      >
-                        <option value="">الوردية — الورديتان</option>
-                        <option value="1">صباحي</option>
-                        <option value="2">مسائي</option>
-                      </select>
-                      <button className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-600">
-                        حفظ التعديل
-                      </button>
-                    </form>
-                  )}
-                </Card>
-              );
-            })}
-            {workers.length === 0 && (
-              <Card className="text-center text-sm text-slate-500">لا توجد بيانات مطابقة للفلترة الحالية.</Card>
-            )}
-          </div>
-
-          <form action={refreshWorkers} className="flex justify-end">
-            <button className="rounded bg-slate-700 px-3 py-2 text-xs font-bold text-white">تحديث</button>
-          </form>
-
-          <PaginationControls
-            page={meta.page}
-            totalPages={meta.totalPages}
-            basePath="/workers"
-            query={{
-              tab: "list",
-              q: q || undefined,
-              siteId: params.siteId,
-              contractorId: params.contractorId,
-              showStopped: showStopped ? "1" : undefined,
-              showDeleted: showDeleted ? "1" : undefined,
-              editId: params.editId,
-            }}
+          <WorkersListClient
+            workers={workers}
+            sites={sites}
+            contractors={contractors}
+            queryBase={queryBase}
+            editId={editId}
+            showStopped={showStopped}
+            showDeleted={showDeleted}
+            deletedCount={deletedRes.count ?? 0}
+            updateWorker={updateWorker}
+            toggleActive={toggleActive}
+            softDeleteWorker={softDeleteWorker}
+            restoreWorker={restoreWorker}
+            refreshWorkers={refreshWorkers}
           />
         </>
       )}

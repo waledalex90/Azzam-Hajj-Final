@@ -382,15 +382,28 @@ export async function getAttendanceWorkersPage({
   };
 }
 
-/** كل عمال التحضير المعلقين دفعة واحدة (حتى PREP_WORKERS_PAGE_SIZE) — للبحث الفوري على العميل. */
+/** كل عمال التحضير المعلقين — جلب بشرائح لتجاوز حدّ الصفوف الافتراضي في PostgREST. */
 export async function getAllPendingPrepWorkers(
   params: Omit<WorkersPageParams, "page" | "pageSize">,
 ): Promise<{ rows: WorkerRow[]; meta: PaginationMeta }> {
-  return getAttendanceWorkersPage({
-    ...params,
-    page: 1,
-    pageSize: PREP_WORKERS_PAGE_SIZE,
-  });
+  const CHUNK = 1000;
+  const allRows: WorkerRow[] = [];
+  let page = 1;
+  while (true) {
+    const { rows } = await getAttendanceWorkersPage({
+      ...params,
+      page,
+      pageSize: CHUNK,
+    });
+    allRows.push(...rows);
+    if (rows.length < CHUNK) break;
+    page += 1;
+    if (page * CHUNK > PREP_WORKERS_PAGE_SIZE) break;
+  }
+  return {
+    rows: allRows,
+    meta: buildPaginationMeta(allRows.length, 1, Math.max(allRows.length, 1)),
+  };
 }
 
 export async function getAttendanceWorkerIdsForFilters({
