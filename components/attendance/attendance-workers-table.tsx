@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+
+import { submitAttendancePrepBulk } from "@/app/(dashboard)/attendance/actions";
 import { Card } from "@/components/ui/card";
 import type { WorkerRow } from "@/lib/types/db";
 
@@ -13,11 +16,8 @@ type Props = {
   initialStatusMap?: Record<number, AttendanceStatus | undefined>;
   filteredWorkerIds?: number[];
   filteredTotalRows?: number;
-  /** يُستدعى بعد كل طلب ناجح (بما فيه كل جزء من التحضير الجماعي) لتحديث العدادات وإخفاء الصف محلياً */
   onAttendanceChunkSaved?: (workerIds: number[], status: AttendanceStatus) => void;
-  /** يُستدعى بعد اكتمال التحضير الجماعي فقط — للانتقال لتبويب المراجعة */
   onAttendanceSessionComplete?: () => void;
-  /** إخفاء رسالة «لا توجد بيانات» عندما يعرض الأب رسالة بديلة (مثلاً بعد إخفاء الصف محلياً) */
   suppressEmptyMessage?: boolean;
 };
 
@@ -34,9 +34,6 @@ function statusBadgeClass(status?: AttendanceStatus) {
   if (status === "half") return "bg-amber-50 text-amber-700 border-amber-200";
   return "bg-slate-50 text-slate-600 border-slate-200";
 }
-
-const SAVE_ERROR_MESSAGE = "فشل الحفظ.. البيانات لم تصل للسيرفر";
-const BULK_CHUNK_SIZE = 200;
 
 type SyncProgress = {
   active: boolean;
@@ -56,10 +53,9 @@ export function AttendanceWorkersTable({
 }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<number[]>([]);
+  const [bulkScope, setBulkScope] = useState<"page" | "all">("page");
   const statusMap = initialStatusMap;
   const [isSaving, setIsSaving] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [isSyncError, setIsSyncError] = useState(false);
   const [syncProgress, setSyncProgress] = useState<SyncProgress>({
     active: false,
     processed: 0,
@@ -68,38 +64,13 @@ export function AttendanceWorkersTable({
 
   const visibleRows = rows;
   const allIds = useMemo(() => visibleRows.map((row) => row.id), [visibleRows]);
-  const allFilteredIds = useMemo(() => {
-    const source = filteredWorkerIds.length > 0 ? filteredWorkerIds : allIds;
-    return Array.from(new Set(source));
-  }, [filteredWorkerIds, allIds]);
   const pageAllSelected = allIds.length > 0 && allIds.every((id) => selected.includes(id));
-  const allFilteredSelected =
-    allFilteredIds.length > 0 && allFilteredIds.every((id) => selected.includes(id));
+  const hasSelection = selected.length > 0;
   const progressPercent = syncProgress.total
     ? Math.min(100, Math.round((syncProgress.processed / syncProgress.total) * 100))
     : 0;
 
-  async function submitAttendance(status: AttendanceStatus, workerIds: number[]) {
-    const response = await fetch("/api/attendance", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        mode: "attendance_submit",
-        workDate,
-        status,
-        workerIds,
-      }),
-    });
-
-    if (response.status !== 200) {
-      throw new Error(SAVE_ERROR_MESSAGE);
-    }
-
-    const payload = (await response.json().catch(() => ({}))) as { ok?: boolean };
-    if (!payload.ok) {
-      throw new Error(SAVE_ERROR_MESSAGE);
-    }
-  }
+  const allFilteredIds = useMemo(() => Array.from(new Set(filteredWorkerIds)), [filteredWorkerIds]);
 
   function toggle(id: number) {
     setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
@@ -115,74 +86,59 @@ export function AttendanceWorkersTable({
     });
   }
 
-  function toggleAllFiltered() {
-    setSelected((prev) => {
-      const filteredSelected = allFilteredIds.every((id) => prev.includes(id));
-      if (filteredSelected) {
-        return prev.filter((id) => !allFilteredIds.includes(id));
+  async function runPrepBulk(status: AttendanceStatus) {
+    if (!hasSelection || isSaving) return;
+    const ids =
+      bulkScope === "all"
+        ? allFilteredIds
+        : Array.from(new Set(selected.filter((id) => allIds.includes(id))));
+    if (ids.length === 0) {
+      toast.error("لا يوجد عامل ضمن النطاق.");
+      return;
+    }
+    setIsSaving(true);
+    setSyncProgress({ active: true, processed: 0, total: 1 });
+    try {
+      const res = await submitAttendancePrepBulk(workDate, status, ids);
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
       }
-      return Array.from(new Set([...prev, ...allFilteredIds]));
-    });
+      toast.success("تم التحضير ✅");
+      onAttendanceChunkSaved?.(ids, status);
+      setSelected([]);
+      void router.refresh();
+      onAttendanceSessionComplete?.();
+    } finally {
+      setIsSaving(false);
+      setSyncProgress({ active: false, processed: 0, total: 0 });
+    }
   }
 
   function bulkButtons() {
-    async function handleAttendance(status: AttendanceStatus) {
-      if (selected.length === 0 || isSaving) return;
-      const selectedCount = selected.length;
-      const selectedIdsSnapshot = [...selected];
-      setIsSaving(true);
-      setSyncMessage(null);
-      setIsSyncError(false);
-      setSyncProgress({ active: true, processed: 0, total: selectedCount });
-      try {
-        for (let i = 0; i < selectedIdsSnapshot.length; i += BULK_CHUNK_SIZE) {
-          const chunk = selectedIdsSnapshot.slice(i, i + BULK_CHUNK_SIZE);
-          await submitAttendance(status, chunk);
-          onAttendanceChunkSaved?.(chunk, status);
-          void router.refresh();
-          setSelected((prev) => prev.filter((id) => !chunk.includes(id)));
-          setSyncProgress({
-            active: true,
-            processed: Math.min(i + chunk.length, selectedCount),
-            total: selectedCount,
-          });
-        }
-        setSyncMessage(`تم التحضير بنجاح لعدد ${selectedCount} موظف.`);
-        setSelected([]);
-        onAttendanceSessionComplete?.();
-      } catch (error) {
-        const message = error instanceof Error ? error.message : SAVE_ERROR_MESSAGE;
-        setSyncMessage(message || SAVE_ERROR_MESSAGE);
-        setIsSyncError(true);
-      } finally {
-        setIsSaving(false);
-        setSyncProgress((prev) => ({ ...prev, active: false }));
-      }
-    }
-
     return (
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={() => handleAttendance("present")}
+          onClick={() => void runPrepBulk("present")}
           className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-          disabled={selected.length === 0 || isSaving}
+          disabled={!hasSelection || isSaving}
         >
           تحضير المحدد كـ حاضر
         </button>
         <button
           type="button"
-          onClick={() => handleAttendance("absent")}
+          onClick={() => void runPrepBulk("absent")}
           className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-          disabled={selected.length === 0 || isSaving}
+          disabled={!hasSelection || isSaving}
         >
           تحضير المحدد كـ غائب
         </button>
         <button
           type="button"
-          onClick={() => handleAttendance("half")}
+          onClick={() => void runPrepBulk("half")}
           className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-          disabled={selected.length === 0 || isSaving}
+          disabled={!hasSelection || isSaving}
         >
           تحضير المحدد كنصف يوم
         </button>
@@ -194,22 +150,19 @@ export function AttendanceWorkersTable({
     async function onStatusClick(status: AttendanceStatus) {
       if (isSaving) return;
       setIsSaving(true);
-      setSyncMessage(null);
-      setIsSyncError(false);
       setSyncProgress({ active: true, processed: 0, total: 1 });
       try {
-        await submitAttendance(status, [workerId]);
+        const res = await submitAttendancePrepBulk(workDate, status, [workerId]);
+        if (!res.ok) {
+          toast.error(res.error);
+          return;
+        }
+        toast.success("تم التحضير ✅");
         onAttendanceChunkSaved?.([workerId], status);
         void router.refresh();
-        setSyncProgress({ active: true, processed: 1, total: 1 });
-        setSyncMessage("تم تحضير الموظف بنجاح.");
-      } catch (error) {
-        const message = error instanceof Error ? error.message : SAVE_ERROR_MESSAGE;
-        setSyncMessage(message || SAVE_ERROR_MESSAGE);
-        setIsSyncError(true);
       } finally {
         setIsSaving(false);
-        setSyncProgress((prev) => ({ ...prev, active: false }));
+        setSyncProgress((p) => ({ ...p, active: false }));
       }
     }
 
@@ -261,7 +214,10 @@ export function AttendanceWorkersTable({
                   {syncProgress.processed} / {syncProgress.total}
                 </p>
                 <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full bg-slate-700 transition-all duration-200" style={{ width: `${progressPercent}%` }} />
+                  <div
+                    className="h-full rounded-full bg-slate-700 transition-all duration-200"
+                    style={{ width: `${progressPercent}%` }}
+                  />
                 </div>
               </>
             )}
@@ -274,27 +230,40 @@ export function AttendanceWorkersTable({
             <input type="checkbox" checked={pageAllSelected} onChange={toggleAllPage} disabled={isSaving} />
             تحديد الصفحة ({allIds.length})
           </label>
-          <label className="inline-flex items-center gap-2 text-sm font-bold text-emerald-700">
-            <input type="checkbox" checked={allFilteredSelected} onChange={toggleAllFiltered} disabled={isSaving} />
-            تحديد كل نتائج الفلترة ({filteredTotalRows || allFilteredIds.length})
-          </label>
           <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
-            المحدد حاليًا: {selected.length}
+            المحدد: {selected.length}
           </span>
-          {syncMessage && (
-            <span
-              className={`rounded-full border px-2 py-1 text-xs font-bold ${
-                isSyncError
-                  ? "border-red-200 bg-red-50 text-red-700"
-                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
-              }`}
-            >
-              {syncMessage}
-            </span>
-          )}
         </div>
         {bulkButtons()}
       </div>
+
+      {hasSelection && (
+        <div className="border-b border-sky-200 bg-sky-50/90 px-3 py-2 text-sm text-sky-950">
+          <p className="mb-2 font-bold">نطاق التحضير</p>
+          <div className="flex flex-wrap gap-3">
+            <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-bold">
+              <input
+                type="radio"
+                name="prep-scope"
+                checked={bulkScope === "page"}
+                onChange={() => setBulkScope("page")}
+                disabled={isSaving}
+              />
+              هذه الصفحة فقط ({selected.length} محدد)
+            </label>
+            <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-bold">
+              <input
+                type="radio"
+                name="prep-scope"
+                checked={bulkScope === "all"}
+                onChange={() => setBulkScope("all")}
+                disabled={isSaving}
+              />
+              كافة العمال ضمن الفلتر ({filteredTotalRows || allFilteredIds.length})
+            </label>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-3 p-3 md:hidden">
         {visibleRows.map((worker) => (

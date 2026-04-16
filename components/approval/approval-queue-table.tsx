@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
+import { approveAllPendingInFilter, approveChecksByIds } from "@/app/(dashboard)/approval/actions";
 import { Card } from "@/components/ui/card";
 import type { AttendanceCheckRow } from "@/lib/types/db";
 
@@ -10,16 +12,30 @@ type Decision = "confirm" | "reject";
 
 type Props = {
   rows: AttendanceCheckRow[];
+  /** إجمالي السجلات المعلّقة المطابقة للفلتر (قد يتجاوز 25) */
+  totalPendingFiltered: number;
+  workDate: string;
+  siteId?: string;
+  q?: string;
 };
 
-export function ApprovalQueueTable({ rows }: Props) {
+export function ApprovalQueueTable({
+  rows,
+  totalPendingFiltered,
+  workDate,
+  siteId,
+  q,
+}: Props) {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [pendingCheckIds, setPendingCheckIds] = useState<number[]>([]);
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
+  /** عند وجود تحديد: الصفحة فقط، أو جميع المعلّقين ضمن الفلتر */
+  const [bulkScope, setBulkScope] = useState<"page" | "all">("page");
 
   const rowIds = useMemo(() => rows.map((r) => r.id), [rows]);
   const allSelected = rowIds.length > 0 && rowIds.every((id) => selected.has(id));
+  const hasSelection = selected.size > 0;
 
   function toggleOne(id: number) {
     setSelected((prev) => {
@@ -38,6 +54,43 @@ export function ApprovalQueueTable({ rows }: Props) {
     setSelected(new Set(rowIds));
   }
 
+  async function runBulkApprove() {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      if (bulkScope === "all") {
+        const res = await approveAllPendingInFilter({
+          workDate,
+          siteId: siteId ? Number(siteId) : undefined,
+          q,
+        });
+        if (!res.ok) {
+          toast.error(res.error);
+          return;
+        }
+        toast.success("تم الاعتماد ✅");
+        setSelected(new Set());
+        router.refresh();
+        return;
+      }
+      const ids = Array.from(selected);
+      if (ids.length === 0) {
+        toast.error("حدد صفاً واحداً على الأقل.");
+        return;
+      }
+      const res = await approveChecksByIds(ids);
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success("تم الاعتماد ✅");
+      setSelected(new Set());
+      router.refresh();
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function onDecision(checkId: number, decision: Decision) {
     if (isSaving) return;
     setIsSaving(true);
@@ -52,9 +105,18 @@ export function ApprovalQueueTable({ rows }: Props) {
           checkIds: [checkId],
         }),
       });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
-        throw new Error("save_failed");
+        toast.error(
+          response.status === 403
+            ? "لا توجد صلاحية"
+            : response.status === 401
+              ? "يجب تسجيل الدخول"
+              : payload.error || "فشل الاتصال بالخادم",
+        );
+        return;
       }
+      toast.success(decision === "confirm" ? "تم الاعتماد ✅" : "تم الحفظ ✅");
       setSelected((prev) => {
         const next = new Set(prev);
         next.delete(checkId);
@@ -63,30 +125,6 @@ export function ApprovalQueueTable({ rows }: Props) {
       router.refresh();
     } finally {
       setPendingCheckIds((prev) => prev.filter((id) => id !== checkId));
-      setIsSaving(false);
-    }
-  }
-
-  async function bulkFieldApprove() {
-    const ids = Array.from(selected);
-    if (ids.length === 0 || isSaving) return;
-    setIsSaving(true);
-    setPendingCheckIds(ids);
-    try {
-      const response = await fetch("/api/attendance/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: "approval_decision",
-          decision: "confirm",
-          checkIds: ids,
-        }),
-      });
-      if (!response.ok) throw new Error("save_failed");
-      setSelected(new Set());
-      router.refresh();
-    } finally {
-      setPendingCheckIds([]);
       setIsSaving(false);
     }
   }
@@ -102,17 +140,47 @@ export function ApprovalQueueTable({ rows }: Props) {
             disabled={isSaving || rows.length === 0}
             className="h-4 w-4 rounded border-slate-300"
           />
-          تحديد الكل ({rows.length})
+          تحديد صفحة ({rows.length})
         </label>
         <button
           type="button"
-          onClick={() => void bulkFieldApprove()}
-          disabled={selected.size === 0 || isSaving}
+          onClick={() => void runBulkApprove()}
+          disabled={!hasSelection || isSaving}
           className="rounded-lg bg-[#166534] px-4 py-2 text-xs font-extrabold text-white disabled:opacity-40"
         >
-          اعتماد المحدد ({selected.size})
+          اعتماد المحدد
+          {hasSelection ? (bulkScope === "all" ? ` (${totalPendingFiltered})` : ` (${selected.size})`) : ""}
         </button>
       </div>
+
+      {hasSelection && (
+        <div className="border-b border-amber-200 bg-amber-50/90 px-3 py-2 text-sm text-amber-950">
+          <p className="mb-2 font-bold">نطاق الاعتماد</p>
+          <div className="flex flex-wrap gap-3">
+            <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-bold">
+              <input
+                type="radio"
+                name="approval-scope"
+                checked={bulkScope === "page"}
+                onChange={() => setBulkScope("page")}
+                disabled={isSaving}
+              />
+              هذه الصفحة فقط (المحدد: {selected.size})
+            </label>
+            <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-bold">
+              <input
+                type="radio"
+                name="approval-scope"
+                checked={bulkScope === "all"}
+                onChange={() => setBulkScope("all")}
+                disabled={isSaving}
+              />
+              كافة المعلّقين المطابقين للفلتر ({totalPendingFiltered})
+            </label>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-100 text-slate-700">
