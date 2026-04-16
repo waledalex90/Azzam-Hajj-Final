@@ -1,6 +1,6 @@
 import { cache } from "react";
 
-import type { AppUser } from "@/lib/types/db";
+import { loadAppUserWithRole } from "@/lib/auth/resolve-app-user";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const getSessionContext = cache(async () => {
@@ -13,11 +13,6 @@ export const getSessionContext = cache(async () => {
     return { authUser: null, appUser: null };
   }
 
-  const { data: appUser } = await supabase
-    .from("app_users")
-    .select("id, auth_user_id, full_name, username, role")
-    .eq("auth_user_id", user.id)
-    .single<AppUser>();
-
-  return { authUser: user, appUser: appUser ?? null };
+  const appUser = await loadAppUserWithRole(user.id);
+  return { authUser: user, appUser };
 });

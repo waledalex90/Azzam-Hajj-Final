@@ -24,7 +24,8 @@ import {
 import { BrandLogo } from "@/components/branding/brand-logo";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { AppUser } from "@/lib/types/db";
-import { ROLE_LABELS } from "@/lib/constants/roles";
+import { hasPermission } from "@/lib/auth/permissions";
+import { PERM } from "@/lib/permissions/keys";
 
 type Props = {
   user: AppUser;
@@ -41,10 +42,10 @@ const menuItems = [
   { href: "/reports", label: "التقارير", icon: FileBarChart2 },
   { href: "/corrections", label: "طلبات التعديل", icon: BellRing },
   { href: "/violations/notice", label: "إشعار المخالفة", icon: FileWarning },
-  { href: "/users", label: "المستخدمين", icon: UserSquare2 },
-  { href: "/roles", label: "الأدوار والصلاحيات", icon: ShieldCheck },
+  { href: "/users", label: "المستخدمين", icon: UserSquare2, perm: PERM.USERS_MANAGE },
+  { href: "/roles", label: "الأدوار والصلاحيات", icon: ShieldCheck, perm: PERM.ROLES_MANAGE },
   { href: "/violations", label: "المخالفات", icon: UserCog },
-];
+] as const;
 
 function isActive(pathname: string, href: string) {
   if (href === "/dashboard") return pathname === "/dashboard";
@@ -71,7 +72,7 @@ export function AdminSidebar({ user }: Props) {
         <BrandLogo className="w-[105px] sm:w-[120px]" />
         <div className="mt-3 border-t border-amber-200 pt-3">
           <p className="text-xs font-extrabold text-slate-700">{user.username}</p>
-          <p className="mt-1 text-[11px] text-slate-500">{ROLE_LABELS[user.role]}</p>
+          <p className="mt-1 text-[11px] text-slate-500">{user.roleLabel}</p>
         </div>
         <button
           type="button"
@@ -85,7 +86,14 @@ export function AdminSidebar({ user }: Props) {
       </div>
 
       <nav className="grid gap-1 px-3 pb-4">
-        {menuItems.map((item) => {
+        {menuItems
+          .filter((item) => {
+            if ("perm" in item && item.perm) {
+              return hasPermission(user, item.perm);
+            }
+            return true;
+          })
+          .map((item) => {
           const active = isActive(pathname, item.href);
           const Icon = item.icon;
           return (

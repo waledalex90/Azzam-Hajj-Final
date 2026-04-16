@@ -13,6 +13,8 @@ import { getAttendanceChecksPage, getPendingApprovalCheckIds, getSiteOptions } f
 import { parsePage } from "@/lib/utils/pagination";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 import { applyApprovalDecisionsEngine } from "@/lib/services/attendance-engine";
+import { hasPermission } from "@/lib/auth/permissions";
+import { PERM } from "@/lib/permissions/keys";
 
 const APPROVE_ALL_CHUNK = 500;
 
@@ -69,7 +71,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
     if (isDemoModeEnabled()) return;
 
     const { appUser } = await getSessionContext();
-    if (!appUser || !["admin", "hr"].includes(appUser.role)) return;
+    if (!appUser || !hasPermission(appUser, PERM.APPROVAL)) return;
 
     const workDate = String(formData.get("workDate") || "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
@@ -161,17 +163,17 @@ export default async function ApprovalPage({ searchParams }: Props) {
         </form>
       </Card>
 
-      {activeTab === "pending" && appUser && ["admin", "hr"].includes(appUser.role) && (
+      {activeTab === "pending" && appUser && hasPermission(appUser, PERM.APPROVAL) && (
         <Card className="border-dashed border-emerald-200 bg-emerald-50/60">
           <form action={approveAllPendingAttendance} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             <input type="hidden" name="workDate" value={workDate} />
             <input type="hidden" name="siteId" value={params.siteId ?? ""} />
             <input type="hidden" name="q" value={q ?? ""} />
             <p className="text-sm font-bold text-slate-800">
-              اعتماد جماعي: يتم اعتماد كل السجلات المعلّقة المطابقة للتاريخ والموقع والبحث أعلاه (وليس الصفحة الحالية فقط).
+              الاعتماد الشامل: يتم اعتماد كل السجلات المعلّقة المطابقة للتاريخ والموقع والبحث أعلاه (مثلاً آلاف السجلات دفعة واحدة).
             </p>
             <Button type="submit" className="bg-[#166534] font-extrabold text-white hover:bg-[#14532d]">
-              اعتماد جماعي لجميع المعلّقين
+              الاعتماد الشامل
             </Button>
           </form>
         </Card>

@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import { BrandLogo } from "@/components/branding/brand-logo";
 import type { AppUser } from "@/lib/types/db";
-import { ROLE_LABELS } from "@/lib/constants/roles";
 
 type Props = {
   user: AppUser;
@@ -22,7 +21,7 @@ export function TopNav({ user }: Props) {
           <BrandLogo />
           <div>
             <p className="text-sm font-extrabold text-[#14532d]">نظام عزام للحج</p>
-            <p className="text-xs text-[#5b4a1f]">{ROLE_LABELS[user.role]}</p>
+            <p className="text-xs text-[#5b4a1f]">{user.roleLabel}</p>
           </div>
         </div>
         <nav className="hidden items-center gap-4 text-sm font-bold text-[#14532d] sm:flex">

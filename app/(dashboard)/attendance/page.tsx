@@ -17,6 +17,8 @@ import {
   getSiteOptions,
 } from "@/lib/data/attendance";
 import { getSessionContext } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/permissions";
+import { PERM } from "@/lib/permissions/keys";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { submitAttendanceByWorkersEngine } from "@/lib/services/attendance-engine";
 import { parsePage } from "@/lib/utils/pagination";
@@ -253,7 +255,7 @@ export default async function AttendancePage({ searchParams }: Props) {
           contractorId={params.contractorId}
           q={q}
           checkIdByWorkerId={checkIdByWorkerId}
-          enableCorrectionRequest={appUser?.role === "field_observer"}
+          enableCorrectionRequest={hasPermission(appUser, PERM.CORRECTION_REQUEST)}
           pagination={
             <PaginationControls
               page={workersPage?.meta.page ?? 1}

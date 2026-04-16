@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { loadAppUserWithRole } from "@/lib/auth/resolve-app-user";
+import { hasPermission } from "@/lib/auth/permissions";
+import { PERM } from "@/lib/permissions/keys";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 
@@ -97,13 +100,9 @@ export async function POST(request: Request) {
   }
 
   const supabase = createSupabaseAdminClient();
-  const { data: appUser } = await supabase
-    .from("app_users")
-    .select("id, role")
-    .eq("auth_user_id", user.id)
-    .maybeSingle<{ id: number; role: string }>();
+  const appUser = await loadAppUserWithRole(user.id);
 
-  if (!appUser || !["admin", "hr"].includes(appUser.role)) {
+  if (!appUser || !hasPermission(appUser, PERM.WORKERS_IMPORT)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

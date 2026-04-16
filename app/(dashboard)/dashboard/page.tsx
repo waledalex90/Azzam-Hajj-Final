@@ -2,7 +2,6 @@ import { Card } from "@/components/ui/card";
 import { Bell, Building2, Compass, MapPin, ShieldAlert, TrendingUp, UserCheck2, UserMinus2, Users2 } from "lucide-react";
 import Link from "next/link";
 import { getSessionContext } from "@/lib/auth/session";
-import { ROLE_LABELS } from "@/lib/constants/roles";
 import { getAdminDashboardData, getDashboardStats } from "@/lib/data/dashboard";
 
 export default async function DashboardHomePage() {
@@ -24,7 +23,7 @@ export default async function DashboardHomePage() {
       <div>
         <h1 className="text-2xl font-extrabold text-slate-900">الرئيسية</h1>
         <p className="mt-1 text-xs text-slate-500">
-          الرئيسية / {appUser?.full_name ?? "المستخدم"} / {appUser ? ROLE_LABELS[appUser.role] : "غير معروف"}
+          الرئيسية / {appUser?.full_name ?? "المستخدم"} / {appUser?.roleLabel ?? "غير معروف"}
         </p>
       </div>
 

@@ -1,11 +1,14 @@
-import type { AppRole } from "@/lib/constants/roles";
-
 export type AppUser = {
   id: number;
   auth_user_id: string | null;
   full_name: string;
   username: string;
-  role: AppRole;
+  /** مطابق لـ user_roles.slug */
+  role: string;
+  /** من user_roles.name_ar أو تسمية افتراضية */
+  roleLabel: string;
+  /** مصفوفة صلاحيات من user_roles.permissions */
+  permissions: string[];
 };
 
 export type WorkerRow = {

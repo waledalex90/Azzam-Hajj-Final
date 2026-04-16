@@ -2,10 +2,11 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { loadAppUserWithRole } from "@/lib/auth/resolve-app-user";
+import { hasPermission } from "@/lib/auth/permissions";
+import { PERM } from "@/lib/permissions/keys";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
-
-const ALLOWED = ["admin", "hr", "technical_observer", "field_observer"];
 
 export async function POST(request: Request) {
   if (isDemoModeEnabled()) {
@@ -21,13 +22,9 @@ export async function POST(request: Request) {
   }
 
   const supabase = createSupabaseAdminClient();
-  const { data: appUser } = await supabase
-    .from("app_users")
-    .select("id, role")
-    .eq("auth_user_id", user.id)
-    .maybeSingle<{ id: number; role: string }>();
+  const appUser = await loadAppUserWithRole(user.id);
 
-  if (!appUser || !ALLOWED.includes(appUser.role)) {
+  if (!appUser || !hasPermission(appUser, PERM.CORRECTION_REQUEST)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -1,8 +1,10 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { applyApprovalDecisionsEngine, submitAttendanceByWorkersEngine } from "@/lib/services/attendance-engine";
+import { loadAppUserWithRole } from "@/lib/auth/resolve-app-user";
+import { hasPermission } from "@/lib/auth/permissions";
+import { PERM } from "@/lib/permissions/keys";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 
@@ -29,12 +31,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = createSupabaseAdminClient();
-  const { data: appUser } = await supabase
-    .from("app_users")
-    .select("id, role")
-    .eq("auth_user_id", user.id)
-    .maybeSingle<{ id: number; role: "admin" | "hr" | "technical_observer" | "field_observer" }>();
+  const appUser = await loadAppUserWithRole(user.id);
 
   let body: SyncBody;
   try {
@@ -46,7 +43,7 @@ export async function POST(request: Request) {
   const mode = body.mode ?? "attendance_submit";
 
   if (mode === "attendance_submit") {
-    if (!appUser || !["admin", "hr", "technical_observer", "field_observer"].includes(appUser.role)) {
+    if (!appUser || !hasPermission(appUser, PERM.PREP)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (
@@ -72,7 +69,7 @@ export async function POST(request: Request) {
       idempotencyKey: body.idempotencyKey,
     });
   } else {
-    if (!appUser || !["admin", "hr", "field_observer"].includes(appUser.role)) {
+    if (!appUser || !hasPermission(appUser, PERM.APPROVAL)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (!body?.decision || !["confirm", "reject"].includes(body.decision) || !Array.isArray(body.checkIds)) {

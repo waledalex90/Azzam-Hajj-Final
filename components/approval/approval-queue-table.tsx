@@ -110,7 +110,7 @@ export function ApprovalQueueTable({ rows }: Props) {
           disabled={selected.size === 0 || isSaving}
           className="rounded-lg bg-[#166534] px-4 py-2 text-xs font-extrabold text-white disabled:opacity-40"
         >
-          الاعتماد الميداني الجماعي ({selected.size})
+          اعتماد المحدد ({selected.size})
         </button>
       </div>
       <div className="overflow-x-auto">
