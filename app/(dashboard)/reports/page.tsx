@@ -1,7 +1,10 @@
+import { unstable_noStore as noStore } from "next/cache";
+
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { getContractorOptions, getSiteOptions } from "@/lib/data/attendance";
+import { MonthlyMatrixExport } from "@/components/reports/monthly-matrix-export";
+import { getContractorOptionsLive, getSiteOptionsLive } from "@/lib/data/attendance";
+import { getMonthlyAttendanceMatrix, type MonthlyMatrixRow } from "@/lib/data/reports";
 
 type Props = {
   searchParams: Promise<{
@@ -12,15 +15,22 @@ type Props = {
   }>;
 };
 
-type MatrixRow = {
-  worker_id: number;
-  worker_name: string;
-  id_number: string;
-  day: string;
-  status: "present" | "absent" | "half" | null;
-};
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function statusLabel(s: MonthlyMatrixRow["status"]) {
+  if (s === "present") return "ح";
+  if (s === "absent") return "غ";
+  if (s === "half") return "ن";
+  return "-";
+}
+
+function daysInMonth(year: number, month: number) {
+  return new Date(year, month, 0).getDate();
+}
 
 export default async function ReportsPage({ searchParams }: Props) {
+  noStore();
   const params = await searchParams;
   const now = new Date();
   const monthNum = Math.max(1, Math.min(12, Number(params.month) || now.getMonth() + 1));
@@ -28,17 +38,32 @@ export default async function ReportsPage({ searchParams }: Props) {
   const siteId = params.siteId ? Number(params.siteId) : null;
   const contractorId = params.contractorId ? Number(params.contractorId) : null;
 
-  const [sites, contractors] = await Promise.all([getSiteOptions(), getContractorOptions()]);
-  const supabase = createSupabaseAdminClient();
+  const sid = siteId && Number.isFinite(siteId) ? siteId : null;
+  const cid = contractorId && Number.isFinite(contractorId) ? contractorId : null;
 
-  const { data } = await supabase.rpc("get_monthly_attendance_matrix", {
-    p_year: yearNum,
-    p_month: monthNum,
-    p_site_id: siteId,
-    p_contractor_id: contractorId,
-  });
+  let sites: Awaited<ReturnType<typeof getSiteOptionsLive>> = [];
+  let contractors: Awaited<ReturnType<typeof getContractorOptionsLive>> = [];
+  let matrixRows: MonthlyMatrixRow[] = [];
+  let matrixError: string | null = null;
 
-  const rows = ((data as MatrixRow[] | null) ?? []).slice(0, 200);
+  try {
+    [sites, contractors, { rows: matrixRows, error: matrixError }] = await Promise.all([
+      getSiteOptionsLive(),
+      getContractorOptionsLive(),
+      getMonthlyAttendanceMatrix({
+        year: yearNum,
+        month: monthNum,
+        siteId: sid,
+        contractorId: cid,
+      }),
+    ]);
+  } catch {
+    sites = [];
+    contractors = [];
+    matrixRows = [];
+    matrixError = "تعذّر تحميل البيانات.";
+  }
+
   const grouped = new Map<
     number,
     {
@@ -48,28 +73,42 @@ export default async function ReportsPage({ searchParams }: Props) {
     }
   >();
 
-  for (const row of rows) {
+  for (const row of matrixRows) {
     if (!grouped.has(row.worker_id)) {
       grouped.set(row.worker_id, { worker_name: row.worker_name, id_number: row.id_number, byDay: {} });
     }
-    grouped.get(row.worker_id)!.byDay[row.day] =
-      row.status === "present" ? "ح" : row.status === "absent" ? "غ" : row.status === "half" ? "ن" : "-";
+    grouped.get(row.worker_id)!.byDay[row.day] = statusLabel(row.status);
   }
 
-  const previewRows = Array.from(grouped.values()).slice(0, 20);
-  const previewDays = Array.from({ length: 10 }, (_, i) => String(i + 1).padStart(2, "0"));
+  const dayCount = daysInMonth(yearNum, monthNum);
+  const dayLabels = Array.from({ length: dayCount }, (_, i) => String(i + 1).padStart(2, "0"));
+
+  const tableRows = Array.from(grouped.entries())
+    .sort((a, b) => a[1].worker_name.localeCompare(b[1].worker_name, "ar"))
+    .map(([workerId, v]) => ({ workerId, ...v }));
+
+  const exportRows = tableRows.map(({ worker_name, id_number, byDay }) => ({
+    worker_name,
+    id_number,
+    byDay,
+  }));
 
   return (
     <section className="space-y-4">
       <Card>
-        <h1 className="text-lg font-extrabold text-slate-900">التقارير</h1>
-        <form className="mt-4 grid gap-2 sm:grid-cols-5" method="get">
+        <h1 className="text-lg font-extrabold text-slate-900">تقرير الحضور الشهري</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          يعتمد على <span className="font-bold">attendance_daily_summary</span> (الحالة النهائية لكل يوم). ح = حاضر، غ =
+          غائب، ن = نصف يوم، - = لا سجل.
+        </p>
+
+        <form className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6" method="get">
           <Input name="month" type="number" min={1} max={12} defaultValue={String(monthNum)} placeholder="الشهر" />
           <Input name="year" type="number" min={2024} defaultValue={String(yearNum)} placeholder="السنة" />
           <select
             name="siteId"
-            defaultValue={params.siteId}
-            className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3"
+            defaultValue={params.siteId ?? ""}
+            className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm"
           >
             <option value="">كل المواقع</option>
             {sites.map((site) => (
@@ -80,8 +119,8 @@ export default async function ReportsPage({ searchParams }: Props) {
           </select>
           <select
             name="contractorId"
-            defaultValue={params.contractorId}
-            className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3"
+            defaultValue={params.contractorId ?? ""}
+            className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm"
           >
             <option value="">كل المقاولين</option>
             {contractors.map((contractor) => (
@@ -90,32 +129,56 @@ export default async function ReportsPage({ searchParams }: Props) {
               </option>
             ))}
           </select>
-          <button className="rounded bg-slate-900 px-4 py-2 text-sm font-bold text-white">استخراج التقرير</button>
+          <button
+            type="submit"
+            className="min-h-12 rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white lg:col-span-1"
+          >
+            استخراج التقرير
+          </button>
         </form>
+
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-600">
+          <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1">ح = حاضر</span>
+          <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1">غ = غائب</span>
+          <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1">ن = نصف يوم</span>
+          <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1">- = لا بيانات</span>
+          <MonthlyMatrixExport rows={exportRows} dayLabels={dayLabels} year={yearNum} month={monthNum} />
+        </div>
       </Card>
 
+      {matrixError ? (
+        <Card className="border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <p className="font-bold">تعذّر جلب التقرير</p>
+          <p className="mt-1 font-mono text-xs">{matrixError}</p>
+          <p className="mt-2 text-xs">
+            تأكد من تنفيذ الدالة في Supabase: الملف <code className="rounded bg-white px-1">supabase_reports_monthly_matrix_rpc.sql</code> ثم
+            إعادة تحميل الـ schema من الإعدادات.
+          </p>
+        </Card>
+      ) : null}
+
       <Card className="overflow-hidden p-0">
-        <div className="overflow-x-auto">
+        <div className="max-h-[min(75vh,900px)] overflow-auto">
           <table className="min-w-full text-xs">
-            <thead className="bg-slate-100">
+            <thead className="sticky top-0 z-10 bg-slate-100 shadow-sm">
               <tr>
-                <th className="px-2 py-2 text-right">العامل</th>
-                {previewDays.map((day) => (
-                  <th key={day} className="px-2 py-2 text-center">
+                <th className="sticky right-0 z-20 min-w-[140px] bg-slate-100 px-2 py-2 text-right">العامل</th>
+                {dayLabels.map((day) => (
+                  <th key={day} className="min-w-[28px] px-1 py-2 text-center font-bold text-slate-700">
                     {day}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {previewRows.map((row) => (
-                <tr key={`${row.id_number}-${row.worker_name}`} className="border-t border-slate-200">
-                  <td className="px-2 py-2 text-right">
+              {tableRows.map((row) => (
+                <tr key={row.workerId} className="border-t border-slate-200 hover:bg-slate-50/80">
+                  <td className="sticky right-0 z-10 bg-white px-2 py-2 text-right shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]">
                     <p className="font-bold text-slate-800">{row.worker_name}</p>
                     <p className="text-[10px] text-slate-500">{row.id_number}</p>
                   </td>
-                  {previewDays.map((day) => (
-                    <td key={day} className="px-2 py-2 text-center">
+                  {dayLabels.map((day) => (
+                    <td key={day} className="px-1 py-2 text-center tabular-nums text-slate-700">
                       {row.byDay[day] ?? "-"}
                     </td>
                   ))}
@@ -124,7 +187,7 @@ export default async function ReportsPage({ searchParams }: Props) {
             </tbody>
           </table>
         </div>
-        {previewRows.length === 0 && (
+        {tableRows.length === 0 && !matrixError && (
           <div className="p-4 text-center text-sm text-slate-500">لا توجد بيانات للتقرير المحدد.</div>
         )}
       </Card>
