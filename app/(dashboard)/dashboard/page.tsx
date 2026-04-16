@@ -12,9 +12,12 @@ export default async function DashboardHomePage() {
     getAdminDashboardData(),
   ]);
 
-  const totalAttendance = attendanceStats.presentToday + attendanceStats.absentToday;
+  const totalRegisteredToday =
+    attendanceStats.presentToday + attendanceStats.absentToday + attendanceStats.halfToday;
   const attendanceRate =
-    totalAttendance > 0 ? Math.round((attendanceStats.presentToday / totalAttendance) * 100) : 0;
+    totalRegisteredToday > 0
+      ? Math.round((attendanceStats.presentToday / totalRegisteredToday) * 100)
+      : 0;
 
   return (
     <section className="space-y-4">
@@ -72,36 +75,62 @@ export default async function DashboardHomePage() {
         </Link>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-2">
-        <Card className="min-h-[180px]">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-extrabold text-slate-900">أكثر مواقع حضورًا</h2>
-            <MapPin className="h-4 w-4 text-slate-400" />
+      <Card className="border border-emerald-100 bg-emerald-50/40">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-extrabold text-slate-900">حضور اليوم (لحظي — نفس منطق التحضير)</h2>
+          <Compass className="h-4 w-4 text-emerald-600" />
+        </div>
+        <p className="mt-1 text-xs text-slate-600">
+          إجمالي العمال النشطين:{" "}
+          <span className="font-extrabold text-slate-900">{attendanceStats.totalActiveWorkers}</span> — متبقٍّ
+          للتسجيل:{" "}
+          <span className="font-extrabold text-amber-800">{attendanceStats.pendingToday}</span>
+        </p>
+        <div className="mt-4 flex flex-wrap items-end justify-center gap-6 text-sm sm:gap-10">
+          <div className="text-center">
+            <p className="text-xl font-extrabold text-emerald-700">{attendanceStats.presentToday}</p>
+            <p className="text-xs text-slate-500">حاضر</p>
           </div>
-          <p className="mt-8 text-center text-sm text-slate-500">اختر موقعًا حضوريًا لعرض التفاصيل.</p>
-        </Card>
+          <div className="text-center">
+            <p className="text-xl font-extrabold text-red-700">{attendanceStats.absentToday}</p>
+            <p className="text-xs text-slate-500">غائب</p>
+          </div>
+          <div className="text-center">
+            <p className="text-xl font-extrabold text-amber-700">{attendanceStats.halfToday}</p>
+            <p className="text-xs text-slate-500">نصف يوم</p>
+          </div>
+          <div className="text-center">
+            <p className="text-xl font-extrabold text-slate-800">{attendanceRate}%</p>
+            <p className="text-xs text-slate-500">حاضر من المسجّل</p>
+          </div>
+        </div>
+      </Card>
 
-        <Card className="min-h-[180px]">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-extrabold text-slate-900">نسبة الحضور اليوم</h2>
-            <Compass className="h-4 w-4 text-slate-400" />
-          </div>
-          <div className="mt-6 flex items-end justify-center gap-8 text-sm">
-            <div className="text-center">
-              <p className="text-lg font-extrabold text-emerald-700">{attendanceStats.presentToday}</p>
-              <p className="text-xs text-slate-500">حاضر</p>
-            </div>
-            <div className="text-center">
-              <p className="text-lg font-extrabold text-red-700">{attendanceStats.absentToday}</p>
-              <p className="text-xs text-slate-500">غائب</p>
-            </div>
-            <div className="text-center">
-              <p className="text-lg font-extrabold text-amber-700">{attendanceRate}%</p>
-              <p className="text-xs text-slate-500">نسبة اليوم</p>
-            </div>
-          </div>
-        </Card>
-      </div>
+      <Card className="min-h-[160px]">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-extrabold text-slate-900">المواقع — حضور اليوم</h2>
+          <MapPin className="h-4 w-4 text-slate-400" />
+        </div>
+        <div className="mt-3 max-h-[280px] space-y-2 overflow-y-auto text-sm">
+          {dashboardData.siteAttendanceToday.length === 0 ? (
+            <p className="text-slate-500">لا توجد مواقع أو بيانات.</p>
+          ) : (
+            dashboardData.siteAttendanceToday.map((row) => (
+              <div
+                key={row.siteId}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2"
+              >
+                <span className="font-bold text-slate-800">{row.siteName}</span>
+                <span className="text-xs text-slate-600">
+                  إجمالي {row.totalWorkers} — معلّق{" "}
+                  <span className="font-extrabold text-amber-800">{row.pending}</span> — حاضر {row.present} / غائب{" "}
+                  {row.absent} / نصف {row.half}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </Card>
 
       <div className="grid gap-3 xl:grid-cols-3">
         <Card className="min-h-[190px]">
@@ -181,7 +210,10 @@ export default async function DashboardHomePage() {
           <p className="text-sm font-extrabold text-slate-800">مؤشر الأداء اليومي</p>
           <TrendingUp className="h-4 w-4 text-emerald-700" />
         </div>
-        <p className="mt-2 text-sm text-slate-600">معدل الحضور الحالي {attendanceRate}% مع أداء تشغيلي مستقر.</p>
+        <p className="mt-2 text-sm text-slate-600">
+          مسجّل اليوم {totalRegisteredToday} من أصل {attendanceStats.totalActiveWorkers} — معدل الحاضر من المسجّل{" "}
+          {attendanceRate}%.
+        </p>
       </Card>
     </section>
   );

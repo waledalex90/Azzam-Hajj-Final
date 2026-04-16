@@ -1,4 +1,4 @@
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import Link from "next/link";
 import { AttendanceWorkzone } from "@/components/attendance/attendance-workzone";
 import { PaginationControls } from "@/components/pagination/pagination-controls";
@@ -67,6 +67,22 @@ export default async function AttendancePage({ searchParams }: Props) {
     revalidatePath("/attendance");
     revalidatePath("/dashboard");
     revalidatePath("/approval");
+  }
+
+  async function returnAttendanceToPreparation(formData: FormData) {
+    "use server";
+    const checkId = Number(formData.get("checkId"));
+    if (!checkId || isDemoModeEnabled()) return;
+
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase.from("attendance_checks").delete().eq("id", checkId);
+    if (error) return;
+
+    revalidatePath("/attendance");
+    revalidatePath("/dashboard");
+    revalidatePath("/approval");
+    revalidateTag("dashboard-stats", "max");
+    revalidateTag("dashboard-admin", "max");
   }
 
   const params = await searchParams;
@@ -170,6 +186,9 @@ export default async function AttendancePage({ searchParams }: Props) {
           </Link>
         </div>
 
+        <p className="mt-2 text-xs text-slate-600">
+          التحضير والعدادات للتاريخ المختار أدناه (أي تاريخ مسموح — يُحفظ في قاعدة الحضور لذلك اليوم).
+        </p>
         <form className="mt-4 grid gap-2 sm:grid-cols-5" method="get">
           <input type="hidden" name="tab" value={activeTab} />
           <DatePickerField name="date" defaultValue={workDate} />
@@ -212,6 +231,7 @@ export default async function AttendancePage({ searchParams }: Props) {
 
       {activeTab === "workers" ? (
         <AttendanceWorkzone
+          key={`wz-${workDate}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${q ?? ""}`}
           initialDayStats={dayStats}
           serverRows={workersPage?.rows ?? []}
           workDate={workDate}
@@ -300,12 +320,23 @@ export default async function AttendancePage({ searchParams }: Props) {
                     </p>
                   </div>
 
-                  <form action={reviewAttendanceCheck} className="mt-3">
-                    <input type="hidden" name="checkId" value={row.id} />
-                    <button className="w-full rounded-lg bg-[#166534] px-3 py-2 text-xs font-bold text-white">
-                      مراجعة حضور
-                    </button>
-                  </form>
+                  <div className="mt-3 flex flex-col gap-2">
+                    <form action={reviewAttendanceCheck} className="w-full">
+                      <input type="hidden" name="checkId" value={row.id} />
+                      <button className="w-full rounded-lg bg-[#166534] px-3 py-2 text-xs font-bold text-white">
+                        مراجعة حضور
+                      </button>
+                    </form>
+                    <form action={returnAttendanceToPreparation}>
+                      <input type="hidden" name="checkId" value={row.id} />
+                      <button
+                        type="submit"
+                        className="w-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900"
+                      >
+                        إعادة للتحضير
+                      </button>
+                    </form>
+                  </div>
                 </div>
               ))}
             </div>
@@ -342,12 +373,23 @@ export default async function AttendancePage({ searchParams }: Props) {
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        <form action={reviewAttendanceCheck}>
-                          <input type="hidden" name="checkId" value={row.id} />
-                          <button className="rounded-lg bg-[#166534] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#14532d]">
-                            مراجعة حضور
-                          </button>
-                        </form>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <form action={reviewAttendanceCheck}>
+                            <input type="hidden" name="checkId" value={row.id} />
+                            <button className="rounded-lg bg-[#166534] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#14532d]">
+                              مراجعة حضور
+                            </button>
+                          </form>
+                          <form action={returnAttendanceToPreparation}>
+                            <input type="hidden" name="checkId" value={row.id} />
+                            <button
+                              type="submit"
+                              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900"
+                            >
+                              إعادة للتحضير
+                            </button>
+                          </form>
+                        </div>
                       </td>
                     </tr>
                   ))}

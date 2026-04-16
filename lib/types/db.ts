@@ -57,7 +57,21 @@ export type ContractorOption = {
 export type DashboardStats = {
   presentToday: number;
   absentToday: number;
+  halfToday: number;
+  /** عمال لم يُسجَّل لهم حضور نهائي لهذا اليوم (يشمل الـ 3131 وتناقصهم) */
+  pendingToday: number;
+  totalActiveWorkers: number;
   violationsToday: number;
+};
+
+export type SiteAttendanceRow = {
+  siteId: number;
+  siteName: string;
+  totalWorkers: number;
+  present: number;
+  absent: number;
+  half: number;
+  pending: number;
 };
 
 export type AttendanceDayStats = {
@@ -113,4 +127,6 @@ export type AdminDashboardData = {
   iqamaAlerts: IqamaAlert[];
   pendingCorrections: PendingCorrection[];
   latestWorkers: LatestWorker[];
+  /** لقطة حضور اليوم لكل موقع (نفس منطق attendance_daily_summary) */
+  siteAttendanceToday: SiteAttendanceRow[];
 };

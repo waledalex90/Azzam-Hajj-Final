@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getAttendanceDayStats, getSiteOptions } from "@/lib/data/attendance";
 import { unstable_cache } from "next/cache";
 import type {
   AdminDashboardData,
@@ -6,6 +7,7 @@ import type {
   IqamaAlert,
   LatestWorker,
   PendingCorrection,
+  SiteAttendanceRow,
   TopStats,
 } from "@/lib/types/db";
 
@@ -24,21 +26,8 @@ async function getDashboardStatsUncached(): Promise<DashboardStats> {
 
   const supabase = createSupabaseAdminClient();
 
-  const [presentCount, absentCount, violationsCount] = await Promise.all([
-    safeCount(
-      supabase
-        .from("attendance_daily_summary")
-        .select("*", { count: "exact", head: true })
-        .eq("work_date", today)
-        .eq("final_status", "present"),
-    ),
-    safeCount(
-      supabase
-        .from("attendance_daily_summary")
-        .select("*", { count: "exact", head: true })
-        .eq("work_date", today)
-        .eq("final_status", "absent"),
-    ),
+  const [day, violationsCount] = await Promise.all([
+    getAttendanceDayStats(today),
     safeCount(
       supabase
         .from("worker_violations")
@@ -49,8 +38,11 @@ async function getDashboardStatsUncached(): Promise<DashboardStats> {
   ]);
 
   return {
-    presentToday: presentCount,
-    absentToday: absentCount,
+    presentToday: day.present,
+    absentToday: day.absent,
+    halfToday: day.half,
+    pendingToday: day.pending,
+    totalActiveWorkers: day.total,
     violationsToday: violationsCount,
   };
 }
@@ -124,21 +116,44 @@ async function getAdminDashboardDataUncached(): Promise<AdminDashboardData> {
     sites,
   };
 
+  let siteAttendanceToday: SiteAttendanceRow[] = [];
+  try {
+    const siteList = await getSiteOptions();
+    const rows = await Promise.all(
+      siteList.map(async (s) => {
+        const st = await getAttendanceDayStats(today, s.id);
+        return {
+          siteId: s.id,
+          siteName: s.name,
+          totalWorkers: st.total,
+          present: st.present,
+          absent: st.absent,
+          half: st.half,
+          pending: st.pending,
+        } satisfies SiteAttendanceRow;
+      }),
+    );
+    siteAttendanceToday = rows.sort((a, b) => b.pending - a.pending || a.siteName.localeCompare(b.siteName, "ar"));
+  } catch {
+    siteAttendanceToday = [];
+  }
+
   return {
     topStats,
     iqamaAlerts: iqamaAlertsRaw,
     pendingCorrections,
     latestWorkers: latestWorkersRaw,
+    siteAttendanceToday,
   };
 }
 
-const getDashboardStatsCached = unstable_cache(getDashboardStatsUncached, ["dashboard-stats-v1"], {
-  revalidate: 20,
+const getDashboardStatsCached = unstable_cache(getDashboardStatsUncached, ["dashboard-stats-v2"], {
+  revalidate: 8,
   tags: ["dashboard-stats"],
 });
 
-const getAdminDashboardDataCached = unstable_cache(getAdminDashboardDataUncached, ["dashboard-admin-v1"], {
-  revalidate: 20,
+const getAdminDashboardDataCached = unstable_cache(getAdminDashboardDataUncached, ["dashboard-admin-v2"], {
+  revalidate: 8,
   tags: ["dashboard-admin"],
 });
 
