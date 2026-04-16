@@ -36,6 +36,7 @@ type WorkerListRow = {
   iqama_expiry: string | null;
   contractor_id: number | null;
   current_site_id: number | null;
+  shift_round: number | null;
   is_active: boolean;
   is_deleted: boolean;
   sites?: { name: string } | { name: string }[] | null;
@@ -109,6 +110,8 @@ export default async function WorkersPage({ searchParams }: Props) {
     const iqamaExpiryRaw = normalizeText(formData.get("iqamaExpiry"));
     const siteId = Number(formData.get("siteId")) || null;
     const contractorId = Number(formData.get("contractorId")) || null;
+    const shiftRaw = normalizeText(formData.get("shiftRound"));
+    const shift_round = shiftRaw === "1" ? 1 : shiftRaw === "2" ? 2 : null;
     if (!workerId || !name || !idNumber) return;
 
     const supabase = createSupabaseAdminClient();
@@ -131,6 +134,7 @@ export default async function WorkersPage({ searchParams }: Props) {
         iqama_expiry: /^\d{4}-\d{2}-\d{2}$/.test(iqamaExpiryRaw) ? iqamaExpiryRaw : null,
         current_site_id: siteId,
         contractor_id: contractorId,
+        shift_round,
       })
       .eq("id", workerId);
 
@@ -194,7 +198,7 @@ export default async function WorkersPage({ searchParams }: Props) {
   let query = supabase
     .from("workers")
     .select(
-      "id, name, id_number, job_title, payment_type, basic_salary, iqama_expiry, contractor_id, current_site_id, is_active, is_deleted, sites(name), contractors(name)",
+      "id, name, id_number, job_title, payment_type, basic_salary, iqama_expiry, contractor_id, current_site_id, shift_round, is_active, is_deleted, sites(name), contractors(name)",
       { count: "exact" },
     )
     .order("id", { ascending: false });
@@ -416,7 +420,22 @@ export default async function WorkersPage({ searchParams }: Props) {
                 <Card key={worker.id}>
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                      <p className="font-extrabold text-slate-900">{worker.name}</p>
+                      <p className="flex flex-wrap items-center gap-2 font-extrabold text-slate-900">
+                        <span>{worker.name}</span>
+                        {worker.shift_round === 1 ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900">
+                            صباحي
+                          </span>
+                        ) : worker.shift_round === 2 ? (
+                          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-900">
+                            مسائي
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                            الورديتان
+                          </span>
+                        )}
+                      </p>
                       <p className="text-xs text-slate-500">
                         {worker.id_number} | {worker.sites?.name ?? "بدون موقع"} |{" "}
                         {worker.contractors?.name ?? "بدون مقاول"}
@@ -510,6 +529,17 @@ export default async function WorkersPage({ searchParams }: Props) {
                             {site.name}
                           </option>
                         ))}
+                      </select>
+                      <select
+                        name="shiftRound"
+                        defaultValue={
+                          worker.shift_round === 1 ? "1" : worker.shift_round === 2 ? "2" : ""
+                        }
+                        className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
+                      >
+                        <option value="">الوردية — الورديتان</option>
+                        <option value="1">صباحي</option>
+                        <option value="2">مسائي</option>
                       </select>
                       <button className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-600">
                         حفظ التعديل
