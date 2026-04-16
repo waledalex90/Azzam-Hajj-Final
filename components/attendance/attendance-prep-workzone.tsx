@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { flushSync } from "react-dom";
 import { AttendanceWorkersTable } from "@/components/attendance/attendance-workers-table";
 import { Card } from "@/components/ui/card";
 import type { AttendanceDayStats, WorkerRow } from "@/lib/types/db";
@@ -61,8 +62,10 @@ export function AttendancePrepWorkzone({
 
   const onPrepDone = useCallback((ids: number[], status: AttendanceStatus) => {
     const set = new Set(ids);
-    setWorkers((prev) => prev.filter((w) => !set.has(w.id)));
-    setDayStats((prev) => applyPrepToStats(prev, ids.length, status));
+    flushSync(() => {
+      setWorkers((prev) => prev.filter((w) => !set.has(w.id)));
+      setDayStats((prev) => applyPrepToStats(prev, ids.length, status));
+    });
   }, []);
 
   const allDone = workers.length === 0;

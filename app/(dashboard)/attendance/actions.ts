@@ -12,7 +12,7 @@ export type PrepActionResult = { ok: true } | { ok: false; error: string };
 
 type Status = "present" | "absent" | "half";
 
-const CHUNK = 200;
+const CHUNK = 500;
 
 export async function submitAttendancePrepBulk(
   workDate: string,

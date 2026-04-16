@@ -9,10 +9,7 @@ import type { AttendanceCheckRow } from "@/lib/types/db";
 type Props = {
   initialRows: AttendanceCheckRow[];
   canCorrection: boolean;
-  /** عرض في شريط البحث — الوردية الحالية */
   shiftLabel?: string;
-  reviewAttendanceCheck: (formData: FormData) => Promise<void>;
-  returnAttendanceToPreparation: (formData: FormData) => Promise<void>;
 };
 
 function reviewBadgeClass(status: "pending" | "confirmed" | "rejected") {
@@ -30,13 +27,7 @@ function reviewLabel(status: "pending" | "confirmed" | "rejected") {
 const TABLE_H = "min(65vh,880px)";
 const MOBILE_H = "min(50vh,520px)";
 
-export function AttendanceReviewTab({
-  initialRows,
-  canCorrection,
-  shiftLabel,
-  reviewAttendanceCheck,
-  returnAttendanceToPreparation,
-}: Props) {
+export function AttendanceReviewTab({ initialRows, canCorrection, shiftLabel }: Props) {
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState(initialRows);
 
@@ -53,30 +44,6 @@ export function AttendanceReviewTab({
       return name.includes(s) || idn.includes(s);
     });
   }, [rows, search]);
-
-  async function submitReview(fd: FormData) {
-    const id = Number(fd.get("checkId"));
-    if (!id) return;
-    const snapshot = rows;
-    setRows((prev) => prev.filter((r) => r.id !== id));
-    try {
-      await reviewAttendanceCheck(fd);
-    } catch {
-      setRows(snapshot);
-    }
-  }
-
-  async function submitReturn(fd: FormData) {
-    const id = Number(fd.get("checkId"));
-    if (!id) return;
-    const snapshot = rows;
-    setRows((prev) => prev.filter((r) => r.id !== id));
-    try {
-      await returnAttendanceToPreparation(fd);
-    } catch {
-      setRows(snapshot);
-    }
-  }
 
   return (
     <>
@@ -105,7 +72,7 @@ export function AttendanceReviewTab({
           <Virtuoso
             data={filtered}
             style={{ height: "100%" }}
-            fixedItemHeight={200}
+            fixedItemHeight={120}
             itemContent={(_index, row) => (
               <div className="border-b border-slate-200 p-3">
                 <div className="flex items-start justify-between gap-2">
@@ -122,24 +89,8 @@ export function AttendanceReviewTab({
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-600">الموقع: {row.sites?.name ?? "-"}</p>
-                <div className="mt-2 flex flex-col gap-2">
-                  {canCorrection ? (
-                    <div className="w-full">
-                      <CorrectionRequestDialog checkId={row.id} />
-                    </div>
-                  ) : null}
-                  <form action={submitReview} className="w-full">
-                    <input type="hidden" name="checkId" value={row.id} />
-                    <button type="submit" className="w-full rounded border border-emerald-800 bg-[#166534] px-3 py-2 text-xs font-bold text-white">
-                      مراجعة حضور
-                    </button>
-                  </form>
-                  <form action={submitReturn} className="w-full">
-                    <input type="hidden" name="checkId" value={row.id} />
-                    <button type="submit" className="w-full rounded border border-amber-400 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
-                      إعادة للتحضير
-                    </button>
-                  </form>
+                <div className="mt-2">
+                  <CorrectionRequestDialog checkId={row.id} disabled={!canCorrection} />
                 </div>
               </div>
             )}
@@ -189,21 +140,7 @@ export function AttendanceReviewTab({
                   </span>
                 </td>
                 <td className="border border-slate-300 px-3 py-1 align-top">
-                  <div className="flex min-w-[180px] flex-col gap-1">
-                    {canCorrection ? <CorrectionRequestDialog checkId={row.id} /> : null}
-                    <form action={submitReview}>
-                      <input type="hidden" name="checkId" value={row.id} />
-                      <button type="submit" className="rounded border border-emerald-800 bg-[#166534] px-2 py-1 text-xs font-bold text-white">
-                        مراجعة حضور
-                      </button>
-                    </form>
-                    <form action={submitReturn}>
-                      <input type="hidden" name="checkId" value={row.id} />
-                      <button type="submit" className="rounded border border-amber-400 bg-amber-50 px-2 py-1 text-xs font-bold text-amber-900">
-                        إعادة للتحضير
-                      </button>
-                    </form>
-                  </div>
+                  <CorrectionRequestDialog checkId={row.id} disabled={!canCorrection} />
                 </td>
               </>
             )}

@@ -18,8 +18,6 @@ import { AttendanceReviewTab } from "@/components/attendance/attendance-review-t
 import { getSessionContext } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
-import { returnAttendanceToPreparation, reviewAttendanceCheck } from "@/app/(dashboard)/attendance/review-tab-actions";
-
 type Props = {
   searchParams: Promise<{
     tab?: string;
@@ -265,8 +263,6 @@ export default async function AttendancePage({ searchParams }: Props) {
             initialRows={reviewedRows}
             canCorrection={canCorrection}
             shiftLabel={roundNo === 2 ? "مسائي" : "صباحي"}
-            reviewAttendanceCheck={reviewAttendanceCheck}
-            returnAttendanceToPreparation={returnAttendanceToPreparation}
           />
         </>
       )}

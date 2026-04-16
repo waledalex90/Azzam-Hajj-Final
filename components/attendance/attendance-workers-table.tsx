@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { TableVirtuoso, Virtuoso } from "react-virtuoso";
@@ -90,7 +91,9 @@ export function AttendanceWorkersTable({
       return;
     }
     if (skipServerRefresh) {
-      onAttendanceChunkSaved?.(ids, status);
+      flushSync(() => {
+        onAttendanceChunkSaved?.(ids, status);
+      });
     }
     setIsSaving(true);
     try {
@@ -147,7 +150,9 @@ export function AttendanceWorkersTable({
     async function onStatusClick(status: AttendanceStatus) {
       if (isSaving) return;
       if (skipServerRefresh) {
-        onAttendanceChunkSaved?.([workerId], status);
+        flushSync(() => {
+          onAttendanceChunkSaved?.([workerId], status);
+        });
       }
       setIsSaving(true);
       try {
