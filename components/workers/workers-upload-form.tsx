@@ -184,10 +184,6 @@ export function WorkersUploadForm() {
 
   return (
     <div className="flex w-full flex-col gap-3">
-      <p className="text-[11px] leading-relaxed text-slate-600">
-        الصف الأول في الملف = عناوين الأعمدة. يُفضّل استخدام زر «تحميل ملف Excel عربي». عند تطابق رقم الهوية مع سجل موجود يُحدَّث
-        الموقع والمقاول و<strong className="text-slate-800">الوردية</strong> (Upsert).
-      </p>
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <table className="w-full min-w-[640px] border-collapse text-[11px]">
           <thead>
@@ -218,11 +214,9 @@ export function WorkersUploadForm() {
               <td className="px-2 py-1.5">تطابق حرفي 100% مع اسم الموقع في النظام.</td>
             </tr>
             <tr className="border-b border-slate-100 bg-emerald-50/50">
-              <td className="px-2 py-1.5 font-mono font-bold text-emerald-900">الوردية</td>
+              <td className="px-2 py-1.5 font-mono font-bold text-emerald-900">الوردية (Shift)</td>
               <td className="px-2 py-1.5 text-emerald-950">
-                <span className="font-bold">صباحي</span> أو <span className="font-mono">1</span> → وردية صباحية؛{" "}
-                <span className="font-bold">مسائي</span> أو <span className="font-mono">2</span> → وردية مسائية. يمكن أيضًا
-                استخدام عنوان العمود <span className="font-mono">shift</span>. فارغ = يظهر في كلا الورديتين عند التحضير.
+                صباحي أو 1؛ مسائي أو 2؛ أو عمود <span className="font-mono">shift</span> — فارغ = الورديتان.
               </td>
             </tr>
             <tr className="border-b border-slate-100">

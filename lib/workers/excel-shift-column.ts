@@ -11,7 +11,32 @@ function normalizeExcelHeader(key: string): string {
 }
 
 function normalizeText(value: unknown): string {
-  return String(value ?? "").trim();
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (value === 1 || value === 2) return String(Math.trunc(value));
+    return String(value).trim();
+  }
+  return String(value).trim();
+}
+
+function easternDigitsToAscii(s: string): string {
+  const map: Record<string, string> = {
+    "٠": "0",
+    "١": "1",
+    "٢": "2",
+    "٣": "3",
+    "٤": "4",
+    "٥": "5",
+    "٦": "6",
+    "٧": "7",
+    "٨": "8",
+    "٩": "9",
+  };
+  let out = "";
+  for (const ch of s) {
+    out += map[ch] ?? ch;
+  }
+  return out;
 }
 
 /** أول قيمة غير فارغة من عمود الوردية / shift في الصف */
@@ -19,6 +44,7 @@ export function getShiftColumnRaw(record: Record<string, unknown>): string {
   const directKeys = [
     "shift_round",
     "الوردية",
+    "الوردية (Shift)",
     "وردية",
     "shift",
     "Shift",
@@ -47,10 +73,10 @@ export function getShiftColumnRaw(record: Record<string, unknown>): string {
   return "";
 }
 
-/** صباحي → 1، مسائي → 2؛ فارغ → null */
+/** صباحي/1 → 1، مسائي/2 → 2؛ فارغ → null */
 export function parseShiftRoundValue(raw: string): number | null {
   if (!raw) return null;
-  const t = raw.trim();
+  let t = easternDigitsToAscii(raw.trim());
   if (t === "1" || /^1(\.0+)?$/.test(t)) return 1;
   if (t === "2" || /^2(\.0+)?$/.test(t)) return 2;
   const n = Number(String(t).replace(",", "."));
