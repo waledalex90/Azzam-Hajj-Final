@@ -107,6 +107,7 @@ export function ApprovalQueueTable({
           flushSync(() => {
             onChunkApproved(chunks[i]);
           });
+          void router.refresh();
         }
         toast.success(
           chunks.length > 1
@@ -138,6 +139,7 @@ export function ApprovalQueueTable({
         flushSync(() => {
           onChunkApproved(chunks[i]);
         });
+        void router.refresh();
       }
       toast.success(
         chunks.length > 1

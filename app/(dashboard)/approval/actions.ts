@@ -12,7 +12,8 @@ import { isDemoModeEnabled } from "@/lib/demo-mode";
 const CHUNK = 500;
 
 function revalidateApprovalCaches() {
-  revalidatePath("/approval");
+  revalidatePath("/approval", "layout");
+  revalidatePath("/approval", "page");
   revalidatePath("/dashboard");
   revalidatePath("/attendance");
   revalidateTag("dashboard-stats", "max");

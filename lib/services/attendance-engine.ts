@@ -120,15 +120,30 @@ async function applyApprovalDecisionsViaDirectUpdate(
       confirmed_at: new Date().toISOString(),
       is_approved: decision === "confirm",
     })
+    .eq("confirmation_status", "pending")
     .in("id", uniqueIds)
     .select("id");
 
   if (error) {
     throw new Error(error.message || "attendance_checks_update_failed");
   }
+
   const got = data?.length ?? 0;
-  if (got !== uniqueIds.length) {
-    throw new Error(`attendance_checks_update_mismatch:expected_${uniqueIds.length}_got_${got}`);
+  if (got > 0) return;
+
+  const { data: rows, error: selErr } = await supabase
+    .from("attendance_checks")
+    .select("id, confirmation_status")
+    .in("id", uniqueIds);
+  if (selErr) {
+    throw new Error(selErr.message || "attendance_checks_select_failed");
+  }
+  if (!rows || rows.length !== uniqueIds.length) {
+    throw new Error("attendance_checks_invalid_ids");
+  }
+  const anyStillPending = rows.some((r) => r.confirmation_status === "pending");
+  if (anyStillPending) {
+    throw new Error("attendance_checks_update_failed");
   }
 }
 
@@ -149,8 +164,8 @@ export async function applyApprovalDecisionsEngine({
   });
 
   const n = typeof rpcRows === "number" ? rpcRows : Number(rpcRows);
-  const rpcOk = !rpcError && Number.isFinite(n) && n === uniqueIds.length;
-  if (!rpcOk) {
+  const rpcSucceeded = !rpcError && Number.isFinite(n) && n > 0;
+  if (!rpcSucceeded) {
     await applyApprovalDecisionsViaDirectUpdate(uniqueIds, decision);
   }
 
