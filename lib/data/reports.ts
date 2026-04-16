@@ -13,6 +13,8 @@ export async function getMonthlyAttendanceMatrix(params: {
   month: number;
   siteId: number | null;
   contractorId: number | null;
+  /** 1 صباحي، 2 مسائي */
+  roundNo: number;
 }): Promise<{ rows: MonthlyMatrixRow[]; error: string | null }> {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase.rpc("get_monthly_attendance_matrix", {
@@ -20,6 +22,7 @@ export async function getMonthlyAttendanceMatrix(params: {
     p_month: params.month,
     p_site_id: params.siteId,
     p_contractor_id: params.contractorId,
+    p_round_no: params.roundNo,
   });
 
   if (error) {
