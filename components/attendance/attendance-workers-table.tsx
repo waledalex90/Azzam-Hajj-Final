@@ -138,8 +138,8 @@ export function AttendanceWorkersTable({
         for (let i = 0; i < selectedIdsSnapshot.length; i += BULK_CHUNK_SIZE) {
           const chunk = selectedIdsSnapshot.slice(i, i + BULK_CHUNK_SIZE);
           await submitAttendance(status, chunk);
-          router.refresh();
           onAttendanceChunkSaved?.(chunk, status);
+          void router.refresh();
           setSelected((prev) => prev.filter((id) => !chunk.includes(id)));
           setSyncProgress({
             active: true,
@@ -199,8 +199,8 @@ export function AttendanceWorkersTable({
       setSyncProgress({ active: true, processed: 0, total: 1 });
       try {
         await submitAttendance(status, [workerId]);
-        router.refresh();
         onAttendanceChunkSaved?.([workerId], status);
+        void router.refresh();
         setSyncProgress({ active: true, processed: 1, total: 1 });
         setSyncMessage("تم تحضير الموظف بنجاح.");
       } catch (error) {

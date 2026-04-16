@@ -135,7 +135,12 @@ export default async function AttendancePage({ searchParams }: Props) {
   const [sites, contractors, dayStats] = await Promise.all([
     getSiteOptions(),
     getContractorOptions(),
-    getAttendanceDayStats(workDate, Number.isFinite(siteId) ? siteId : undefined),
+    getAttendanceDayStats(
+      workDate,
+      Number.isFinite(siteId) ? siteId : undefined,
+      Number.isFinite(contractorId) ? contractorId : undefined,
+      q,
+    ),
   ]);
 
   const workersPage =
@@ -202,7 +207,7 @@ export default async function AttendancePage({ searchParams }: Props) {
 
         <div className="mt-3 flex items-center gap-2 border-b border-slate-200 text-sm">
           <Link
-            href={`/attendance?tab=workers&date=${workDate}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
+            href={`/attendance?tab=workers&page=1&date=${workDate}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
             className={`rounded-t-xl px-3 py-2 font-extrabold ${
               activeTab === "workers"
                 ? "bg-emerald-50 text-emerald-700"
@@ -212,7 +217,7 @@ export default async function AttendancePage({ searchParams }: Props) {
             الموظفون والتحضير
           </Link>
           <Link
-            href={`/attendance?tab=review&date=${workDate}${params.siteId ? `&siteId=${params.siteId}` : ""}`}
+            href={`/attendance?tab=review&page=1&date=${workDate}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
             className={`rounded-t-xl px-3 py-2 font-extrabold ${
               activeTab === "review"
                 ? "bg-emerald-50 text-emerald-700"
@@ -224,10 +229,12 @@ export default async function AttendancePage({ searchParams }: Props) {
         </div>
 
         <p className="mt-2 text-xs text-slate-600">
-          التحضير والعدادات للتاريخ المختار أدناه (أي تاريخ مسموح — يُحفظ في قاعدة الحضور لذلك اليوم).
+          العدادات أعلاه تتبع نفس الفلاتر (التاريخ، الموقع، المقاول، والبحث). عند تغيير التاريخ أو الموقع أو المقاول يُعاد
+          تحميل الجدول بالكامل ليتوافق مع النطاق المختار.
         </p>
         <form className="mt-4 grid gap-2 sm:grid-cols-5" method="get">
           <input type="hidden" name="tab" value={activeTab} />
+          <input type="hidden" name="page" value="1" />
           <DatePickerField name="date" defaultValue={workDate} />
           <Input name="q" defaultValue={q} placeholder="بحث بالاسم أو رقم الهوية" />
           <select

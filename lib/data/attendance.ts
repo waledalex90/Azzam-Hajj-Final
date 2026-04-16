@@ -266,7 +266,8 @@ export async function getContractorOptions(): Promise<ContractorOption[]> {
   return getContractorOptionsCached();
 }
 
-export async function getAttendanceDayStats(workDate: string, siteId?: number): Promise<AttendanceDayStats> {
+/** إحصائيات اليوم: بدون فلتر مقاول/بحث — استعلامات aggregate سريعة (مثل لوحة التحكم). */
+async function getAttendanceDayStatsUnscoped(workDate: string, siteId?: number): Promise<AttendanceDayStats> {
   const supabase = createSupabaseAdminClient();
   const safeCount = async <T>(query: PromiseLike<{ count: number | null; error: T | null }>) => {
     const { count, error } = await query;
@@ -317,6 +318,87 @@ export async function getAttendanceDayStats(workDate: string, siteId?: number): 
     absent: absentNum,
     half: halfNum,
   };
+}
+
+const SUMMARY_CHUNK = 450;
+
+/**
+ * إحصائيات اليوم مرتبطة بنطاق العمال (موقع + مقاول + بحث) كما في جدول التحضير.
+ * عند وجود مقاول أو بحث نحدّد العمال ثم نجمع من attendance_daily_summary على دفعات.
+ */
+async function getAttendanceDayStatsFiltered(
+  workDate: string,
+  siteId: number | undefined,
+  contractorId: number | undefined,
+  search: string | undefined,
+): Promise<AttendanceDayStats> {
+  const supabase = createSupabaseAdminClient();
+  const filteredIds = await getAttendanceWorkerIdsForFilters({
+    siteId,
+    contractorId,
+    search,
+  });
+
+  const totalNum = filteredIds.length;
+  if (totalNum === 0) {
+    return { total: 0, pending: 0, present: 0, absent: 0, half: 0 };
+  }
+
+  let presentNum = 0;
+  let absentNum = 0;
+  let halfNum = 0;
+
+  for (let i = 0; i < filteredIds.length; i += SUMMARY_CHUNK) {
+    const chunk = filteredIds.slice(i, i + SUMMARY_CHUNK);
+    let q = supabase
+      .from("attendance_daily_summary")
+      .select("final_status")
+      .eq("work_date", workDate)
+      .in("worker_id", chunk);
+    if (siteId !== undefined) {
+      q = q.eq("site_id", siteId);
+    }
+    const { data, error } = await q;
+    if (error) {
+      throw new Error(`attendance_daily_summary (filtered) failed: ${error.message}`);
+    }
+    for (const row of (data ?? []) as Array<{ final_status: string }>) {
+      if (row.final_status === "present") presentNum++;
+      else if (row.final_status === "absent") absentNum++;
+      else if (row.final_status === "half") halfNum++;
+    }
+  }
+
+  const pendingNum = Math.max(0, totalNum - presentNum - absentNum - halfNum);
+  return {
+    total: totalNum,
+    pending: pendingNum,
+    present: presentNum,
+    absent: absentNum,
+    half: halfNum,
+  };
+}
+
+/**
+ * @param siteId موقع العامل الحالي (فلتر الجدول)
+ * @param contractorId فلتر المقاول كما في جدول التحضير
+ * @param search بحث الاسم/الهوية — يضيّق العدادات مع نطاق الجدول
+ */
+export async function getAttendanceDayStats(
+  workDate: string,
+  siteId?: number,
+  contractorId?: number,
+  search?: string,
+): Promise<AttendanceDayStats> {
+  const sid = siteId && Number.isFinite(siteId) ? siteId : undefined;
+  const cid = contractorId && Number.isFinite(contractorId) ? contractorId : undefined;
+  const searchTrim = search?.trim() || undefined;
+
+  if (cid !== undefined || Boolean(searchTrim)) {
+    return getAttendanceDayStatsFiltered(workDate, sid, cid, searchTrim);
+  }
+
+  return getAttendanceDayStatsUnscoped(workDate, sid);
 }
 
 export async function getAttendanceChecksPage({
