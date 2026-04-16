@@ -124,21 +124,21 @@ type ChecksPageParams = {
   roundNo?: number;
 };
 
-/** PostgREST يتعثر مع قوائم in/not-in الطويلة — نقسّم إلى شرائح. */
-const FILTER_IN_CHUNK = 200;
 const STATUS_MAP_IN_CHUNK = 500;
+const PREP_SCAN_CHUNK = 1000;
 
-function applyNotInIdChunks<T extends { not: (c: string, o: string, v: string) => T }>(
-  query: T,
-  ids: number[],
-): T {
-  let q = query;
-  for (let i = 0; i < ids.length; i += FILTER_IN_CHUNK) {
-    const chunk = ids.slice(i, i + FILTER_IN_CHUNK);
-    if (chunk.length === 0) continue;
-    q = q.not("id", "in", `(${chunk.join(",")})`) as T;
-  }
-  return q;
+function mapRawWorkerEmbedRowToWorkerRow(item: RawWorkerEmbedRow): WorkerRow {
+  const current_site_id = normalizeWorkerFkId(item.current_site_id);
+  const contractor_id = normalizeWorkerFkId(item.contractor_id);
+  const shift_round = item.shift_round != null ? Number(item.shift_round) : null;
+  return {
+    ...item,
+    current_site_id,
+    contractor_id,
+    shift_round: Number.isFinite(shift_round as number) ? shift_round : null,
+    sites: relationOne(item.sites as { name: string } | null),
+    contractors: relationOne(item.contractors as { name: string } | null),
+  };
 }
 
 type RawAttendanceCheckRow = Omit<AttendanceCheckRow, "attendance_rounds" | "workers" | "sites"> & {
@@ -334,6 +334,8 @@ export async function getAttendancePrepTabStats(
     siteId,
     contractorId,
     search,
+    workDate,
+    roundNo: r,
     shiftRoundFilter: r,
   });
   const total = filteredIds.length;
@@ -344,7 +346,8 @@ export async function getAttendancePrepTabStats(
   const pending = filteredIds.filter((id) => !excludeSet.has(id)).length;
 
   const preppedThisRound = await getPreppedWorkerIdsForDate(workDate, siteId, r);
-  const preppedInFilter = filteredIds.filter((id) => preppedThisRound.includes(id));
+  const preppedInRoundSet = new Set(preppedThisRound);
+  const preppedInFilter = filteredIds.filter((id) => preppedInRoundSet.has(id));
   let present = 0;
   let absent = 0;
   let half = 0;
@@ -374,111 +377,87 @@ export async function getAttendancePrepTabStats(
   return { total, pending, present, absent, half };
 }
 
-export async function getAttendanceWorkersPage({
-  page,
-  pageSize,
-  siteId,
-  contractorId,
-  search,
-  workDate,
-  roundNo,
-  shiftRoundFilter,
-}: WorkersPageParams): Promise<{ rows: WorkerRow[]; meta: PaginationMeta }> {
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
-  const supabase = createSupabaseAdminClient();
-
-  const rn = normalizeShiftRound(roundNo);
-  let preppedExclude: number[] | null = null;
+function resolvePrepShiftFilter(
+  workDate: string | undefined,
+  roundNo: number | undefined,
+  shiftRoundFilter: number | undefined,
+): number | undefined {
   if (workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
-    preppedExclude = await getPrepExclusionWorkerIds(workDate, siteId, rn);
+    return normalizeShiftRound(roundNo);
   }
-
-  const shiftToFilter =
-    workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate)
-      ? rn
-      : shiftRoundFilter !== undefined
-        ? normalizeShiftRound(shiftRoundFilter)
-        : undefined;
-
-  let query = supabase
-    .from("workers")
-    .select(
-      "id, name, id_number, contractor_id, current_site_id, shift_round, is_active, is_deleted, sites(name), contractors(name)",
-      {
-      count: "planned",
-      },
-    )
-    .eq("is_active", true)
-    .eq("is_deleted", false)
-    .order("id", { ascending: true });
-
-  if (siteId) {
-    query = query.eq("current_site_id", siteId);
+  if (shiftRoundFilter !== undefined) {
+    return normalizeShiftRound(shiftRoundFilter);
   }
-  if (contractorId) {
-    query = query.eq("contractor_id", contractorId);
-  }
-
-  if (search && search.trim()) {
-    const value = search.trim();
-    query = query.or(`name.ilike.%${value}%,id_number.ilike.%${value}%`);
-  }
-
-  if (shiftToFilter !== undefined) {
-    query = query.or(`shift_round.is.null,shift_round.eq.${shiftToFilter}`);
-  }
-
-  if (preppedExclude && preppedExclude.length > 0) {
-    query = applyNotInIdChunks(query, preppedExclude);
-  }
-
-  const { data, count, error } = await query.range(from, to);
-  if (error) {
-    throw new Error(`Attendance workers query failed: ${error.message}`);
-  }
-
-  const totalRows = count ?? 0;
-  const rows: WorkerRow[] =
-    ((data as RawWorkerEmbedRow[]) ?? []).map((item) => {
-      const current_site_id = normalizeWorkerFkId(item.current_site_id);
-      const contractor_id = normalizeWorkerFkId(item.contractor_id);
-      const shift_round = item.shift_round != null ? Number(item.shift_round) : null;
-      return {
-        ...item,
-        current_site_id,
-        contractor_id,
-        shift_round: Number.isFinite(shift_round as number) ? shift_round : null,
-        sites: relationOne(item.sites as { name: string } | null),
-        contractors: relationOne(item.contractors as { name: string } | null),
-      };
-    }) ?? [];
-
-  return {
-    rows,
-    meta: buildPaginationMeta(totalRows, page, pageSize),
-  };
+  return undefined;
 }
 
-/** كل عمال التحضير المعلقين — جلب بشرائح لتجاوز حدّ الصفوف الافتراضي في PostgREST. */
+/** كل عمال التحضير المعلقين — مسح جدول workers بشرائح ثم استبعاد المُحضَّرين في الذاكرة (تجنّب سلسلة not الطويلة مع وردية المسائي). */
 export async function getAllPendingPrepWorkers(
   params: Omit<WorkersPageParams, "page" | "pageSize">,
 ): Promise<{ rows: WorkerRow[]; meta: PaginationMeta }> {
-  const CHUNK = 1000;
-  const allRows: WorkerRow[] = [];
-  let page = 1;
-  while (true) {
-    const { rows } = await getAttendanceWorkersPage({
-      ...params,
-      page,
-      pageSize: CHUNK,
-    });
-    allRows.push(...rows);
-    if (rows.length < CHUNK) break;
-    page += 1;
-    if (page * CHUNK > PREP_WORKERS_PAGE_SIZE) break;
+  const supabase = createSupabaseAdminClient();
+  const rn = normalizeShiftRound(params.roundNo);
+  let excludeList: number[] = [];
+  if (params.workDate && /^\d{4}-\d{2}-\d{2}$/.test(params.workDate)) {
+    try {
+      excludeList = await getPrepExclusionWorkerIds(params.workDate, params.siteId, rn);
+    } catch {
+      excludeList = [];
+    }
   }
-  const hydrated = await hydrateWorkerRowsSitesAndContractors(allRows);
+  const excludeSet = new Set(excludeList);
+
+  const shiftToFilter = resolvePrepShiftFilter(
+    params.workDate,
+    params.roundNo,
+    params.shiftRoundFilter,
+  );
+
+  let from = 0;
+  const allRows: WorkerRow[] = [];
+
+  while (allRows.length < PREP_WORKERS_PAGE_SIZE) {
+    let query = supabase
+      .from("workers")
+      .select(
+        "id, name, id_number, contractor_id, current_site_id, shift_round, is_active, is_deleted, sites(name), contractors(name)",
+        { count: "planned" },
+      )
+      .eq("is_active", true)
+      .eq("is_deleted", false)
+      .order("id", { ascending: true });
+
+    if (params.siteId) query = query.eq("current_site_id", params.siteId);
+    if (params.contractorId) query = query.eq("contractor_id", params.contractorId);
+    if (params.search?.trim()) {
+      const value = params.search.trim();
+      query = query.or(`name.ilike.%${value}%,id_number.ilike.%${value}%`);
+    }
+    if (shiftToFilter !== undefined) {
+      query = query.or(`shift_round.is.null,shift_round.eq.${shiftToFilter}`);
+    }
+
+    const { data, error } = await query.range(from, from + PREP_SCAN_CHUNK - 1);
+    if (error || !data?.length) break;
+
+    const batch = ((data as RawWorkerEmbedRow[]) ?? []).map(mapRawWorkerEmbedRowToWorkerRow);
+    for (const row of batch) {
+      if (!excludeSet.has(row.id)) {
+        allRows.push(row);
+        if (allRows.length >= PREP_WORKERS_PAGE_SIZE) break;
+      }
+    }
+
+    from += PREP_SCAN_CHUNK;
+    if (data.length < PREP_SCAN_CHUNK) break;
+  }
+
+  let hydrated: WorkerRow[];
+  try {
+    hydrated = await hydrateWorkerRowsSitesAndContractors(allRows);
+  } catch {
+    hydrated = allRows;
+  }
   return {
     rows: hydrated,
     meta: buildPaginationMeta(hydrated.length, 1, Math.max(hydrated.length, 1)),
@@ -494,21 +473,26 @@ export async function getAttendanceWorkerIdsForFilters({
   shiftRoundFilter,
 }: Omit<WorkersPageParams, "page" | "pageSize">): Promise<number[]> {
   const supabase = createSupabaseAdminClient();
-  const pageSize = 1000;
   let from = 0;
   const ids: number[] = [];
 
-  let preppedExclude: number[] | null = null;
+  let excludeList: number[] = [];
   if (workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
-    preppedExclude = await getPrepExclusionWorkerIds(workDate, siteId, normalizeShiftRound(roundNo));
-  }
-
-  const shiftF =
-    shiftRoundFilter !== undefined
-      ? normalizeShiftRound(shiftRoundFilter)
-      : workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate) && roundNo !== undefined
+    const rnForExclude =
+      roundNo !== undefined
         ? normalizeShiftRound(roundNo)
-        : undefined;
+        : shiftRoundFilter !== undefined
+          ? normalizeShiftRound(shiftRoundFilter)
+          : SHIFT_ROUND.morning;
+    try {
+      excludeList = await getPrepExclusionWorkerIds(workDate, siteId, rnForExclude);
+    } catch {
+      excludeList = [];
+    }
+  }
+  const excludeSet = new Set(excludeList);
+
+  const shiftF = resolvePrepShiftFilter(workDate, roundNo, shiftRoundFilter);
 
   while (true) {
     let query = supabase
@@ -533,20 +517,20 @@ export async function getAttendanceWorkerIdsForFilters({
       query = query.or(`shift_round.is.null,shift_round.eq.${shiftF}`);
     }
 
-    if (preppedExclude && preppedExclude.length > 0) {
-      query = applyNotInIdChunks(query, preppedExclude);
-    }
-
-    const { data, error } = await query.range(from, from + pageSize - 1);
+    const { data, error } = await query.range(from, from + PREP_SCAN_CHUNK - 1);
     if (error) {
-      throw new Error(`Attendance worker ids query failed: ${error.message}`);
+      return [];
+    }
+    if (!data?.length) break;
+
+    for (const row of data as Array<{ id: number }>) {
+      const id = Number(row.id);
+      if (!Number.isFinite(id)) continue;
+      if (!excludeSet.has(id)) ids.push(id);
     }
 
-    const chunk = ((data ?? []) as Array<{ id: number }>).map((item) => item.id).filter(Boolean);
-    ids.push(...chunk);
-
-    if (chunk.length < pageSize) break;
-    from += pageSize;
+    from += PREP_SCAN_CHUNK;
+    if (data.length < PREP_SCAN_CHUNK) break;
   }
 
   return ids;

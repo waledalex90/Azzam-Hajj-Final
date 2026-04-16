@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 
+import { revalidateAttendancePageCache } from "@/app/(dashboard)/attendance/actions";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 
@@ -98,7 +99,17 @@ export function AttendanceFilterToolbar(props: {
           {basePath === "/approval" ? "فلتر الموقع" : "المقاول من تبويب التحضير"}
         </div>
       )}
-      <Button type="button" variant="secondary" className="w-full" onClick={() => router.refresh()}>
+      <Button
+        type="button"
+        variant="secondary"
+        className="w-full"
+        onClick={() => {
+          void (async () => {
+            await revalidateAttendancePageCache();
+            router.refresh();
+          })();
+        }}
+      >
         تحديث
       </Button>
     </div>

@@ -20,6 +20,17 @@ import { AttendanceReviewTab } from "@/components/attendance/attendance-review-t
 import { getSessionContext } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
+import type { AttendanceDayStats } from "@/lib/types/db";
+import { buildPaginationMeta } from "@/lib/utils/pagination";
+
+const emptyStats: AttendanceDayStats = {
+  total: 0,
+  pending: 0,
+  present: 0,
+  absent: 0,
+  half: 0,
+};
+
 type Props = {
   searchParams: Promise<{
     tab?: string;
@@ -57,60 +68,79 @@ export default async function AttendancePage({ searchParams }: Props) {
 
   const roundNo = normalizeShiftRound(params.shift);
 
-  const [sites, contractors, dayStats] = await Promise.all([
-    getSiteOptionsLive(),
-    getContractorOptionsLive(),
-    activeTab === "workers"
-      ? getAttendancePrepTabStats(
-          workDate,
-          Number.isFinite(siteId) ? siteId : undefined,
-          Number.isFinite(contractorId) ? contractorId : undefined,
-          undefined,
-          roundNo,
-        )
-      : getAttendanceDayStats(
-          workDate,
-          Number.isFinite(siteId) ? siteId : undefined,
-          Number.isFinite(contractorId) ? contractorId : undefined,
-          undefined,
-        ),
-  ]);
+  let sites: Awaited<ReturnType<typeof getSiteOptionsLive>> = [];
+  let contractors: Awaited<ReturnType<typeof getContractorOptionsLive>> = [];
+  let dayStats: AttendanceDayStats = emptyStats;
+  let prepWorkers: Awaited<ReturnType<typeof getAllPendingPrepWorkers>> | null = null;
+  let initialStatusMap: Record<number, "present" | "absent" | "half"> = {};
+  let reviewedRows: Awaited<ReturnType<typeof getAttendanceChecksPage>>["rows"] = [];
+  let reviewRoundStats: ReturnType<typeof summarizeAttendanceChecksForRound> | null = null;
 
-  const prepWorkers =
-    activeTab === "workers"
-      ? await getAllPendingPrepWorkers({
-          siteId: Number.isFinite(siteId) ? siteId : undefined,
-          contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
-          search: undefined,
-          workDate,
-          roundNo,
-        })
-      : null;
+  try {
+    [sites, contractors, dayStats] = await Promise.all([
+      getSiteOptionsLive(),
+      getContractorOptionsLive(),
+      activeTab === "workers"
+        ? getAttendancePrepTabStats(
+            workDate,
+            Number.isFinite(siteId) ? siteId : undefined,
+            Number.isFinite(contractorId) ? contractorId : undefined,
+            undefined,
+            roundNo,
+          )
+        : getAttendanceDayStats(
+            workDate,
+            Number.isFinite(siteId) ? siteId : undefined,
+            Number.isFinite(contractorId) ? contractorId : undefined,
+            undefined,
+          ),
+    ]);
 
-  const initialStatusMap =
-    activeTab === "workers" && prepWorkers
-      ? await getAttendanceLatestStatusMap(
-          workDate,
-          prepWorkers.rows.map((item) => item.id),
-          roundNo,
-        )
-      : {};
+    prepWorkers =
+      activeTab === "workers"
+        ? await getAllPendingPrepWorkers({
+            siteId: Number.isFinite(siteId) ? siteId : undefined,
+            contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
+            search: undefined,
+            workDate,
+            roundNo,
+          })
+        : null;
 
-  const reviewedPage =
-    activeTab === "review"
-      ? await getAttendanceChecksPage({
-          page: 1,
-          pageSize: FULL_LOAD,
-          workDate,
-          siteId: Number.isFinite(siteId) ? siteId : undefined,
-          search: undefined,
-          roundNo,
-        })
-      : null;
+    initialStatusMap =
+      activeTab === "workers" && prepWorkers && prepWorkers.rows.length > 0
+        ? await getAttendanceLatestStatusMap(
+            workDate,
+            prepWorkers.rows.map((item) => item.id),
+            roundNo,
+          )
+        : {};
 
-  const reviewedRows = reviewedPage?.rows ?? [];
-  const reviewRoundStats =
-    activeTab === "review" ? summarizeAttendanceChecksForRound(reviewedRows) : null;
+    const reviewedPage =
+      activeTab === "review"
+        ? await getAttendanceChecksPage({
+            page: 1,
+            pageSize: FULL_LOAD,
+            workDate,
+            siteId: Number.isFinite(siteId) ? siteId : undefined,
+            search: undefined,
+            roundNo,
+          })
+        : null;
+
+    reviewedRows = reviewedPage?.rows ?? [];
+    reviewRoundStats =
+      activeTab === "review" ? summarizeAttendanceChecksForRound(reviewedRows) : null;
+  } catch {
+    sites = [];
+    contractors = [];
+    dayStats = emptyStats;
+    prepWorkers =
+      activeTab === "workers" ? { rows: [], meta: buildPaginationMeta(0, 1, 1) } : null;
+    initialStatusMap = {};
+    reviewedRows = [];
+    reviewRoundStats = activeTab === "review" ? summarizeAttendanceChecksForRound([]) : null;
+  }
 
   return (
     <section className="space-y-4">
