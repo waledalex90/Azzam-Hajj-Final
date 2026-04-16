@@ -28,6 +28,11 @@ type WorkersPageParams = {
   workDate?: string;
   /** وردية التحضير: 1 صباحي، 2 مسائي — المسائي يستبعد من حضّر صباحاً */
   roundNo?: number;
+  /**
+   * عند التحضير: يقتصر على عمال بـ shift_round مطابق أو فارغ (من عمود الوردية في Excel).
+   * لا يُستخدم في صفحات أخرى (مثل نقل الموظفين بدون تاريخ).
+   */
+  shiftRoundFilter?: number;
 };
 
 type RawWorkerRow = Omit<WorkerRow, "sites"> & {
@@ -220,6 +225,7 @@ export async function getAttendancePrepTabStats(
     siteId,
     contractorId,
     search,
+    shiftRoundFilter: r,
   });
   const total = filteredIds.length;
   if (total === 0) return { total: 0, pending: 0, present: 0, absent: 0, half: 0 };
@@ -267,6 +273,7 @@ export async function getAttendanceWorkersPage({
   search,
   workDate,
   roundNo,
+  shiftRoundFilter,
 }: WorkersPageParams): Promise<{ rows: WorkerRow[]; meta: PaginationMeta }> {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
@@ -278,10 +285,17 @@ export async function getAttendanceWorkersPage({
     preppedExclude = await getPrepExclusionWorkerIds(workDate, siteId, rn);
   }
 
+  const shiftToFilter =
+    workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate)
+      ? rn
+      : shiftRoundFilter !== undefined
+        ? normalizeShiftRound(shiftRoundFilter)
+        : undefined;
+
   let query = supabase
     .from("workers")
     .select(
-      "id, name, id_number, contractor_id, current_site_id, is_active, is_deleted, sites(name), contractors(name)",
+      "id, name, id_number, contractor_id, current_site_id, shift_round, is_active, is_deleted, sites(name), contractors(name)",
       {
       count: "planned",
       },
@@ -300,6 +314,10 @@ export async function getAttendanceWorkersPage({
   if (search && search.trim()) {
     const value = search.trim();
     query = query.or(`name.ilike.%${value}%,id_number.ilike.%${value}%`);
+  }
+
+  if (shiftToFilter !== undefined) {
+    query = query.or(`shift_round.is.null,shift_round.eq.${shiftToFilter}`);
   }
 
   if (preppedExclude && preppedExclude.length > 0) {
@@ -344,6 +362,7 @@ export async function getAttendanceWorkerIdsForFilters({
   search,
   workDate,
   roundNo,
+  shiftRoundFilter,
 }: Omit<WorkersPageParams, "page" | "pageSize">): Promise<number[]> {
   const supabase = createSupabaseAdminClient();
   const pageSize = 1000;
@@ -354,6 +373,13 @@ export async function getAttendanceWorkerIdsForFilters({
   if (workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
     preppedExclude = await getPrepExclusionWorkerIds(workDate, siteId, normalizeShiftRound(roundNo));
   }
+
+  const shiftF =
+    shiftRoundFilter !== undefined
+      ? normalizeShiftRound(shiftRoundFilter)
+      : workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate) && roundNo !== undefined
+        ? normalizeShiftRound(roundNo)
+        : undefined;
 
   while (true) {
     let query = supabase
@@ -372,6 +398,10 @@ export async function getAttendanceWorkerIdsForFilters({
     if (search && search.trim()) {
       const value = search.trim();
       query = query.or(`name.ilike.%${value}%,id_number.ilike.%${value}%`);
+    }
+
+    if (shiftF !== undefined) {
+      query = query.or(`shift_round.is.null,shift_round.eq.${shiftF}`);
     }
 
     if (preppedExclude && preppedExclude.length > 0) {

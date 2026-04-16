@@ -17,6 +17,8 @@ export type WorkerRow = {
   id_number: string;
   contractor_id?: number | null;
   current_site_id: number | null;
+  /** من Excel: 1 صباحي، 2 مسائي؛ null = يظهر في كلا الورديتين في التحضير */
+  shift_round?: number | null;
   is_active: boolean;
   is_deleted: boolean;
   sites?: { name: string } | null;

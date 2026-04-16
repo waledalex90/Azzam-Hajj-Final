@@ -117,13 +117,15 @@ export default async function DashboardHomePage() {
 
       {transferTotal > 0 && (
         <Link href="/transfers">
-          <Card className="border border-teal-200 bg-teal-50/50 transition hover:shadow-md">
+          <Card className="border-2 border-teal-400 bg-teal-50 shadow-sm transition hover:shadow-md">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Truck className="h-5 w-5 text-teal-700" />
+              <div className="flex items-center gap-3">
+                <Truck className="h-8 w-8 shrink-0 text-teal-700" />
                 <div>
-                  <h2 className="text-sm font-extrabold text-slate-900">طلبات نقل موظفين</h2>
-                  <p className="text-xs text-slate-600">
+                  <p className="text-base font-extrabold text-teal-950">
+                    لديك ({transferTotal}) طلبات نقل معلقة
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-700">
                     {transferAlerts.destinationPending > 0
                       ? `${transferAlerts.destinationPending} بانتظار موافقة الوجهة`
                       : ""}
@@ -132,7 +134,7 @@ export default async function DashboardHomePage() {
                   </p>
                 </div>
               </div>
-              <span className="rounded-full bg-teal-700 px-3 py-1 text-xs font-extrabold text-white">عرض</span>
+              <span className="rounded-full bg-teal-700 px-3 py-1.5 text-xs font-extrabold text-white">عرض الطلبات</span>
             </div>
           </Card>
         </Link>

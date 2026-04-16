@@ -184,6 +184,12 @@ export function WorkersUploadForm() {
 
   return (
     <div className="flex w-full flex-col gap-3">
+      <p className="text-[11px] leading-relaxed text-slate-600">
+        الأعمدة: الاسم، رقم الهوية/الإقامة، الموقع (تطابق حرفي مع النظام)، المقاول (اختياري)، عمود الوردية (
+        <span className="font-bold text-slate-800">1</span> أو «صباحي» للصباحي،{" "}
+        <span className="font-bold text-slate-800">2</span> أو «مسائي» للمسائي؛ فارغ = يظهر في كلا الورديتين في التحضير).
+        إذا وُجد رقم الهوية مسبقاً يُحدَّث الموقع والمقاول والوردية (لا يُرفض الصف).
+      </p>
       <form
         onSubmit={onSubmit}
         className="flex w-full flex-col gap-2 rounded-lg border border-slate-200 bg-white p-2 sm:w-auto sm:flex-row sm:items-center"

@@ -32,6 +32,24 @@ function normalizeText(value: unknown) {
   return String(value ?? "").trim();
 }
 
+/** 1 صباحي، 2 مسائي؛ فارغ = null (يظهر في كلا الورديتين في التحضير) */
+function parseShiftRound(record: Record<string, unknown>): number | null {
+  const raw =
+    normalizeText(record["shift_round"]) ||
+    normalizeText(record["الوردية"]) ||
+    normalizeText(record["وردية"]) ||
+    normalizeText(record["shift"]) ||
+    normalizeText(record["الشفت"]);
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  if (raw === "1" || lower === "صباحي" || lower === "صباح" || lower === "morning" || lower === "am") return 1;
+  if (raw === "2" || lower === "مسائي" || lower === "مساء" || lower === "evening" || lower === "pm") return 2;
+  const n = Number(raw);
+  if (n === 1) return 1;
+  if (n === 2) return 2;
+  return null;
+}
+
 type ParsedRow = {
   rowIndex: number;
   name: string;
@@ -42,6 +60,8 @@ type ParsedRow = {
   iqama_expiry: string | null;
   siteName: string;
   contractorName: string;
+  /** 1 صباحي، 2 مسائي — من عمود الوردية في الشيت */
+  shift_round: number | null;
 };
 
 type SkipEntry = {
@@ -79,6 +99,7 @@ function parseSheetRow(record: Record<string, unknown>, rowIndex: number): Parse
     iqama_expiry: /^\d{4}-\d{2}-\d{2}$/.test(iqama) ? iqama : null,
     siteName,
     contractorName,
+    shift_round: parseShiftRound(record),
   };
 }
 
@@ -178,6 +199,7 @@ export async function POST(request: Request) {
     iqama_expiry: string | null;
     current_site_id: number;
     contractor_id: number | null;
+    shift_round: number | null;
     is_active: boolean;
     is_deleted: boolean;
   }> = [];
@@ -224,6 +246,7 @@ export async function POST(request: Request) {
       iqama_expiry: parsed.iqama_expiry,
       current_site_id: siteId,
       contractor_id: contractorId,
+      shift_round: parsed.shift_round,
       is_active: true,
       is_deleted: false,
     });
