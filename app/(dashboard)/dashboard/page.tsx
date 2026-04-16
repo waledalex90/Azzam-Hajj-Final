@@ -1,8 +1,10 @@
 import { Card } from "@/components/ui/card";
-import { Bell, Building2, Compass, MapPin, ShieldAlert, TrendingUp, UserCheck2, UserMinus2, Users2 } from "lucide-react";
+import { Bell, Building2, Compass, MapPin, ShieldAlert, TrendingUp, Truck, UserCheck2, UserMinus2, Users2 } from "lucide-react";
 import Link from "next/link";
+import { canRespondAsHr, getAppUserSiteIds } from "@/lib/auth/transfer-access";
 import { getSessionContext } from "@/lib/auth/session";
 import { getAdminDashboardData, getDashboardStats } from "@/lib/data/dashboard";
+import { getTransferAlertCounts } from "@/lib/data/transfer-requests";
 
 export default async function DashboardHomePage() {
   const { appUser } = await getSessionContext();
@@ -10,6 +12,14 @@ export default async function DashboardHomePage() {
     getDashboardStats(),
     getAdminDashboardData(),
   ]);
+
+  const transferAlerts = appUser
+    ? await getTransferAlertCounts({
+        destinationSiteIds: await getAppUserSiteIds(appUser.id),
+        isHr: canRespondAsHr(appUser),
+      })
+    : { destinationPending: 0, hrPending: 0 };
+  const transferTotal = transferAlerts.destinationPending + transferAlerts.hrPending;
 
   const totalRegisteredToday =
     attendanceStats.presentToday + attendanceStats.absentToday + attendanceStats.halfToday;
@@ -104,6 +114,29 @@ export default async function DashboardHomePage() {
           </div>
         </div>
       </Card>
+
+      {transferTotal > 0 && (
+        <Link href="/transfers">
+          <Card className="border border-teal-200 bg-teal-50/50 transition hover:shadow-md">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Truck className="h-5 w-5 text-teal-700" />
+                <div>
+                  <h2 className="text-sm font-extrabold text-slate-900">طلبات نقل موظفين</h2>
+                  <p className="text-xs text-slate-600">
+                    {transferAlerts.destinationPending > 0
+                      ? `${transferAlerts.destinationPending} بانتظار موافقة الوجهة`
+                      : ""}
+                    {transferAlerts.destinationPending > 0 && transferAlerts.hrPending > 0 ? " — " : ""}
+                    {transferAlerts.hrPending > 0 ? `${transferAlerts.hrPending} بانتظار اعتماد الموارد` : ""}
+                  </p>
+                </div>
+              </div>
+              <span className="rounded-full bg-teal-700 px-3 py-1 text-xs font-extrabold text-white">عرض</span>
+            </div>
+          </Card>
+        </Link>
+      )}
 
       <Card className="min-h-[160px]">
         <div className="flex items-center justify-between">

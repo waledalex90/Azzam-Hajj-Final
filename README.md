@@ -19,7 +19,8 @@
 | `SUPABASE_SERVICE_ROLE_KEY` | service_role (سيرفر/استيراد Excel؛ لا يُعرض للمتصفح) |
 
 3. تأكد أن دالة الحضور الجماعي منشأة في نفس المشروع: نفّذ في **SQL Editor** محتوى `final_fix.sql` ثم **`supabase_shift_round_rpc.sql`** (يضيف وسيط `p_round_no` للوردية صباحي/مسائي = `round_no` 1 و 2). بدون هذا الملف الأخير قد يفشل الحفظ من التطبيق بعد التحديث.
-4. اختبار الاتصال محلياً:
+4. **نقل الموظفين (طلبات)**: نفّذ **`supabase_worker_transfer_requests.sql`** لإنشاء `app_user_sites` و`worker_transfer_requests`، ثم اربط كل مراقب ميداني بمواقعه بإدراج صفوف `(app_user_id, site_id)`.
+5. اختبار الاتصال محلياً:
 
 ```bash
 npm run verify:supabase

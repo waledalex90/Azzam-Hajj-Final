@@ -85,6 +85,36 @@ export type AttendanceDayStats = {
   half: number;
 };
 
+export type WorkerTransferStatus =
+  | "pending_destination"
+  | "rejected_destination"
+  | "pending_hr"
+  | "rejected_hr"
+  | "approved";
+
+export type WorkerTransferRequestRow = {
+  id: number;
+  worker_id: number;
+  from_site_id: number | null;
+  to_site_id: number;
+  requested_by_app_user_id: number;
+  status: WorkerTransferStatus;
+  destination_responded_by_app_user_id: number | null;
+  destination_responded_at: string | null;
+  destination_note: string | null;
+  hr_responded_by_app_user_id: number | null;
+  hr_responded_at: string | null;
+  hr_note: string | null;
+  created_at: string;
+  updated_at: string;
+  worker?: { name: string; id_number: string } | null;
+  from_site?: { name: string } | null;
+  to_site?: { name: string } | null;
+  requester?: { full_name: string } | null;
+  destination_responder?: { full_name: string } | null;
+  hr_responder?: { full_name: string } | null;
+};
+
 export type AttendanceCheckRow = {
   id: number;
   round_id: number;
