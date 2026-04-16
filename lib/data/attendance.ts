@@ -35,7 +35,7 @@ type WorkersPageParams = {
   shiftRoundFilter?: number;
 };
 
-/** صف عامل من استعلام workers بدون embed (يُكمل لاحقاً عبر hydrate). */
+/** صف عامل من workers + join مباشر على sites و contractors. */
 type RawWorkerRowFlat = {
   id: number;
   name: string;
@@ -47,6 +47,21 @@ type RawWorkerRowFlat = {
   is_deleted: boolean;
 };
 
+type RawWorkerEmbedRow = RawWorkerRowFlat & {
+  sites?: { name: string } | { name: string }[] | null;
+  contractors?: { name: string } | { name: string }[] | null;
+};
+
+function relationOne<T>(value: T | T[] | null | undefined): T | null {
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+}
+
+function normalizeWorkerFkId(value: unknown): number | null {
+  if (value === "" || value === undefined || value === null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 const HYDRATE_ID_CHUNK = 200;
 
 async function fetchIdNameMap(
@@ -56,42 +71,45 @@ async function fetchIdNameMap(
   const map = new Map<number, string>();
   if (ids.length === 0) return map;
   const supabase = createSupabaseAdminClient();
-  const unique = Array.from(new Set(ids.filter((id) => Number.isFinite(id))));
+  const unique = Array.from(
+    new Set(ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))),
+  );
   for (let o = 0; o < unique.length; o += HYDRATE_ID_CHUNK) {
     const batch = unique.slice(o, o + HYDRATE_ID_CHUNK);
     const { data, error } = await supabase.from(table).select("id, name").in("id", batch);
     if (error || !data) continue;
     for (const row of data as Array<{ id: number; name: string }>) {
-      map.set(row.id, row.name);
+      const rid = Number(row.id);
+      if (Number.isFinite(rid)) map.set(rid, row.name);
     }
   }
   return map;
 }
 
-/** يملأ sites / contractors من جداول sites و contractors مباشرة حسب current_site_id و contractor_id. */
+/** يملأ sites / contractors من جداول sites و contractors مباشرة حسب current_site_id و contractor_id (مصدر الحقيقة). */
 export async function hydrateWorkerRowsSitesAndContractors(rows: WorkerRow[]): Promise<WorkerRow[]> {
   if (rows.length === 0) return rows;
   const siteIds = rows
-    .map((r) => r.current_site_id)
-    .filter((id): id is number => id != null && Number.isFinite(id));
+    .map((r) => normalizeWorkerFkId(r.current_site_id))
+    .filter((id): id is number => id != null);
   const contractorIds = rows
-    .map((r) => r.contractor_id)
-    .filter((id): id is number => id != null && Number.isFinite(id));
+    .map((r) => normalizeWorkerFkId(r.contractor_id))
+    .filter((id): id is number => id != null);
   const [siteMap, contractorMap] = await Promise.all([
     fetchIdNameMap("sites", siteIds),
     fetchIdNameMap("contractors", contractorIds),
   ]);
-  return rows.map((r) => ({
-    ...r,
-    sites:
-      r.current_site_id != null && Number.isFinite(r.current_site_id)
-        ? { name: siteMap.get(r.current_site_id) ?? "—" }
-        : null,
-    contractors:
-      r.contractor_id != null && Number.isFinite(r.contractor_id)
-        ? { name: contractorMap.get(r.contractor_id) ?? "—" }
-        : null,
-  }));
+  return rows.map((r) => {
+    const sid = normalizeWorkerFkId(r.current_site_id);
+    const cid = normalizeWorkerFkId(r.contractor_id);
+    return {
+      ...r,
+      current_site_id: sid,
+      contractor_id: cid,
+      sites: sid != null ? { name: siteMap.get(sid) ?? "—" } : null,
+      contractors: cid != null ? { name: contractorMap.get(cid) ?? "—" } : null,
+    };
+  });
 }
 
 type ChecksPageParams = {
@@ -386,7 +404,7 @@ export async function getAttendanceWorkersPage({
   let query = supabase
     .from("workers")
     .select(
-      "id, name, id_number, contractor_id, current_site_id, shift_round, is_active, is_deleted",
+      "id, name, id_number, contractor_id, current_site_id, shift_round, is_active, is_deleted, sites(name), contractors(name)",
       {
       count: "planned",
       },
@@ -422,11 +440,19 @@ export async function getAttendanceWorkersPage({
 
   const totalRows = count ?? 0;
   const rows: WorkerRow[] =
-    ((data as RawWorkerRowFlat[]) ?? []).map((item) => ({
-      ...item,
-      sites: null,
-      contractors: null,
-    })) ?? [];
+    ((data as RawWorkerEmbedRow[]) ?? []).map((item) => {
+      const current_site_id = normalizeWorkerFkId(item.current_site_id);
+      const contractor_id = normalizeWorkerFkId(item.contractor_id);
+      const shift_round = item.shift_round != null ? Number(item.shift_round) : null;
+      return {
+        ...item,
+        current_site_id,
+        contractor_id,
+        shift_round: Number.isFinite(shift_round as number) ? shift_round : null,
+        sites: relationOne(item.sites as { name: string } | null),
+        contractors: relationOne(item.contractors as { name: string } | null),
+      };
+    }) ?? [];
 
   return {
     rows,

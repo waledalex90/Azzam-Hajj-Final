@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useDeferredValue, useEffect, useMemo, useState, useCallback } from "react";
 import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
+import { revalidateAttendancePageCache } from "@/app/(dashboard)/attendance/actions";
 import { AttendanceWorkersTable } from "@/components/attendance/attendance-workers-table";
 import { Card } from "@/components/ui/card";
 import { matchesClientSearch } from "@/lib/utils/client-search";
@@ -44,6 +45,7 @@ export function AttendancePrepWorkzone({
   const [dayStats, setDayStats] = useState(initialDayStats);
   const [workers, setWorkers] = useState(initialWorkers);
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
 
   useEffect(() => {
     setDayStats(initialDayStats);
@@ -54,10 +56,10 @@ export function AttendancePrepWorkzone({
   }, [initialWorkers]);
 
   const filteredRows = useMemo(() => {
-    const s = search.trim();
+    const s = deferredSearch.trim();
     if (!s) return workers;
     return workers.filter((w) => matchesClientSearch(w.name, w.id_number, s));
-  }, [workers, search]);
+  }, [workers, deferredSearch]);
 
   const scopeIds = useMemo(() => workers.map((w) => w.id), [workers]);
 
@@ -68,6 +70,16 @@ export function AttendancePrepWorkzone({
       setDayStats((prev) => applyPrepToStats(prev, ids.length, status));
     });
   }, []);
+
+  const onResetAll = useCallback(() => {
+    setSearch("");
+    router.push(`/attendance?tab=workers&date=${encodeURIComponent(workDate)}&shift=${roundNo}`);
+  }, [router, workDate, roundNo]);
+
+  const onHardRefresh = useCallback(async () => {
+    await revalidateAttendancePageCache();
+    router.refresh();
+  }, [router]);
 
   const allDone = workers.length === 0;
 
@@ -123,14 +135,14 @@ export function AttendancePrepWorkzone({
           </div>
           <button
             type="button"
-            onClick={() => setSearch("")}
+            onClick={onResetAll}
             className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800"
           >
             عرض الكل / إعادة ضبط
           </button>
           <button
             type="button"
-            onClick={() => router.refresh()}
+            onClick={() => void onHardRefresh()}
             className="rounded bg-slate-700 px-3 py-2 text-xs font-bold text-white"
           >
             تحديث

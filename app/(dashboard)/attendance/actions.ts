@@ -10,6 +10,13 @@ import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 export type PrepActionResult = { ok: true } | { ok: false; error: string };
 
+export async function revalidateAttendancePageCache(): Promise<void> {
+  const { appUser } = await getSessionContext();
+  if (!appUser) return;
+  revalidatePath("/attendance");
+  revalidatePath("/dashboard");
+}
+
 type Status = "present" | "absent" | "half";
 
 const CHUNK = 500;
