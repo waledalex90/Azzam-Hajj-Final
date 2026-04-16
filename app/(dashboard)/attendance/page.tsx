@@ -1,10 +1,7 @@
-import { revalidatePath, revalidateTag } from "next/cache";
 import Link from "next/link";
-import { PaginationControls } from "@/components/pagination/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker-field";
-import { Input } from "@/components/ui/input";
 import {
   getAllPendingPrepWorkers,
   getAttendanceChecksPage,
@@ -15,87 +12,33 @@ import {
   getSiteOptions,
 } from "@/lib/data/attendance";
 import { AttendancePrepWorkzone } from "@/components/attendance/attendance-prep-workzone";
-import { ReviewCorrectionRequestModal } from "@/components/attendance/review-correction-request-modal";
+import { AttendanceReviewTab } from "@/components/attendance/attendance-review-tab";
 import { getSessionContext } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { submitAttendanceByWorkersEngine } from "@/lib/services/attendance-engine";
-import { parsePage } from "@/lib/utils/pagination";
-import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { returnAttendanceToPreparation, reviewAttendanceCheck } from "@/app/(dashboard)/attendance/review-tab-actions";
 
 type Props = {
   searchParams: Promise<{
-    page?: string;
     tab?: string;
-    q?: string;
     siteId?: string;
     contractorId?: string;
     date?: string;
   }>;
 };
 
-const PAGE_SIZE = 25;
+const FULL_LOAD = 50000;
 
 export const dynamic = "force-dynamic";
 
 export default async function AttendancePage({ searchParams }: Props) {
-  async function reviewAttendanceCheck(formData: FormData) {
-    "use server";
-    const checkId = Number(formData.get("checkId"));
-    if (!checkId) return;
-    if (isDemoModeEnabled()) return;
-
-    const supabase = createSupabaseAdminClient();
-    const { data: check } = await supabase
-      .from("attendance_checks")
-      .select("id, worker_id, attendance_rounds!inner(work_date)")
-      .eq("id", checkId)
-      .maybeSingle<{
-        id: number;
-        worker_id: number;
-        attendance_rounds: { work_date: string } | { work_date: string }[] | null;
-      }>();
-
-    if (!check) return;
-    const workDate = Array.isArray(check.attendance_rounds)
-      ? (check.attendance_rounds[0]?.work_date ?? null)
-      : (check.attendance_rounds?.work_date ?? null);
-    if (!workDate) return;
-
-    await submitAttendanceByWorkersEngine({
-      items: [{ worker_id: check.worker_id, status: "present" }],
-      workDate,
-      note: "attendance review round",
-    });
-    revalidatePath("/attendance");
-    revalidatePath("/dashboard");
-    revalidatePath("/approval");
-  }
-
-  async function returnAttendanceToPreparation(formData: FormData) {
-    "use server";
-    const checkId = Number(formData.get("checkId"));
-    if (!checkId || isDemoModeEnabled()) return;
-
-    const supabase = createSupabaseAdminClient();
-    const { error } = await supabase.from("attendance_checks").delete().eq("id", checkId);
-    if (error) return;
-
-    revalidatePath("/attendance");
-    revalidatePath("/dashboard");
-    revalidatePath("/approval");
-    revalidateTag("dashboard-stats", "max");
-    revalidateTag("dashboard-admin", "max");
-  }
-
   const { appUser } = await getSessionContext();
+  const canCorrection = Boolean(appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST));
+
   const params = await searchParams;
-  const page = parsePage(params.page, 1);
   const activeTab = params.tab === "review" ? "review" : "workers";
   const siteId = params.siteId ? Number(params.siteId) : undefined;
   const contractorId = params.contractorId ? Number(params.contractorId) : undefined;
-  const q = params.q?.trim();
   const workDate =
     params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)
       ? params.date
@@ -115,7 +58,7 @@ export default async function AttendancePage({ searchParams }: Props) {
           workDate,
           Number.isFinite(siteId) ? siteId : undefined,
           Number.isFinite(contractorId) ? contractorId : undefined,
-          q,
+          undefined,
         ),
   ]);
 
@@ -140,27 +83,15 @@ export default async function AttendancePage({ searchParams }: Props) {
   const reviewedPage =
     activeTab === "review"
       ? await getAttendanceChecksPage({
-          page,
-          pageSize: PAGE_SIZE,
+          page: 1,
+          pageSize: FULL_LOAD,
           workDate,
           siteId: Number.isFinite(siteId) ? siteId : undefined,
-          search: q,
+          search: undefined,
         })
       : null;
 
   const reviewedRows = reviewedPage?.rows ?? [];
-
-  const reviewBadgeClass = (status: "pending" | "confirmed" | "rejected") => {
-    if (status === "confirmed") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    if (status === "rejected") return "bg-rose-50 text-rose-700 border-rose-200";
-    return "bg-amber-50 text-amber-700 border-amber-200";
-  };
-
-  const reviewLabel = (status: "pending" | "confirmed" | "rejected") => {
-    if (status === "confirmed") return "معتمد";
-    if (status === "rejected") return "مرفوض";
-    return "بانتظار الاعتماد";
-  };
 
   return (
     <section className="space-y-4">
@@ -173,7 +104,7 @@ export default async function AttendancePage({ searchParams }: Props) {
 
         <div className="mt-3 flex items-center gap-2 border-b border-slate-200 text-sm">
           <Link
-            href={`/attendance?tab=workers&page=1&date=${workDate}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
+            href={`/attendance?tab=workers&date=${workDate}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
             className={`rounded-t-xl px-3 py-2 font-extrabold ${
               activeTab === "workers"
                 ? "bg-emerald-50 text-emerald-700"
@@ -183,7 +114,7 @@ export default async function AttendancePage({ searchParams }: Props) {
             الموظفون والتحضير
           </Link>
           <Link
-            href={`/attendance?tab=review&page=1&date=${workDate}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
+            href={`/attendance?tab=review&date=${workDate}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
             className={`rounded-t-xl px-3 py-2 font-extrabold ${
               activeTab === "review"
                 ? "bg-emerald-50 text-emerald-700"
@@ -196,8 +127,8 @@ export default async function AttendancePage({ searchParams }: Props) {
 
         <p className="mt-2 text-xs text-slate-600">
           {activeTab === "workers"
-            ? "الفلاتر: التاريخ، الموقع، المقاول. البحث بالاسم فوري داخل الجدول. القائمة = عمال بلا سجل تحضير لهذا اليوم (لا صف في attendance_checks)."
-            : "العدادات تتبع الفلاتر والبحث أدناه."}
+            ? "تحميل كامل للقائمة بدون ترقيم صفحات. بحث فوري على العميل. معلّق التحضير = لا صف attendance_checks لهذا اليوم."
+            : "تحميل كامل للسجلات. بحث فوري على العميل."}
         </p>
         {activeTab === "workers" ? (
           <form className="mt-4 grid gap-2 sm:grid-cols-5" method="get">
@@ -237,9 +168,10 @@ export default async function AttendancePage({ searchParams }: Props) {
         ) : (
           <form className="mt-4 grid gap-2 sm:grid-cols-5" method="get">
             <input type="hidden" name="tab" value="review" />
-            <input type="hidden" name="page" value="1" />
             <DatePickerField name="date" defaultValue={workDate} />
-            <Input name="q" defaultValue={q} placeholder="بحث بالاسم أو رقم الهوية" />
+            <div className="min-h-12 rounded border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
+              بحث فوري تحت الجدول
+            </div>
             <select
               name="siteId"
               defaultValue={params.siteId}
@@ -253,7 +185,7 @@ export default async function AttendancePage({ searchParams }: Props) {
               ))}
             </select>
             <div className="min-h-12 rounded border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
-              فلترة المقاول في تبويب التحضير
+              المقاول من تبويب التحضير
             </div>
             <Button type="submit" className="w-full">
               تطبيق الفلاتر
@@ -294,139 +226,17 @@ export default async function AttendancePage({ searchParams }: Props) {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-extrabold text-slate-800">سجلات اليوم المحضّرة للمراجعة</p>
               <p className="rounded-lg bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
-                إجمالي السجلات: {reviewedPage?.meta.totalRows ?? 0}
+                إجمالي السجلات المحمّلة: {reviewedRows.length}
               </p>
             </div>
-            <p className="mt-2 text-xs text-slate-600">
-              من هنا يمكن مراجعة تسجيل الحضور، أو طلب تعديل للإدارة، أو إعادة العامل لقائمة التحضير، أو إنشاء جولة
-              مراجعة جديدة.
-            </p>
           </Card>
 
-          <Card className="overflow-hidden p-0">
-            <div className="space-y-3 p-3 md:hidden">
-              {reviewedRows.map((row) => (
-                <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-bold text-slate-800">{row.workers?.name ?? "-"}</p>
-                      <p className="text-xs text-slate-500">{row.workers?.id_number ?? "-"}</p>
-                    </div>
-                    <span
-                      className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${reviewBadgeClass(
-                        row.confirmation_status,
-                      )}`}
-                    >
-                      {reviewLabel(row.confirmation_status)}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600">
-                    <p>الموقع: {row.sites?.name ?? "-"}</p>
-                    <p>
-                      الجولة: #{row.attendance_rounds?.round_no ?? "-"} / {row.attendance_rounds?.work_date ?? "-"}
-                    </p>
-                  </div>
-
-                  <div className="mt-3 flex flex-col gap-2">
-                    <form action={reviewAttendanceCheck} className="w-full">
-                      <input type="hidden" name="checkId" value={row.id} />
-                      <button className="w-full rounded-lg bg-[#166534] px-3 py-2 text-xs font-bold text-white">
-                        مراجعة حضور
-                      </button>
-                    </form>
-                    {appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST) && (
-                      <ReviewCorrectionRequestModal checkId={row.id} />
-                    )}
-                    <form action={returnAttendanceToPreparation}>
-                      <input type="hidden" name="checkId" value={row.id} />
-                      <button
-                        type="submit"
-                        className="w-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900"
-                      >
-                        إعادة للتحضير
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="hidden overflow-x-auto md:block">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-slate-700">
-                  <tr>
-                    <th className="px-3 py-2 text-right font-bold">العامل</th>
-                    <th className="px-3 py-2 text-right font-bold">الموقع</th>
-                    <th className="px-3 py-2 text-right font-bold">الجولة</th>
-                    <th className="px-3 py-2 text-right font-bold">الاعتماد</th>
-                    <th className="px-3 py-2 text-right font-bold">مراجعة وتصحيح</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reviewedRows.map((row) => (
-                    <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/70">
-                      <td className="px-3 py-2">
-                        <p className="font-bold text-slate-800">{row.workers?.name ?? "-"}</p>
-                        <p className="text-xs text-slate-500">{row.workers?.id_number ?? "-"}</p>
-                      </td>
-                      <td className="px-3 py-2">{row.sites?.name ?? "-"}</td>
-                      <td className="px-3 py-2">
-                        {row.attendance_rounds?.work_date ?? "-"} / #{row.attendance_rounds?.round_no ?? "-"}
-                      </td>
-                      <td className="px-3 py-2">
-                        <span
-                          className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${reviewBadgeClass(
-                            row.confirmation_status,
-                          )}`}
-                        >
-                          {reviewLabel(row.confirmation_status)}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 align-top">
-                        <div className="flex min-w-[200px] flex-col gap-2">
-                          <form action={reviewAttendanceCheck} className="inline-flex">
-                            <input type="hidden" name="checkId" value={row.id} />
-                            <button className="rounded-lg bg-[#166534] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#14532d]">
-                              مراجعة حضور
-                            </button>
-                          </form>
-                          {appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST) && (
-                            <ReviewCorrectionRequestModal checkId={row.id} />
-                          )}
-                          <form action={returnAttendanceToPreparation} className="inline-flex">
-                            <input type="hidden" name="checkId" value={row.id} />
-                            <button
-                              type="submit"
-                              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900"
-                            >
-                              إعادة للتحضير
-                            </button>
-                          </form>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {reviewedRows.length === 0 && (
-              <div className="p-4 text-center text-sm text-slate-500">
-                لا توجد سجلات حضور اليوم لعرضها في المراجعة.
-              </div>
-            )}
-          </Card>
-
-          <PaginationControls
-            page={reviewedPage?.meta.page ?? 1}
-            totalPages={reviewedPage?.meta.totalPages ?? 1}
-            basePath="/attendance"
-            query={{
-              tab: "review",
-              q,
-              siteId: params.siteId,
-              date: workDate,
-            }}
+          <AttendanceReviewTab
+            key={`rev-${workDate}-${params.siteId ?? ""}`}
+            initialRows={reviewedRows}
+            canCorrection={canCorrection}
+            reviewAttendanceCheck={reviewAttendanceCheck}
+            returnAttendanceToPreparation={returnAttendanceToPreparation}
           />
         </>
       )}

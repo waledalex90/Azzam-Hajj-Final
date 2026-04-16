@@ -124,17 +124,29 @@ export async function getPendingApprovalCheckIds(params: {
     query = query.or(`workers.name.ilike.%${v}%,workers.id_number.ilike.%${v}%`);
   }
 
-  const { data, error } = await query.limit(20000);
+  const { data, error } = await query.limit(50000);
   if (error || !data) return [];
 
   return (data as Array<{ id: number }>).map((r) => r.id).filter(Boolean);
 }
 
-const PREP_WORKERS_PAGE_SIZE = 12000;
+/** تحميل كامل بدون ترقيم صفحات — حتى ~كل العمال النشطين في نطاق الفلتر */
+const PREP_WORKERS_PAGE_SIZE = 50000;
 
 /**
- * عمال أنشئ لهم صف في attendance_checks لهذا التاريخ (أي attendance_checks.id غير null لذلك اليوم/الموقع).
- * قائمة «معلق التحضير» = عمال لا يظهرون هنا — مكافئ SQL: LEFT JOIN … WHERE check.id IS NULL.
+ * عمال لديهم صف `attendance_checks` لهذا التاريخ (أي `attendance_checks.id` موجود).
+ *
+ * معادلة «معلق التحضير» في SQL (فكرة check غير موجود = لا صف بعد):
+ * ```sql
+ * SELECT w.* FROM workers w
+ * WHERE NOT EXISTS (
+ *   SELECT 1 FROM attendance_checks ac
+ *   INNER JOIN attendance_rounds ar ON ar.id = ac.round_id
+ *   WHERE ac.worker_id = w.id AND ar.work_date = :work_date
+ *     AND (:site_id IS NULL OR ar.site_id = :site_id)
+ * )
+ * ```
+ * (صياغة «WHERE check_id IS NULL» تُقصد بها عدم وجود صف تحضير لليوم قبل الإنشاء.)
  */
 export async function getPreppedWorkerIdsForDate(workDate: string, siteId?: number): Promise<number[]> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return [];
