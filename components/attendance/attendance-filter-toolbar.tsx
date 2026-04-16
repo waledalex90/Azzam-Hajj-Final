@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { revalidateAttendancePageCache } from "@/app/(dashboard)/attendance/actions";
@@ -39,6 +39,14 @@ export function AttendanceFilterToolbar(props: {
   const [isNavPending, startTransition] = useTransition();
   const { basePath, tab, workDate, roundNo, siteId, contractorId, sites, contractors, showContractor } = props;
 
+  useEffect(() => {
+    const common = { tab, date: workDate, siteId, contractorId, includeContractor: showContractor };
+    const q1 = buildQuery({ ...common, shift: "1" });
+    const q2 = buildQuery({ ...common, shift: "2" });
+    router.prefetch(`${basePath}?${q1}`);
+    router.prefetch(`${basePath}?${q2}`);
+  }, [basePath, tab, workDate, siteId, contractorId, showContractor, router]);
+
   const navigate = (patch: Partial<{ date: string; shift: string; siteId: string; contractorId: string }>) => {
     const q = buildQuery({
       tab,
@@ -50,7 +58,6 @@ export function AttendanceFilterToolbar(props: {
     });
     startTransition(() => {
       router.push(`${basePath}?${q}`);
-      router.refresh();
     });
   };
 
@@ -66,8 +73,7 @@ export function AttendanceFilterToolbar(props: {
       <select
         value={String(roundNo)}
         onChange={(e) => navigate({ shift: e.target.value })}
-        disabled={isNavPending}
-        className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base font-bold disabled:opacity-60"
+        className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base font-bold"
       >
         <option value="1">وردية صباحي</option>
         <option value="2">وردية مسائي</option>

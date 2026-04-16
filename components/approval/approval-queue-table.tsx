@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { TableVirtuoso } from "react-virtuoso";
 
-import { approveAllPendingInFilter, approveChecksByIds } from "@/app/(dashboard)/approval/actions";
+import { approveApprovalChunk, fetchPendingApprovalIds } from "@/app/(dashboard)/approval/actions";
 import type { AttendanceCheckRow } from "@/lib/types/db";
 
 type Decision = "confirm" | "reject";
@@ -15,19 +16,30 @@ type Props = {
   totalPendingFiltered: number;
   workDate: string;
   siteId?: string;
+  contractorId?: string;
   roundNo: number;
-  q?: string;
+  onChunkApproved: (checkIds: number[]) => void;
 };
 
 const TABLE_H = "min(70vh,900px)";
+const CLIENT_APPROVAL_CHUNK = 500;
+
+function chunkIds(ids: number[], size: number): number[][] {
+  const out: number[][] = [];
+  for (let i = 0; i < ids.length; i += size) {
+    out.push(ids.slice(i, i + size));
+  }
+  return out;
+}
 
 export function ApprovalQueueTable({
   rows,
   totalPendingFiltered,
   workDate,
   siteId,
+  contractorId,
   roundNo,
-  q,
+  onChunkApproved,
 }: Props) {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
@@ -67,46 +79,82 @@ export function ApprovalQueueTable({
     setIsSaving(true);
     try {
       if (bulkScope === "all") {
-        const res = await approveAllPendingInFilter({
+        const listed = await fetchPendingApprovalIds({
           workDate,
           siteId: siteId ? Number(siteId) : undefined,
-          q,
+          contractorId: contractorId ? Number(contractorId) : undefined,
           roundNo,
         });
-        if (!res.ok) {
-          toast.error(res.error);
+        if (!listed.ok) {
+          toast.error(listed.error);
           return;
         }
-        toast.success("تم الاعتماد ✅");
+        const allIds = listed.ids;
+        if (allIds.length === 0) {
+          toast.error("لا توجد سجلات معلّقة ضمن الفلتر.");
+          return;
+        }
+        const chunks = chunkIds(allIds, CLIENT_APPROVAL_CHUNK);
+        const progressId = chunks.length > 1 ? toast.loading(`جاري الاعتماد… 1/${chunks.length}`) : undefined;
+        for (let i = 0; i < chunks.length; i += 1) {
+          if (chunks.length > 1 && progressId !== undefined) {
+            toast.loading(`جاري الاعتماد… ${i + 1}/${chunks.length}`, { id: progressId });
+          }
+          const res = await approveApprovalChunk(chunks[i], {
+            revalidate: i === chunks.length - 1,
+          });
+          if (!res.ok) {
+            toast.error(res.error, { id: progressId });
+            void router.refresh();
+            return;
+          }
+          flushSync(() => {
+            onChunkApproved(chunks[i]);
+          });
+        }
+        toast.success(
+          chunks.length > 1
+            ? `تم الاعتماد — ${chunks.length} دفعة (${allIds.length} سجل)`
+            : "تم الاعتماد ✅",
+          { id: progressId },
+        );
         setSelected(new Set());
-        setRemoved(new Set(rows.map((r) => r.id)));
-        router.refresh();
+        setRemoved(new Set());
+        void router.refresh();
         return;
       }
+
       const ids = Array.from(selected);
       if (ids.length === 0) {
         toast.error("حدد صفاً واحداً على الأقل.");
         return;
       }
-      setRemoved((prev) => {
-        const next = new Set(prev);
-        ids.forEach((id) => next.add(id));
-        return next;
-      });
-      const res = await approveChecksByIds(ids);
-      if (!res.ok) {
-        toast.error(res.error);
-        setRemoved((prev) => {
-          const next = new Set(prev);
-          ids.forEach((id) => next.delete(id));
-          return next;
+      const chunks = chunkIds(ids, CLIENT_APPROVAL_CHUNK);
+      const progressId = chunks.length > 1 ? toast.loading(`جاري الاعتماد… 1/${chunks.length}`) : undefined;
+      for (let i = 0; i < chunks.length; i += 1) {
+        if (chunks.length > 1 && progressId !== undefined) {
+          toast.loading(`جاري الاعتماد… ${i + 1}/${chunks.length}`, { id: progressId });
+        }
+        const res = await approveApprovalChunk(chunks[i], {
+          revalidate: i === chunks.length - 1,
         });
-        void router.refresh();
-        return;
+        if (!res.ok) {
+          toast.error(res.error, { id: progressId });
+          void router.refresh();
+          return;
+        }
+        flushSync(() => {
+          onChunkApproved(chunks[i]);
+        });
       }
-      toast.success("تم الاعتماد ✅");
+      toast.success(
+        chunks.length > 1
+          ? `تم الاعتماد — ${chunks.length} دفعة (${ids.length} سجل)`
+          : "تم الاعتماد ✅",
+        { id: progressId },
+      );
       setSelected(new Set());
-      router.refresh();
+      void router.refresh();
     } finally {
       setIsSaving(false);
     }
@@ -150,7 +198,12 @@ export function ApprovalQueueTable({
         next.delete(checkId);
         return next;
       });
-      router.refresh();
+      if (decision === "confirm") {
+        flushSync(() => {
+          onChunkApproved([checkId]);
+        });
+      }
+      void router.refresh();
     } finally {
       setPendingCheckIds((prev) => prev.filter((id) => id !== checkId));
       setIsSaving(false);

@@ -11,7 +11,9 @@ import { getSessionContext } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
 import {
+  getApprovalFilterCounts,
   getAttendanceChecksPage,
+  getContractorOptionsLive,
   getPendingApprovalCheckIds,
   getSiteOptionsLive,
   normalizeShiftRound,
@@ -23,6 +25,7 @@ type Props = {
     tab?: string;
     date?: string;
     siteId?: string;
+    contractorId?: string;
     shift?: string;
   }>;
 };
@@ -32,6 +35,22 @@ const FULL_LOAD = 50000;
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
+
+function approvalQueryString(params: {
+  tab: string;
+  workDate: string;
+  roundNo: number;
+  siteId?: string;
+  contractorId?: string;
+}) {
+  const q = new URLSearchParams();
+  q.set("tab", params.tab);
+  q.set("date", params.workDate);
+  q.set("shift", String(params.roundNo));
+  if (params.siteId) q.set("siteId", params.siteId);
+  if (params.contractorId) q.set("contractorId", params.contractorId);
+  return q.toString();
+}
 
 export default async function ApprovalPage({ searchParams }: Props) {
   noStore();
@@ -45,6 +64,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
   const params = await searchParams;
   const activeTab = params.tab === "history" ? "history" : "pending";
   const siteId = params.siteId ? Number(params.siteId) : undefined;
+  const contractorId = params.contractorId ? Number(params.contractorId) : undefined;
   const workDate =
     params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)
       ? params.date
@@ -53,14 +73,27 @@ export default async function ApprovalPage({ searchParams }: Props) {
   const roundNo = normalizeShiftRound(params.shift);
 
   const sid = Number.isFinite(siteId) ? siteId : undefined;
+  const cid = Number.isFinite(contractorId) ? contractorId : undefined;
 
   let sites: Awaited<ReturnType<typeof getSiteOptionsLive>> = [];
+  let contractors: Awaited<ReturnType<typeof getContractorOptionsLive>> = [];
   let pendingBlock: Awaited<ReturnType<typeof getAttendanceChecksPage>> | null = null;
   let historyBlock: Awaited<ReturnType<typeof getAttendanceChecksPage>> | null = null;
   let pendingFilteredTotal = 0;
+  let approvalStats = { pending: 0, confirmed: 0, total: 0 };
 
   try {
-    sites = await getSiteOptionsLive();
+    [sites, contractors, approvalStats] = await Promise.all([
+      getSiteOptionsLive(),
+      getContractorOptionsLive(),
+      getApprovalFilterCounts({
+        workDate,
+        siteId: sid,
+        contractorId: cid,
+        roundNo,
+      }),
+    ]);
+
     [pendingBlock, historyBlock, pendingFilteredTotal] = await Promise.all([
       activeTab === "pending"
         ? getAttendanceChecksPage({
@@ -68,6 +101,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
             pageSize: FULL_LOAD,
             workDate,
             siteId: sid,
+            contractorId: cid,
             search: undefined,
             confirmationStatus: "pending",
             roundNo,
@@ -79,6 +113,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
             pageSize: FULL_LOAD,
             workDate,
             siteId: sid,
+            contractorId: cid,
             search: undefined,
             confirmationStatus: "confirmed",
             roundNo,
@@ -88,6 +123,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
         ? getPendingApprovalCheckIds({
             workDate,
             siteId: sid,
+            contractorId: cid,
             search: undefined,
             roundNo,
           }).then((ids) => ids.length)
@@ -95,6 +131,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
     ]);
   } catch {
     sites = [];
+    contractors = [];
     pendingBlock =
       activeTab === "pending"
         ? { rows: [], meta: buildPaginationMeta(0, 1, 1) }
@@ -104,10 +141,28 @@ export default async function ApprovalPage({ searchParams }: Props) {
         ? { rows: [], meta: buildPaginationMeta(0, 1, 1) }
         : null;
     pendingFilteredTotal = 0;
+    approvalStats = { pending: 0, confirmed: 0, total: 0 };
   }
 
   const pendingRows = pendingBlock?.rows ?? [];
   const historyRows = historyBlock?.rows ?? [];
+
+  const tabQs = {
+    pending: approvalQueryString({
+      tab: "pending",
+      workDate,
+      roundNo,
+      siteId: params.siteId,
+      contractorId: params.contractorId,
+    }),
+    history: approvalQueryString({
+      tab: "history",
+      workDate,
+      roundNo,
+      siteId: params.siteId,
+      contractorId: params.contractorId,
+    }),
+  };
 
   return (
     <section className="space-y-4">
@@ -115,7 +170,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
         <h1 className="text-lg font-extrabold text-slate-900">اعتماد الحضور</h1>
         <div className="mt-3 flex items-center gap-2 border-b border-slate-200 text-sm">
           <Link
-            href={`/approval?tab=pending&date=${workDate}&shift=${roundNo}${params.siteId ? `&siteId=${params.siteId}` : ""}`}
+            href={`/approval?${tabQs.pending}`}
             className={`rounded-t-xl px-3 py-2 font-extrabold ${
               activeTab === "pending" ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:bg-slate-100"
             }`}
@@ -123,7 +178,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
             الاعتمادات المعلقة
           </Link>
           <Link
-            href={`/approval?tab=history&date=${workDate}&shift=${roundNo}${params.siteId ? `&siteId=${params.siteId}` : ""}`}
+            href={`/approval?${tabQs.history}`}
             className={`rounded-t-xl px-3 py-2 font-extrabold ${
               activeTab === "history" ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:bg-slate-100"
             }`}
@@ -137,9 +192,10 @@ export default async function ApprovalPage({ searchParams }: Props) {
           workDate={workDate}
           roundNo={roundNo}
           siteId={params.siteId}
+          contractorId={params.contractorId}
           sites={sites}
-          contractors={[]}
-          showContractor={false}
+          contractors={contractors}
+          showContractor={true}
         />
         {canResetAttendance ? (
           <div className="mt-2 flex flex-wrap justify-end">
@@ -150,17 +206,20 @@ export default async function ApprovalPage({ searchParams }: Props) {
 
       {activeTab === "pending" ? (
         <ApprovalPendingShell
-          key={`pend-${workDate}-${roundNo}-${params.siteId ?? ""}-${mountKey}`}
+          key={`pend-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${mountKey}`}
           initialRows={pendingRows}
+          initialStats={approvalStats}
           totalPendingFiltered={pendingFilteredTotal}
           workDate={workDate}
           siteId={params.siteId}
+          contractorId={params.contractorId}
           roundNo={roundNo}
         />
       ) : (
         <ApprovalHistoryShell
-          key={`hist-${workDate}-${roundNo}-${params.siteId ?? ""}-${mountKey}`}
+          key={`hist-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${mountKey}`}
           initialRows={historyRows}
+          stats={approvalStats}
           canRequestCorrection={canCorrection}
         />
       )}

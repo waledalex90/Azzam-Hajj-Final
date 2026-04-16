@@ -1,43 +1,73 @@
 "use client";
 
-import { useCallback, useDeferredValue, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { revalidateAttendancePageCache } from "@/app/(dashboard)/attendance/actions";
+import { ApprovalFilterStats } from "@/components/approval/approval-filter-stats";
 import { ApprovalQueueTable } from "@/components/approval/approval-queue-table";
 import { matchesClientSearch } from "@/lib/utils/client-search";
 import type { AttendanceCheckRow } from "@/lib/types/db";
 
+export type ApprovalShellStats = { pending: number; confirmed: number; total: number };
+
 type Props = {
   initialRows: AttendanceCheckRow[];
+  initialStats: ApprovalShellStats;
   totalPendingFiltered: number;
   workDate: string;
   siteId?: string;
+  contractorId?: string;
   roundNo: number;
 };
 
 export function ApprovalPendingShell({
   initialRows,
+  initialStats,
   totalPendingFiltered,
   workDate,
   siteId,
+  contractorId,
   roundNo,
 }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
 
+  const [baseRows, setBaseRows] = useState(initialRows);
+  const [stats, setStats] = useState(initialStats);
+
+  useEffect(() => {
+    setBaseRows(initialRows);
+    setStats(initialStats);
+  }, [initialRows, initialStats]);
+
   const filteredRows = useMemo(() => {
     const s = deferredSearch.trim();
-    if (!s) return initialRows;
-    return initialRows.filter((row) =>
+    if (!s) return baseRows;
+    return baseRows.filter((row) =>
       matchesClientSearch(row.workers?.name, row.workers?.id_number, s),
     );
-  }, [initialRows, deferredSearch]);
+  }, [baseRows, deferredSearch]);
+
+  const onChunkApproved = useCallback((checkIds: number[]) => {
+    const n = checkIds.length;
+    if (n === 0) return;
+    setBaseRows((prev) => prev.filter((r) => !checkIds.includes(r.id)));
+    setStats((s) => ({
+      pending: Math.max(0, s.pending - n),
+      confirmed: s.confirmed + n,
+      total: s.total,
+    }));
+  }, []);
 
   const onReset = useCallback(() => {
     setSearch("");
-    router.push(`/approval?tab=pending&date=${encodeURIComponent(workDate)}&shift=${roundNo}`);
+    const q = new URLSearchParams();
+    q.set("tab", "pending");
+    q.set("date", workDate);
+    q.set("shift", String(roundNo));
+    router.push(`/approval?${q.toString()}`);
   }, [router, workDate, roundNo]);
 
   const onHardRefresh = useCallback(async () => {
@@ -47,10 +77,12 @@ export function ApprovalPendingShell({
 
   return (
     <div className="space-y-3">
+      <ApprovalFilterStats pending={stats.pending} confirmed={stats.confirmed} total={stats.total} />
+
       <div className="rounded border border-slate-200 bg-white p-3">
         <div className="flex flex-wrap items-end gap-2">
           <div className="min-w-[200px] flex-1">
-            <label className="block text-xs font-bold text-slate-700">بحث فوري في المعلّقين</label>
+            <label className="block text-xs font-bold text-slate-700">بحث فوري (اسم أو هوية)</label>
             <input
               type="text"
               value={search}
@@ -76,7 +108,7 @@ export function ApprovalPendingShell({
           </button>
         </div>
         <p className="mt-1 text-xs text-slate-500">
-          يظهر {filteredRows.length} من أصل {initialRows.length} سجل
+          يظهر {filteredRows.length} من أصل {baseRows.length} سجلًا (نطاق الفلاتر أعلاه)
         </p>
       </div>
       <ApprovalQueueTable
@@ -84,8 +116,9 @@ export function ApprovalPendingShell({
         totalPendingFiltered={totalPendingFiltered}
         workDate={workDate}
         siteId={siteId}
+        contractorId={contractorId}
         roundNo={roundNo}
-        q={undefined}
+        onChunkApproved={onChunkApproved}
       />
     </div>
   );

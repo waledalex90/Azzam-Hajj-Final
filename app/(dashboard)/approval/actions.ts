@@ -13,7 +13,13 @@ const CHUNK = 500;
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
-export async function approveChecksByIds(checkIds: number[]): Promise<ActionResult> {
+export type FetchPendingIdsResult = { ok: true; ids: number[] } | { ok: false; error: string };
+
+/** دفعة واحدة بحد أقصى 500 — التجميع من الواجهة مع شريط تقدّم (مثل التحضير). */
+export async function approveApprovalChunk(
+  checkIds: number[],
+  opts?: { revalidate?: boolean },
+): Promise<ActionResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser } = await getSessionContext();
   if (!appUser || !hasPermission(appUser, PERM.APPROVAL)) {
@@ -21,29 +27,30 @@ export async function approveChecksByIds(checkIds: number[]): Promise<ActionResu
   }
   const ids = Array.from(new Set(checkIds.map((id) => Number(id)).filter(Boolean)));
   if (ids.length === 0) return { ok: false, error: "لم يُحدد أي سجل." };
+  if (ids.length > CHUNK) {
+    return { ok: false, error: `الحد الأقصى ${CHUNK} سجلًا لكل دفعة — يُجمع من الواجهة.` };
+  }
   try {
-    for (let i = 0; i < ids.length; i += CHUNK) {
-      const chunk = ids.slice(i, i + CHUNK);
-      await applyApprovalDecisionsEngine({ checkIds: chunk, decision: "confirm" });
+    await applyApprovalDecisionsEngine({ checkIds: ids, decision: "confirm" });
+    if (opts?.revalidate !== false) {
       revalidatePath("/approval");
       revalidatePath("/dashboard");
       revalidatePath("/attendance");
+      revalidateTag("dashboard-stats", "max");
+      revalidateTag("dashboard-admin", "max");
     }
-    revalidateTag("dashboard-stats", "max");
-    revalidateTag("dashboard-admin", "max");
     return { ok: true };
   } catch {
     return { ok: false, error: "فشل الحفظ — حاول مرة أخرى." };
   }
 }
 
-export async function approveAllPendingInFilter(input: {
+export async function fetchPendingApprovalIds(input: {
   workDate: string;
   siteId?: number;
-  q?: string;
-  /** 1 صباحي، 2 مسائي — إلزامي لعدم اعتماد جولات أخرى بالخطأ */
+  contractorId?: number;
   roundNo: number;
-}): Promise<ActionResult> {
+}): Promise<FetchPendingIdsResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser } = await getSessionContext();
   if (!appUser || !hasPermission(appUser, PERM.APPROVAL)) {
@@ -57,21 +64,12 @@ export async function approveAllPendingInFilter(input: {
     const ids = await getPendingApprovalCheckIds({
       workDate,
       siteId: input.siteId,
-      search: input.q?.trim() || undefined,
+      contractorId: input.contractorId,
+      search: undefined,
       roundNo: input.roundNo,
     });
-    if (ids.length === 0) return { ok: false, error: "لا توجد سجلات معلّقة ضمن الفلتر." };
-    for (let i = 0; i < ids.length; i += CHUNK) {
-      const chunk = ids.slice(i, i + CHUNK);
-      await applyApprovalDecisionsEngine({ checkIds: chunk, decision: "confirm" });
-      revalidatePath("/approval");
-      revalidatePath("/dashboard");
-      revalidatePath("/attendance");
-    }
-    revalidateTag("dashboard-stats", "max");
-    revalidateTag("dashboard-admin", "max");
-    return { ok: true };
+    return { ok: true, ids };
   } catch {
-    return { ok: false, error: "فشل الاتصال أو الحفظ." };
+    return { ok: false, error: "فشل الاتصال." };
   }
 }

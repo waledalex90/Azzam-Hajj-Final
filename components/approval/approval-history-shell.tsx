@@ -1,31 +1,36 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { TableVirtuoso } from "react-virtuoso";
 
+import { ApprovalFilterStats } from "@/components/approval/approval-filter-stats";
 import { CorrectionRequestDialog } from "@/components/attendance/correction-request-dialog";
 import type { AttendanceCheckRow } from "@/lib/types/db";
 
 type Props = {
   initialRows: AttendanceCheckRow[];
+  stats: { pending: number; confirmed: number; total: number };
   canRequestCorrection: boolean;
 };
 
-export function ApprovalHistoryShell({ initialRows, canRequestCorrection }: Props) {
+export function ApprovalHistoryShell({ initialRows, stats, canRequestCorrection }: Props) {
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
 
   const filtered = useMemo(() => {
-    const s = search.trim().toLowerCase();
+    const s = deferredSearch.trim().toLowerCase();
     if (!s) return initialRows;
     return initialRows.filter((row) => {
       const name = row.workers?.name?.toLowerCase() ?? "";
       const idn = row.workers?.id_number?.toLowerCase() ?? "";
       return name.includes(s) || idn.includes(s);
     });
-  }, [initialRows, search]);
+  }, [initialRows, deferredSearch]);
 
   return (
     <div className="space-y-3">
+      <ApprovalFilterStats pending={stats.pending} confirmed={stats.confirmed} total={stats.total} />
+
       <div className="rounded border border-slate-200 bg-white p-3">
         <label className="block text-xs font-bold text-slate-700">بحث فوري</label>
         <input

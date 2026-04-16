@@ -117,6 +117,8 @@ type ChecksPageParams = {
   pageSize: number;
   workDate?: string;
   siteId?: number;
+  /** فلتر مقاول العامل (جدول workers) — يطابق التحضير */
+  contractorId?: number;
   search?: string;
   status?: "present" | "absent" | "half";
   confirmationStatus?: "pending" | "confirmed" | "rejected";
@@ -240,18 +242,26 @@ export async function getAttendanceCheckIdMap(
 export async function getPendingApprovalCheckIds(params: {
   workDate: string;
   siteId?: number;
+  contractorId?: number;
   search?: string;
   roundNo?: number;
 }): Promise<number[]> {
   const supabase = createSupabaseAdminClient();
+  const cid = params.contractorId && Number.isFinite(params.contractorId) ? params.contractorId : undefined;
+  const workerSelect = cid
+    ? "workers!inner(name, id_number, contractor_id)"
+    : "workers!inner(name, id_number)";
   let query = supabase
     .from("attendance_checks")
-    .select("id, attendance_rounds!inner(work_date, site_id, round_no), workers!inner(name, id_number)")
+    .select(`id, attendance_rounds!inner(work_date, site_id, round_no), ${workerSelect}`)
     .eq("confirmation_status", "pending")
     .eq("attendance_rounds.work_date", params.workDate);
 
   if (params.siteId) {
     query = query.eq("attendance_rounds.site_id", params.siteId);
+  }
+  if (cid) {
+    query = query.eq("workers.contractor_id", cid);
   }
   if (params.roundNo !== undefined && Number.isFinite(params.roundNo)) {
     query = query.eq("attendance_rounds.round_no", normalizeShiftRound(params.roundNo));
@@ -265,6 +275,46 @@ export async function getPendingApprovalCheckIds(params: {
   if (error || !data) return [];
 
   return (data as Array<{ id: number }>).map((r) => r.id).filter(Boolean);
+}
+
+/** أعداد اعتماد الميدان للتاريخ + الوردية + موقع/مقاول — بدون تحميل الصفوف. */
+export async function getApprovalFilterCounts(params: {
+  workDate: string;
+  siteId?: number;
+  contractorId?: number;
+  roundNo: number;
+}): Promise<{ pending: number; confirmed: number; total: number }> {
+  const supabase = createSupabaseAdminClient();
+  const r = normalizeShiftRound(params.roundNo);
+  const sid = params.siteId && Number.isFinite(params.siteId) ? params.siteId : undefined;
+  const cid = params.contractorId && Number.isFinite(params.contractorId) ? params.contractorId : undefined;
+
+  const workerPart = cid ? "workers!inner(id, contractor_id)" : "workers(id)";
+
+  const run = async (confirmationStatus?: "pending" | "confirmed") => {
+    let q = supabase
+      .from("attendance_checks")
+      .select(`id, attendance_rounds!inner(work_date, round_no, site_id), ${workerPart}`, {
+        count: "exact",
+        head: true,
+      })
+      .eq("attendance_rounds.work_date", params.workDate)
+      .eq("attendance_rounds.round_no", r);
+    if (sid) q = q.eq("attendance_rounds.site_id", sid);
+    if (cid) q = q.eq("workers.contractor_id", cid);
+    if (confirmationStatus) q = q.eq("confirmation_status", confirmationStatus);
+    const { count, error } = await q;
+    if (error) return 0;
+    return count ?? 0;
+  };
+
+  const [pending, confirmed, total] = await Promise.all([
+    run("pending"),
+    run("confirmed"),
+    run(),
+  ]);
+
+  return { pending, confirmed, total };
 }
 
 /** تحميل كامل بدون ترقيم صفحات — حتى ~كل العمال النشطين في نطاق الفلتر */
@@ -771,6 +821,7 @@ export async function getAttendanceChecksPage({
   pageSize,
   workDate,
   siteId,
+  contractorId,
   search,
   status,
   confirmationStatus,
@@ -782,8 +833,11 @@ export async function getAttendanceChecksPage({
 
   const workerEmbed =
     "id, name, id_number, current_site_id, contractor_id, sites(name), contractors(name)";
-  const workerSelect =
-    search && search.trim() ? `workers!inner(${workerEmbed})` : `workers(${workerEmbed})`;
+  const cid =
+    contractorId !== undefined && Number.isFinite(contractorId) ? Number(contractorId) : undefined;
+  const needInner =
+    Boolean(search && search.trim()) || cid !== undefined;
+  const workerSelect = needInner ? `workers!inner(${workerEmbed})` : `workers(${workerEmbed})`;
 
   let query = supabase
     .from("attendance_checks")
@@ -810,6 +864,10 @@ export async function getAttendanceChecksPage({
 
   if (roundNo !== undefined && Number.isFinite(roundNo)) {
     query = query.eq("attendance_rounds.round_no", normalizeShiftRound(roundNo));
+  }
+
+  if (cid !== undefined) {
+    query = query.eq("workers.contractor_id", cid);
   }
 
   if (search && search.trim()) {
