@@ -11,15 +11,20 @@ import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 const CHUNK = 500;
 
+function revalidateApprovalCaches() {
+  revalidatePath("/approval");
+  revalidatePath("/dashboard");
+  revalidatePath("/attendance");
+  revalidateTag("dashboard-stats", "max");
+  revalidateTag("dashboard-admin", "max");
+}
+
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
 export type FetchPendingIdsResult = { ok: true; ids: number[] } | { ok: false; error: string };
 
 /** دفعة واحدة بحد أقصى 500 — التجميع من الواجهة مع شريط تقدّم (مثل التحضير). */
-export async function approveApprovalChunk(
-  checkIds: number[],
-  opts?: { revalidate?: boolean },
-): Promise<ActionResult> {
+export async function approveApprovalChunk(checkIds: number[]): Promise<ActionResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser } = await getSessionContext();
   if (!appUser || !hasPermission(appUser, PERM.APPROVAL)) {
@@ -32,13 +37,7 @@ export async function approveApprovalChunk(
   }
   try {
     await applyApprovalDecisionsEngine({ checkIds: ids, decision: "confirm" });
-    if (opts?.revalidate !== false) {
-      revalidatePath("/approval");
-      revalidatePath("/dashboard");
-      revalidatePath("/attendance");
-      revalidateTag("dashboard-stats", "max");
-      revalidateTag("dashboard-admin", "max");
-    }
+    revalidateApprovalCaches();
     return { ok: true };
   } catch {
     return { ok: false, error: "فشل الحفظ — حاول مرة أخرى." };

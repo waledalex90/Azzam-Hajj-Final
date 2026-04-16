@@ -95,14 +95,10 @@ export function ApprovalQueueTable({
           return;
         }
         const chunks = chunkIds(allIds, CLIENT_APPROVAL_CHUNK);
-        const progressId = chunks.length > 1 ? toast.loading(`جاري الاعتماد… 1/${chunks.length}`) : undefined;
+        const progressId = toast.loading(`جاري الاعتماد… دفعة 1 من ${chunks.length}`);
         for (let i = 0; i < chunks.length; i += 1) {
-          if (chunks.length > 1 && progressId !== undefined) {
-            toast.loading(`جاري الاعتماد… ${i + 1}/${chunks.length}`, { id: progressId });
-          }
-          const res = await approveApprovalChunk(chunks[i], {
-            revalidate: i === chunks.length - 1,
-          });
+          toast.loading(`جاري الاعتماد… دفعة ${i + 1} من ${chunks.length}`, { id: progressId });
+          const res = await approveApprovalChunk(chunks[i]);
           if (!res.ok) {
             toast.error(res.error, { id: progressId });
             void router.refresh();
@@ -130,14 +126,10 @@ export function ApprovalQueueTable({
         return;
       }
       const chunks = chunkIds(ids, CLIENT_APPROVAL_CHUNK);
-      const progressId = chunks.length > 1 ? toast.loading(`جاري الاعتماد… 1/${chunks.length}`) : undefined;
+      const progressId = toast.loading(`جاري الاعتماد… دفعة 1 من ${chunks.length}`);
       for (let i = 0; i < chunks.length; i += 1) {
-        if (chunks.length > 1 && progressId !== undefined) {
-          toast.loading(`جاري الاعتماد… ${i + 1}/${chunks.length}`, { id: progressId });
-        }
-        const res = await approveApprovalChunk(chunks[i], {
-          revalidate: i === chunks.length - 1,
-        });
+        toast.loading(`جاري الاعتماد… دفعة ${i + 1} من ${chunks.length}`, { id: progressId });
+        const res = await approveApprovalChunk(chunks[i]);
         if (!res.ok) {
           toast.error(res.error, { id: progressId });
           void router.refresh();
