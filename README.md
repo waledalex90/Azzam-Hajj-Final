@@ -1,38 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Azzam Hajj — النسخة النهائية للإنتاج
 
-## Getting Started
+مشروع [Next.js](https://nextjs.org) لنظام عزّام (التحضير، العمال، الموافقات، التقارير).
 
-First, run the development server:
+## الميزات المتفق عليها (مرجع للتسليم)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+1. **تحضير فوري** (`components/attendance/attendance-workzone.tsx` + `attendance-workers-table.tsx`): عند الضغط (فردي أو جماعي) يُخفى العامل من الجدول محلياً، تُحدَّث العدادات (معلّق / حاضر / غائب / نصف يوم) فوراً، ثم الانتقال لتبويب **مراجعة تحضير اليوم** بعد الحفظ.
+2. **استيراد Excel على دفعات 200** مع شريط تقدّم (`components/workers/workers-upload-form.tsx` — `CHUNK_SIZE = 200`)، وتحضير جماعي بنفس حجم الدفعة (`BULK_CHUNK_SIZE = 200` في جدول التحضير).
+
+## المتطلبات البيئية (Supabase — مشروع Azzam)
+
+انسخ `.env.example` إلى `.env.local` وعبّئ من لوحة Supabase → **Project Settings → API**:
+
+| المتغير | الوصف |
+|--------|--------|
+| `NEXT_PUBLIC_SUPABASE_URL` | رابط المشروع |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | مفتاح anon العام |
+| `SUPABASE_SERVICE_ROLE_KEY` | مفتاح service role (سيرفر فقط؛ لا تُعرضه في الواجهة) |
+
+## رفع الكود إلى الريبو الجديد `Azzam-Hajj-Final`
+
+المستودع الرسمي للإنتاج: **`https://github.com/waledalex90/Azzam-Hajj-Final`** (يُنشأ مرة واحدة).
+
+### الطريقة أ — سكربت (يحتاج GitHub CLI مسجّل بحساب waledalex90)
+
+```powershell
+cd "مسار\azzam-hajj-system"
+gh auth login
+.\scripts\push-github-final.ps1
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### الطريقة ب — يدوياً
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. أنشئ على GitHub مستودعاً فارغاً باسم **Azzam-Hajj-Final** (بدون README إن رغبت بدفع نظيف).
+2. ثم:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```powershell
+git remote add final https://github.com/waledalex90/Azzam-Hajj-Final.git
+git push -u final main
+```
 
-## Learn More
+## Vercel (حساب waledalex90 فقط)
 
-To learn more about Next.js, take a look at the following resources:
+1. سجّل الدخول إلى Vercel بحساب **waledalex90**.
+2. **Add New Project** → استورد **`waledalex90/Azzam-Hajj-Final`**.
+3. **Settings → Environment Variables**: أضف نفس أسماء المتغيرات أعلاه (Production + Preview إن لزم).
+4. **Production Branch**: `main`.
+5. بعد أول نشر ناجح (Ready أخضر)، اربط **دومين الإنتاج** الواحد المعتمد للفريق.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## التطوير المحلي
 
-## Deploy on Vercel
+```bash
+npm install
+npm run dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-Project note: Git identity verification update for deployment flow.
+افتح [http://localhost:3000](http://localhost:3000).
