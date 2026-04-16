@@ -14,6 +14,7 @@ export async function revalidateAttendancePageCache(): Promise<void> {
   const { appUser } = await getSessionContext();
   if (!appUser) return;
   revalidatePath("/attendance");
+  revalidatePath("/approval");
   revalidatePath("/dashboard");
 }
 

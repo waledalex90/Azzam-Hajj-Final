@@ -129,7 +129,9 @@ export type AttendanceCheckRow = {
   confirm_note: string | null;
   attendance_rounds?: { work_date: string; round_no: number; site_id?: number } | null;
   workers?: { name: string; id_number: string } | null;
+  /** موقع العامل الحالي من جدول workers (أولوية على موقع الجولة). */
   sites?: { name: string } | null;
+  contractors?: { name: string } | null;
 };
 
 export type TopStats = {

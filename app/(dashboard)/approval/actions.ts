@@ -25,10 +25,10 @@ export async function approveChecksByIds(checkIds: number[]): Promise<ActionResu
     for (let i = 0; i < ids.length; i += CHUNK) {
       const chunk = ids.slice(i, i + CHUNK);
       await applyApprovalDecisionsEngine({ checkIds: chunk, decision: "confirm" });
+      revalidatePath("/approval");
+      revalidatePath("/dashboard");
+      revalidatePath("/attendance");
     }
-    revalidatePath("/approval");
-    revalidatePath("/dashboard");
-    revalidatePath("/attendance");
     revalidateTag("dashboard-stats", "max");
     revalidateTag("dashboard-admin", "max");
     return { ok: true };
@@ -41,6 +41,8 @@ export async function approveAllPendingInFilter(input: {
   workDate: string;
   siteId?: number;
   q?: string;
+  /** 1 صباحي، 2 مسائي — إلزامي لعدم اعتماد جولات أخرى بالخطأ */
+  roundNo: number;
 }): Promise<ActionResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser } = await getSessionContext();
@@ -56,15 +58,16 @@ export async function approveAllPendingInFilter(input: {
       workDate,
       siteId: input.siteId,
       search: input.q?.trim() || undefined,
+      roundNo: input.roundNo,
     });
     if (ids.length === 0) return { ok: false, error: "لا توجد سجلات معلّقة ضمن الفلتر." };
     for (let i = 0; i < ids.length; i += CHUNK) {
       const chunk = ids.slice(i, i + CHUNK);
       await applyApprovalDecisionsEngine({ checkIds: chunk, decision: "confirm" });
+      revalidatePath("/approval");
+      revalidatePath("/dashboard");
+      revalidatePath("/attendance");
     }
-    revalidatePath("/approval");
-    revalidatePath("/dashboard");
-    revalidatePath("/attendance");
     revalidateTag("dashboard-stats", "max");
     revalidateTag("dashboard-admin", "max");
     return { ok: true };

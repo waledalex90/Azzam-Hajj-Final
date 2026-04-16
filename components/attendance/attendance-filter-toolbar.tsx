@@ -1,5 +1,6 @@
 "use client";
 
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { revalidateAttendancePageCache } from "@/app/(dashboard)/attendance/actions";
@@ -35,6 +36,7 @@ export function AttendanceFilterToolbar(props: {
   showContractor: boolean;
 }) {
   const router = useRouter();
+  const [isNavPending, startTransition] = useTransition();
   const { basePath, tab, workDate, roundNo, siteId, contractorId, sites, contractors, showContractor } = props;
 
   const navigate = (patch: Partial<{ date: string; shift: string; siteId: string; contractorId: string }>) => {
@@ -46,8 +48,10 @@ export function AttendanceFilterToolbar(props: {
       contractorId: patch.contractorId !== undefined ? patch.contractorId : contractorId,
       includeContractor: showContractor,
     });
-    router.push(`${basePath}?${q}`);
-    router.refresh();
+    startTransition(() => {
+      router.push(`${basePath}?${q}`);
+      router.refresh();
+    });
   };
 
   return (
@@ -56,12 +60,14 @@ export function AttendanceFilterToolbar(props: {
         key={workDate}
         name="date"
         defaultValue={workDate}
+        disabled={isNavPending}
         onCommitted={(d) => navigate({ date: d })}
       />
       <select
         value={String(roundNo)}
         onChange={(e) => navigate({ shift: e.target.value })}
-        className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base font-bold"
+        disabled={isNavPending}
+        className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base font-bold disabled:opacity-60"
       >
         <option value="1">وردية صباحي</option>
         <option value="2">وردية مسائي</option>
@@ -72,7 +78,8 @@ export function AttendanceFilterToolbar(props: {
       <select
         value={siteId ?? ""}
         onChange={(e) => navigate({ siteId: e.target.value })}
-        className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base"
+        disabled={isNavPending}
+        className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base disabled:opacity-60"
       >
         <option value="">كل المواقع</option>
         {sites.map((site) => (
@@ -85,7 +92,8 @@ export function AttendanceFilterToolbar(props: {
         <select
           value={contractorId ?? ""}
           onChange={(e) => navigate({ contractorId: e.target.value })}
-          className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base"
+          disabled={isNavPending}
+          className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base disabled:opacity-60"
         >
           <option value="">كل المقاولين</option>
           {contractors.map((c) => (

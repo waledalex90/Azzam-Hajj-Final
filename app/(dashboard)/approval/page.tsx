@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 
 import { ApprovalHistoryShell } from "@/components/approval/approval-history-shell";
 import { ApprovalPendingShell } from "@/components/approval/approval-pending-shell";
@@ -11,9 +13,10 @@ import { PERM } from "@/lib/permissions/keys";
 import {
   getAttendanceChecksPage,
   getPendingApprovalCheckIds,
-  getSiteOptions,
+  getSiteOptionsLive,
   normalizeShiftRound,
 } from "@/lib/data/attendance";
+import { buildPaginationMeta } from "@/lib/utils/pagination";
 
 type Props = {
   searchParams: Promise<{
@@ -24,10 +27,15 @@ type Props = {
   }>;
 };
 
-/** تحميل كامل — بدون ترقيم صفحات */
 const FULL_LOAD = 50000;
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
 export default async function ApprovalPage({ searchParams }: Props) {
+  noStore();
+  const mountKey = randomUUID();
   const { appUser } = await getSessionContext();
   const canCorrection = Boolean(appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST));
   const canResetAttendance = Boolean(
@@ -46,39 +54,57 @@ export default async function ApprovalPage({ searchParams }: Props) {
 
   const sid = Number.isFinite(siteId) ? siteId : undefined;
 
-  const [pendingBlock, historyBlock, sites, pendingFilteredTotal] = await Promise.all([
-    activeTab === "pending"
-      ? getAttendanceChecksPage({
-          page: 1,
-          pageSize: FULL_LOAD,
-          workDate,
-          siteId: sid,
-          search: undefined,
-          confirmationStatus: "pending",
-          roundNo,
-        })
-      : Promise.resolve(null),
-    activeTab === "history"
-      ? getAttendanceChecksPage({
-          page: 1,
-          pageSize: FULL_LOAD,
-          workDate,
-          siteId: sid,
-          search: undefined,
-          confirmationStatus: "confirmed",
-          roundNo,
-        })
-      : Promise.resolve(null),
-    getSiteOptions(),
-    activeTab === "pending"
-      ? getPendingApprovalCheckIds({
-          workDate,
-          siteId: sid,
-          search: undefined,
-          roundNo,
-        }).then((ids) => ids.length)
-      : Promise.resolve(0),
-  ]);
+  let sites: Awaited<ReturnType<typeof getSiteOptionsLive>> = [];
+  let pendingBlock: Awaited<ReturnType<typeof getAttendanceChecksPage>> | null = null;
+  let historyBlock: Awaited<ReturnType<typeof getAttendanceChecksPage>> | null = null;
+  let pendingFilteredTotal = 0;
+
+  try {
+    sites = await getSiteOptionsLive();
+    [pendingBlock, historyBlock, pendingFilteredTotal] = await Promise.all([
+      activeTab === "pending"
+        ? getAttendanceChecksPage({
+            page: 1,
+            pageSize: FULL_LOAD,
+            workDate,
+            siteId: sid,
+            search: undefined,
+            confirmationStatus: "pending",
+            roundNo,
+          })
+        : Promise.resolve(null),
+      activeTab === "history"
+        ? getAttendanceChecksPage({
+            page: 1,
+            pageSize: FULL_LOAD,
+            workDate,
+            siteId: sid,
+            search: undefined,
+            confirmationStatus: "confirmed",
+            roundNo,
+          })
+        : Promise.resolve(null),
+      activeTab === "pending"
+        ? getPendingApprovalCheckIds({
+            workDate,
+            siteId: sid,
+            search: undefined,
+            roundNo,
+          }).then((ids) => ids.length)
+        : Promise.resolve(0),
+    ]);
+  } catch {
+    sites = [];
+    pendingBlock =
+      activeTab === "pending"
+        ? { rows: [], meta: buildPaginationMeta(0, 1, 1) }
+        : null;
+    historyBlock =
+      activeTab === "history"
+        ? { rows: [], meta: buildPaginationMeta(0, 1, 1) }
+        : null;
+    pendingFilteredTotal = 0;
+  }
 
   const pendingRows = pendingBlock?.rows ?? [];
   const historyRows = historyBlock?.rows ?? [];
@@ -124,15 +150,16 @@ export default async function ApprovalPage({ searchParams }: Props) {
 
       {activeTab === "pending" ? (
         <ApprovalPendingShell
-          key={`pend-${workDate}-${roundNo}-${params.siteId ?? ""}`}
+          key={`pend-${workDate}-${roundNo}-${params.siteId ?? ""}-${mountKey}`}
           initialRows={pendingRows}
           totalPendingFiltered={pendingFilteredTotal}
           workDate={workDate}
           siteId={params.siteId}
+          roundNo={roundNo}
         />
       ) : (
         <ApprovalHistoryShell
-          key={`hist-${workDate}-${roundNo}-${params.siteId ?? ""}`}
+          key={`hist-${workDate}-${roundNo}-${params.siteId ?? ""}-${mountKey}`}
           initialRows={historyRows}
           canRequestCorrection={canCorrection}
         />

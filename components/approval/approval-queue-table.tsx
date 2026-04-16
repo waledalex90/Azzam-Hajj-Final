@@ -15,6 +15,7 @@ type Props = {
   totalPendingFiltered: number;
   workDate: string;
   siteId?: string;
+  roundNo: number;
   q?: string;
 };
 
@@ -25,6 +26,7 @@ export function ApprovalQueueTable({
   totalPendingFiltered,
   workDate,
   siteId,
+  roundNo,
   q,
 }: Props) {
   const router = useRouter();
@@ -69,6 +71,7 @@ export function ApprovalQueueTable({
           workDate,
           siteId: siteId ? Number(siteId) : undefined,
           q,
+          roundNo,
         });
         if (!res.ok) {
           toast.error(res.error);
@@ -76,6 +79,7 @@ export function ApprovalQueueTable({
         }
         toast.success("تم الاعتماد ✅");
         setSelected(new Set());
+        setRemoved(new Set(rows.map((r) => r.id)));
         router.refresh();
         return;
       }
@@ -102,6 +106,7 @@ export function ApprovalQueueTable({
       }
       toast.success("تم الاعتماد ✅");
       setSelected(new Set());
+      router.refresh();
     } finally {
       setIsSaving(false);
     }
@@ -145,6 +150,7 @@ export function ApprovalQueueTable({
         next.delete(checkId);
         return next;
       });
+      router.refresh();
     } finally {
       setPendingCheckIds((prev) => prev.filter((id) => id !== checkId));
       setIsSaving(false);
@@ -206,7 +212,7 @@ export function ApprovalQueueTable({
       <div style={{ height: TABLE_H }}>
         <TableVirtuoso
           data={displayRows}
-          fixedItemHeight={48}
+          fixedItemHeight={52}
           style={{ height: "100%" }}
           components={{
             Table: ({ style, ...props }) => (
@@ -222,6 +228,7 @@ export function ApprovalQueueTable({
               <th className="w-10 border border-slate-300 px-2 py-2 text-right font-bold"> </th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold">العامل</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold">الموقع</th>
+              <th className="border border-slate-300 px-3 py-2 text-right font-bold">المقاول</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold">الجولة</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold">الحالة</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold">إجراء</th>
@@ -244,7 +251,8 @@ export function ApprovalQueueTable({
                   <p className="font-bold text-slate-800">{row.workers?.name ?? "-"}</p>
                   <p className="text-xs text-slate-500">{row.workers?.id_number ?? "-"}</p>
                 </td>
-                <td className="border border-slate-300 px-3 py-1">{row.sites?.name ?? "-"}</td>
+                <td className="border border-slate-300 px-3 py-1">{row.sites?.name ?? "—"}</td>
+                <td className="border border-slate-300 px-3 py-1">{row.contractors?.name ?? "—"}</td>
                 <td className="border border-slate-300 px-3 py-1 text-xs">
                   {row.attendance_rounds?.work_date ?? "-"} / #{row.attendance_rounds?.round_no ?? "-"}
                 </td>

@@ -12,6 +12,7 @@ type Props = {
   defaultValue: string;
   /** يُستدعى عند اختيار تاريخ (للتنقل الفوري بدون زر إرسال) */
   onCommitted?: (yyyyMmDd: string) => void;
+  disabled?: boolean;
 };
 
 function parseDate(value: string) {
@@ -19,7 +20,7 @@ function parseDate(value: string) {
   return isValid(parsed) ? parsed : new Date();
 }
 
-export function DatePickerField({ name, defaultValue, onCommitted }: Props) {
+export function DatePickerField({ name, defaultValue, onCommitted, disabled }: Props) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Date>(parseDate(defaultValue));
 
@@ -31,8 +32,12 @@ export function DatePickerField({ name, defaultValue, onCommitted }: Props) {
       <input type="hidden" name={name} value={value} />
       <button
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className="flex min-h-12 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-right text-sm text-slate-700 shadow-sm hover:border-[#166534]"
+        disabled={disabled}
+        onClick={() => {
+          if (disabled) return;
+          setOpen((prev) => !prev);
+        }}
+        className="flex min-h-12 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-right text-sm text-slate-700 shadow-sm hover:border-[#166534] disabled:cursor-not-allowed disabled:opacity-60"
       >
         <span>{label}</span>
         <CalendarDays className="h-4 w-4 text-slate-500" />

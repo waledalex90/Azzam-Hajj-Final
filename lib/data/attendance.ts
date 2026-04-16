@@ -141,7 +141,7 @@ function mapRawWorkerEmbedRowToWorkerRow(item: RawWorkerEmbedRow): WorkerRow {
   };
 }
 
-type RawAttendanceCheckRow = Omit<AttendanceCheckRow, "attendance_rounds" | "workers" | "sites"> & {
+type RawAttendanceCheckRow = Omit<AttendanceCheckRow, "attendance_rounds" | "workers" | "sites" | "contractors"> & {
   attendance_rounds?:
     | {
         work_date: string;
@@ -150,7 +150,20 @@ type RawAttendanceCheckRow = Omit<AttendanceCheckRow, "attendance_rounds" | "wor
         sites?: { name: string } | { name: string }[] | null;
       }[]
     | null;
-  workers?: { name: string; id_number: string } | { name: string; id_number: string }[] | null;
+  workers?:
+    | {
+        name: string;
+        id_number: string;
+        sites?: { name: string } | { name: string }[] | null;
+        contractors?: { name: string } | { name: string }[] | null;
+      }
+    | Array<{
+        name: string;
+        id_number: string;
+        sites?: { name: string } | { name: string }[] | null;
+        contractors?: { name: string } | { name: string }[] | null;
+      }>
+    | null;
 };
 
 export async function getAttendanceLatestStatusMap(
@@ -767,8 +780,10 @@ export async function getAttendanceChecksPage({
   const to = from + pageSize - 1;
   const supabase = createSupabaseAdminClient();
 
+  const workerEmbed =
+    "id, name, id_number, current_site_id, contractor_id, sites(name), contractors(name)";
   const workerSelect =
-    search && search.trim() ? "workers!inner(name, id_number)" : "workers(name, id_number)";
+    search && search.trim() ? `workers!inner(${workerEmbed})` : `workers(${workerEmbed})`;
 
   let query = supabase
     .from("attendance_checks")
@@ -808,20 +823,27 @@ export async function getAttendanceChecksPage({
   }
 
   const rows =
-    ((data as RawAttendanceCheckRow[]) ?? []).map((item) => ({
-      ...item,
-      attendance_rounds: item.attendance_rounds?.[0]
-        ? {
-            work_date: item.attendance_rounds[0].work_date,
-            round_no: item.attendance_rounds[0].round_no,
-            site_id: item.attendance_rounds[0].site_id,
-          }
-        : null,
-      workers: Array.isArray(item.workers) ? (item.workers[0] ?? null) : (item.workers ?? null),
-      sites: Array.isArray(item.attendance_rounds?.[0]?.sites)
+    ((data as RawAttendanceCheckRow[]) ?? []).map((item) => {
+      const w = Array.isArray(item.workers) ? (item.workers[0] ?? null) : (item.workers ?? null);
+      const workerSite = w ? relationOne(w.sites as { name: string } | null) : null;
+      const workerContractor = w ? relationOne(w.contractors as { name: string } | null) : null;
+      const roundSite = Array.isArray(item.attendance_rounds?.[0]?.sites)
         ? (item.attendance_rounds?.[0]?.sites?.[0] ?? null)
-        : (item.attendance_rounds?.[0]?.sites ?? null),
-    })) ?? [];
+        : (item.attendance_rounds?.[0]?.sites ?? null);
+      return {
+        ...item,
+        attendance_rounds: item.attendance_rounds?.[0]
+          ? {
+              work_date: item.attendance_rounds[0].work_date,
+              round_no: item.attendance_rounds[0].round_no,
+              site_id: item.attendance_rounds[0].site_id,
+            }
+          : null,
+        workers: w ? { name: w.name, id_number: w.id_number } : null,
+        sites: workerSite ?? roundSite,
+        contractors: workerContractor ?? null,
+      };
+    }) ?? [];
 
   return {
     rows,
