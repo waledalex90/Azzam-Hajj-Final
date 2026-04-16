@@ -21,8 +21,7 @@ export async function revalidateAttendancePageCache(): Promise<void> {
 
 type Status = "present" | "absent" | "half";
 
-/** دفعات صغيرة لتفادي timeout الـ RPC على السيرفر */
-const CHUNK = 100;
+const CHUNK = 500;
 
 export async function submitAttendancePrepBulk(
   workDate: string,

@@ -123,7 +123,7 @@ export type AttendanceCheckRow = {
   worker_id: number;
   status: "present" | "absent" | "half";
   confirmation_status: "pending" | "confirmed" | "rejected";
-  /** يتطابق مع اعتماد نهائي؛ يُحدَّث من السيرفر عند إضافة العمود في قاعدة البيانات */
+  /** اختياري؛ مصدر الحقيقة للاعتماد هو confirmation_status — لا يُحدَّث من واجهة الاعتماد إن وُجد العمود */
   is_approved?: boolean;
   checked_at: string;
   confirm_note: string | null;

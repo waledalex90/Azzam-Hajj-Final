@@ -46,7 +46,6 @@ export async function resolveCorrectionRequest(
       confirmation_status: "confirmed",
       confirm_note: "تعديل من طلبات التصحيح",
       confirmed_at: new Date().toISOString(),
-      is_approved: true,
     })
     .eq("id", checkId);
 

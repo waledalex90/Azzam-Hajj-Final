@@ -118,7 +118,6 @@ async function applyApprovalDecisionsViaDirectUpdate(
     .update({
       confirmation_status: nextStatus,
       confirmed_at: new Date().toISOString(),
-      is_approved: decision === "confirm",
     })
     .eq("confirmation_status", "pending")
     .in("id", uniqueIds)

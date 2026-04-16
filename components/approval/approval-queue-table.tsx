@@ -22,7 +22,7 @@ type Props = {
 };
 
 const TABLE_H = "min(70vh,900px)";
-const CLIENT_APPROVAL_CHUNK = 100;
+const CLIENT_APPROVAL_CHUNK = 500;
 
 function chunkIds(ids: number[], size: number): number[][] {
   const out: number[][] = [];

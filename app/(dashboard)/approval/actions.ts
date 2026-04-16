@@ -25,7 +25,7 @@ export type ActionResult = { ok: true } | { ok: false; error: string };
 
 export type FetchPendingIdsResult = { ok: true; ids: number[] } | { ok: false; error: string };
 
-/** دفعة واحدة بحد أقصى 100 — التجميع من الواجهة مع شريط تقدّم (مثل التحضير). */
+/** دفعة واحدة بحد أقصى 500 — التجميع من الواجهة مع شريط تقدّم (مثل التحضير). */
 export async function approveApprovalChunk(checkIds: number[]): Promise<ActionResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser } = await getSessionContext();
