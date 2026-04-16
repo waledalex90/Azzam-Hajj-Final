@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { DatePickerField } from "@/components/ui/date-picker-field";
+import { AttendanceFilterToolbar } from "@/components/attendance/attendance-filter-toolbar";
+import { AttendanceResetButton } from "@/components/attendance/attendance-reset-button";
 import {
   getAllPendingPrepWorkers,
   getAttendanceChecksPage,
@@ -36,6 +36,9 @@ export const dynamic = "force-dynamic";
 export default async function AttendancePage({ searchParams }: Props) {
   const { appUser } = await getSessionContext();
   const canCorrection = Boolean(appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST));
+  const canResetAttendance = Boolean(
+    appUser && (hasPermission(appUser, PERM.PREP) || hasPermission(appUser, PERM.APPROVAL)),
+  );
 
   const params = await searchParams;
   const activeTab = params.tab === "review" ? "review" : "workers";
@@ -141,82 +144,28 @@ export default async function AttendancePage({ searchParams }: Props) {
             : "نفس الوردية المختارة لعرض سجلات المراجعة والاعتماد المعلّق لهذه الجولة فقط."}
         </p>
         {activeTab === "workers" ? (
-          <form className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6" method="get">
-            <input type="hidden" name="tab" value="workers" />
-            <DatePickerField name="date" defaultValue={workDate} />
-            <select
-              name="shift"
-              defaultValue={String(roundNo)}
-              className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base font-bold"
-            >
-              <option value="1">وردية صباحي</option>
-              <option value="2">وردية مسائي</option>
-            </select>
-            <div className="min-h-12 rounded border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600 lg:col-span-1">
-              بحث فوري تحت الجدول
-            </div>
-            <select
-              name="siteId"
-              defaultValue={params.siteId}
-              className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base"
-            >
-              <option value="">كل المواقع</option>
-              {sites.map((site) => (
-                <option key={site.id} value={site.id}>
-                  {site.name}
-                </option>
-              ))}
-            </select>
-            <select
-              name="contractorId"
-              defaultValue={params.contractorId}
-              className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base"
-            >
-              <option value="">كل المقاولين</option>
-              {contractors.map((contractor) => (
-                <option key={contractor.id} value={contractor.id}>
-                  {contractor.name}
-                </option>
-              ))}
-            </select>
-            <Button type="submit" className="w-full">
-              تطبيق الفلاتر
-            </Button>
-          </form>
+          <AttendanceFilterToolbar
+            basePath="/attendance"
+            tab="workers"
+            workDate={workDate}
+            roundNo={roundNo}
+            siteId={params.siteId}
+            contractorId={params.contractorId}
+            sites={sites}
+            contractors={contractors}
+            showContractor
+          />
         ) : (
-          <form className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6" method="get">
-            <input type="hidden" name="tab" value="review" />
-            <DatePickerField name="date" defaultValue={workDate} />
-            <select
-              name="shift"
-              defaultValue={String(roundNo)}
-              className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base font-bold"
-            >
-              <option value="1">وردية صباحي</option>
-              <option value="2">وردية مسائي</option>
-            </select>
-            <div className="min-h-12 rounded border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
-              بحث فوري تحت الجدول
-            </div>
-            <select
-              name="siteId"
-              defaultValue={params.siteId}
-              className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base"
-            >
-              <option value="">كل المواقع</option>
-              {sites.map((site) => (
-                <option key={site.id} value={site.id}>
-                  {site.name}
-                </option>
-              ))}
-            </select>
-            <div className="min-h-12 rounded border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
-              المقاول من تبويب التحضير
-            </div>
-            <Button type="submit" className="w-full">
-              تطبيق الفلاتر
-            </Button>
-          </form>
+          <AttendanceFilterToolbar
+            basePath="/attendance"
+            tab="review"
+            workDate={workDate}
+            roundNo={roundNo}
+            siteId={params.siteId}
+            contractors={contractors}
+            sites={sites}
+            showContractor={false}
+          />
         )}
       </Card>
 
@@ -251,10 +200,17 @@ export default async function AttendancePage({ searchParams }: Props) {
           </div>
           <Card className="border-dashed border-slate-200 bg-white/80">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-extrabold text-slate-800">سجلات اليوم المحضّرة للمراجعة</p>
-              <p className="rounded-lg bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
-                إجمالي السجلات المحمّلة: {reviewedRows.length}
+              <p className="text-sm font-extrabold text-slate-800">
+                سجلات المحضّرة للمراجعة — {workDate} — {roundNo === 2 ? "مسائي" : "صباحي"}
               </p>
+              <div className="flex flex-wrap items-center gap-2">
+                {canResetAttendance ? (
+                  <AttendanceResetButton workDate={workDate} roundNo={roundNo} siteId={params.siteId} />
+                ) : null}
+                <p className="rounded-lg bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
+                  إجمالي السجلات: {reviewedRows.length}
+                </p>
+              </div>
             </div>
           </Card>
 

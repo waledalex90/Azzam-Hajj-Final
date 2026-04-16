@@ -10,6 +10,8 @@ import "react-day-picker/style.css";
 type Props = {
   name: string;
   defaultValue: string;
+  /** يُستدعى عند اختيار تاريخ (للتنقل الفوري بدون زر إرسال) */
+  onCommitted?: (yyyyMmDd: string) => void;
 };
 
 function parseDate(value: string) {
@@ -17,7 +19,7 @@ function parseDate(value: string) {
   return isValid(parsed) ? parsed : new Date();
 }
 
-export function DatePickerField({ name, defaultValue }: Props) {
+export function DatePickerField({ name, defaultValue, onCommitted }: Props) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Date>(parseDate(defaultValue));
 
@@ -45,6 +47,8 @@ export function DatePickerField({ name, defaultValue }: Props) {
               if (!date) return;
               setSelected(date);
               setOpen(false);
+              const iso = format(date, "yyyy-MM-dd");
+              onCommitted?.(iso);
             }}
             locale={arSA}
             weekStartsOn={6}
@@ -54,8 +58,10 @@ export function DatePickerField({ name, defaultValue }: Props) {
             type="button"
             className="mt-2 w-full rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200"
             onClick={() => {
-              setSelected(new Date());
+              const d = new Date();
+              setSelected(d);
               setOpen(false);
+              onCommitted?.(format(d, "yyyy-MM-dd"));
             }}
           >
             اختيار تاريخ اليوم

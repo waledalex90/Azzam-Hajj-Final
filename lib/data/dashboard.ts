@@ -1,6 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getAttendanceDayStats, getSiteOptions } from "@/lib/data/attendance";
-import { unstable_cache } from "next/cache";
 import type {
   AdminDashboardData,
   DashboardStats,
@@ -19,8 +18,8 @@ async function safeCount(query: PromiseLike<{ count: number | null; error: { mes
   return count ?? 0;
 }
 
-async function getDashboardStatsUncached(): Promise<DashboardStats> {
-  const today = new Date().toISOString().slice(0, 10);
+async function getDashboardStatsUncached(targetDate: string): Promise<DashboardStats> {
+  const today = targetDate;
   const start = `${today}T00:00:00.000Z`;
   const end = `${today}T23:59:59.999Z`;
 
@@ -47,9 +46,9 @@ async function getDashboardStatsUncached(): Promise<DashboardStats> {
   };
 }
 
-async function getAdminDashboardDataUncached(): Promise<AdminDashboardData> {
+async function getAdminDashboardDataUncached(targetDate: string): Promise<AdminDashboardData> {
   const supabase = createSupabaseAdminClient();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = targetDate;
   const after30Days = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString().slice(0, 10);
 
   const [contractors, inactiveWorkers, activeWorkers, sites] = await Promise.all([
@@ -147,20 +146,14 @@ async function getAdminDashboardDataUncached(): Promise<AdminDashboardData> {
   };
 }
 
-const getDashboardStatsCached = unstable_cache(getDashboardStatsUncached, ["dashboard-stats-v2"], {
-  revalidate: 8,
-  tags: ["dashboard-stats"],
-});
-
-const getAdminDashboardDataCached = unstable_cache(getAdminDashboardDataUncached, ["dashboard-admin-v2"], {
-  revalidate: 8,
-  tags: ["dashboard-admin"],
-});
-
-export async function getDashboardStats(): Promise<DashboardStats> {
-  return getDashboardStatsCached();
+function resolveDashboardDate(workDate?: string): string {
+  return workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate) ? workDate : new Date().toISOString().slice(0, 10);
 }
 
-export async function getAdminDashboardData(): Promise<AdminDashboardData> {
-  return getAdminDashboardDataCached();
+export async function getDashboardStats(workDate?: string): Promise<DashboardStats> {
+  return getDashboardStatsUncached(resolveDashboardDate(workDate));
+}
+
+export async function getAdminDashboardData(workDate?: string): Promise<AdminDashboardData> {
+  return getAdminDashboardDataUncached(resolveDashboardDate(workDate));
 }

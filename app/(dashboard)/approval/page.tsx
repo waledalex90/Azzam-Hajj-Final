@@ -2,9 +2,9 @@ import Link from "next/link";
 
 import { ApprovalHistoryShell } from "@/components/approval/approval-history-shell";
 import { ApprovalPendingShell } from "@/components/approval/approval-pending-shell";
-import { Button } from "@/components/ui/button";
+import { AttendanceFilterToolbar } from "@/components/attendance/attendance-filter-toolbar";
+import { AttendanceResetButton } from "@/components/attendance/attendance-reset-button";
 import { Card } from "@/components/ui/card";
-import { DatePickerField } from "@/components/ui/date-picker-field";
 import { getSessionContext } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
@@ -30,6 +30,9 @@ const FULL_LOAD = 50000;
 export default async function ApprovalPage({ searchParams }: Props) {
   const { appUser } = await getSessionContext();
   const canCorrection = Boolean(appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST));
+  const canResetAttendance = Boolean(
+    appUser && (hasPermission(appUser, PERM.PREP) || hasPermission(appUser, PERM.APPROVAL)),
+  );
 
   const params = await searchParams;
   const activeTab = params.tab === "history" ? "history" : "pending";
@@ -102,34 +105,21 @@ export default async function ApprovalPage({ searchParams }: Props) {
             الاعتمادات المعتمدة
           </Link>
         </div>
-        <form className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5" method="get">
-          <input type="hidden" name="tab" value={activeTab} />
-          <DatePickerField name="date" defaultValue={workDate} />
-          <select
-            name="shift"
-            defaultValue={String(roundNo)}
-            className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 font-bold"
-          >
-            <option value="1">وردية صباحي</option>
-            <option value="2">وردية مسائي</option>
-          </select>
-          <select
-            name="siteId"
-            defaultValue={params.siteId}
-            className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3"
-          >
-            <option value="">كل المواقع</option>
-            {sites.map((site) => (
-              <option key={site.id} value={site.id}>
-                {site.name}
-              </option>
-            ))}
-          </select>
-          <div className="min-h-12 rounded border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
-            بحث فوري تحت الجدول — لا ترقيم صفحات
+        <AttendanceFilterToolbar
+          basePath="/approval"
+          tab={activeTab}
+          workDate={workDate}
+          roundNo={roundNo}
+          siteId={params.siteId}
+          sites={sites}
+          contractors={[]}
+          showContractor={false}
+        />
+        {canResetAttendance ? (
+          <div className="mt-2 flex flex-wrap justify-end">
+            <AttendanceResetButton workDate={workDate} roundNo={roundNo} siteId={params.siteId} />
           </div>
-          <Button type="submit">تطبيق الفلاتر</Button>
-        </form>
+        ) : null}
       </Card>
 
       {activeTab === "pending" ? (

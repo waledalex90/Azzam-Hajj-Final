@@ -1,16 +1,25 @@
 import { Card } from "@/components/ui/card";
 import { Bell, Building2, Compass, MapPin, ShieldAlert, TrendingUp, Truck, UserCheck2, UserMinus2, Users2 } from "lucide-react";
 import Link from "next/link";
+import { DashboardDateFilter } from "@/components/dashboard/dashboard-date-filter";
 import { canRespondAsHr, getAppUserSiteIds } from "@/lib/auth/transfer-access";
 import { getSessionContext } from "@/lib/auth/session";
 import { getAdminDashboardData, getDashboardStats } from "@/lib/data/dashboard";
 import { getTransferAlertCounts } from "@/lib/data/transfer-requests";
 
-export default async function DashboardHomePage() {
+type Props = { searchParams: Promise<{ date?: string }> };
+
+export default async function DashboardHomePage({ searchParams }: Props) {
+  const params = await searchParams;
+  const filterDate =
+    params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)
+      ? params.date
+      : new Date().toISOString().slice(0, 10);
+
   const { appUser } = await getSessionContext();
   const [attendanceStats, dashboardData] = await Promise.all([
-    getDashboardStats(),
-    getAdminDashboardData(),
+    getDashboardStats(filterDate),
+    getAdminDashboardData(filterDate),
   ]);
 
   const transferAlerts = appUser
@@ -86,8 +95,11 @@ export default async function DashboardHomePage() {
 
       <Card className="border border-emerald-100 bg-emerald-50/40">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-extrabold text-slate-900">حضور اليوم (لحظي — نفس منطق التحضير)</h2>
-          <Compass className="h-4 w-4 text-emerald-600" />
+          <h2 className="text-sm font-extrabold text-slate-900">حضور — {filterDate}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <DashboardDateFilter currentDate={filterDate} />
+            <Compass className="h-4 w-4 text-emerald-600" />
+          </div>
         </div>
         <p className="mt-1 text-xs text-slate-600">
           إجمالي العمال النشطين:{" "}
@@ -142,7 +154,7 @@ export default async function DashboardHomePage() {
 
       <Card className="min-h-[160px]">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-extrabold text-slate-900">المواقع — حضور اليوم</h2>
+          <h2 className="text-sm font-extrabold text-slate-900">المواقع — حضور {filterDate}</h2>
           <MapPin className="h-4 w-4 text-slate-400" />
         </div>
         <div className="mt-3 max-h-[280px] space-y-2 overflow-y-auto text-sm">
