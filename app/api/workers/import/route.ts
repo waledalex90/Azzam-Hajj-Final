@@ -7,6 +7,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { parseShiftRoundFromExcelRow } from "@/lib/workers/excel-shift-column";
 
 export const runtime = "nodejs";
 /** Allow long-running imports on Vercel (adjust per plan). */
@@ -30,24 +31,6 @@ function getFileBlobFromFormData(formData: FormData, fieldName: string): Blob | 
 
 function normalizeText(value: unknown) {
   return String(value ?? "").trim();
-}
-
-/** 1 صباحي، 2 مسائي؛ فارغ = null (يظهر في كلا الورديتين في التحضير) */
-function parseShiftRound(record: Record<string, unknown>): number | null {
-  const raw =
-    normalizeText(record["shift_round"]) ||
-    normalizeText(record["الوردية"]) ||
-    normalizeText(record["وردية"]) ||
-    normalizeText(record["shift"]) ||
-    normalizeText(record["الشفت"]);
-  if (!raw) return null;
-  const lower = raw.toLowerCase();
-  if (raw === "1" || lower === "صباحي" || lower === "صباح" || lower === "morning" || lower === "am") return 1;
-  if (raw === "2" || lower === "مسائي" || lower === "مساء" || lower === "evening" || lower === "pm") return 2;
-  const n = Number(raw);
-  if (n === 1) return 1;
-  if (n === 2) return 2;
-  return null;
 }
 
 type ParsedRow = {
@@ -99,7 +82,7 @@ function parseSheetRow(record: Record<string, unknown>, rowIndex: number): Parse
     iqama_expiry: /^\d{4}-\d{2}-\d{2}$/.test(iqama) ? iqama : null,
     siteName,
     contractorName,
-    shift_round: parseShiftRound(record),
+    shift_round: parseShiftRoundFromExcelRow(record),
   };
 }
 

@@ -185,11 +185,53 @@ export function WorkersUploadForm() {
   return (
     <div className="flex w-full flex-col gap-3">
       <p className="text-[11px] leading-relaxed text-slate-600">
-        الأعمدة: الاسم، رقم الهوية/الإقامة، الموقع (تطابق حرفي مع النظام)، المقاول (اختياري)، عمود الوردية (
-        <span className="font-bold text-slate-800">1</span> أو «صباحي» للصباحي،{" "}
-        <span className="font-bold text-slate-800">2</span> أو «مسائي» للمسائي؛ فارغ = يظهر في كلا الورديتين في التحضير).
-        إذا وُجد رقم الهوية مسبقاً يُحدَّث الموقع والمقاول والوردية (لا يُرفض الصف).
+        الصف الأول في الملف = عناوين الأعمدة. يُفضّل استخدام زر «تحميل ملف Excel عربي». عند تطابق رقم الهوية مع سجل موجود يُحدَّث
+        الموقع والمقاول و<strong className="text-slate-800">الوردية</strong> (Upsert).
       </p>
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <table className="w-full min-w-[640px] border-collapse text-[11px]">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50">
+              <th className="px-2 py-2 text-right font-extrabold text-slate-800">عمود في Excel</th>
+              <th className="px-2 py-2 text-right font-extrabold text-slate-800">مطلوب / ملاحظات</th>
+            </tr>
+          </thead>
+          <tbody className="text-slate-700">
+            <tr className="border-b border-slate-100">
+              <td className="px-2 py-1.5 font-mono font-bold">الاسم</td>
+              <td className="px-2 py-1.5">الاسم الرباعي أو كما يظهر في الهوية.</td>
+            </tr>
+            <tr className="border-b border-slate-100">
+              <td className="px-2 py-1.5 font-mono font-bold">رقم الهوية/الإقامة/الجواز</td>
+              <td className="px-2 py-1.5">المفتاح للإضافة أو التحديث؛ يجب ألا يتكرر داخل نفس الملف.</td>
+            </tr>
+            <tr className="border-b border-slate-100">
+              <td className="px-2 py-1.5 font-mono font-bold">المسمى الوظيفي</td>
+              <td className="px-2 py-1.5">اختياري.</td>
+            </tr>
+            <tr className="border-b border-slate-100">
+              <td className="px-2 py-1.5 font-mono font-bold">المقاول</td>
+              <td className="px-2 py-1.5">اسم مطابق للنظام (اختياري).</td>
+            </tr>
+            <tr className="border-b border-slate-100">
+              <td className="px-2 py-1.5 font-mono font-bold">الموقع</td>
+              <td className="px-2 py-1.5">تطابق حرفي 100% مع اسم الموقع في النظام.</td>
+            </tr>
+            <tr className="border-b border-slate-100 bg-emerald-50/50">
+              <td className="px-2 py-1.5 font-mono font-bold text-emerald-900">الوردية</td>
+              <td className="px-2 py-1.5 text-emerald-950">
+                <span className="font-bold">صباحي</span> أو <span className="font-mono">1</span> → وردية صباحية؛{" "}
+                <span className="font-bold">مسائي</span> أو <span className="font-mono">2</span> → وردية مسائية. يمكن أيضًا
+                استخدام عنوان العمود <span className="font-mono">shift</span>. فارغ = يظهر في كلا الورديتين عند التحضير.
+              </td>
+            </tr>
+            <tr className="border-b border-slate-100">
+              <td className="px-2 py-1.5 font-mono font-bold">نظام الدفع / الراتب / تاريخ انتهاء الإقامة</td>
+              <td className="px-2 py-1.5">كما في القالب؛ التاريخ بصيغة YYYY-MM-DD.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <form
         onSubmit={onSubmit}
         className="flex w-full flex-col gap-2 rounded-lg border border-slate-200 bg-white p-2 sm:w-auto sm:flex-row sm:items-center"
