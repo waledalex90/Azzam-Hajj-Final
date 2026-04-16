@@ -153,12 +153,6 @@ export default async function WorkersPage({ searchParams }: Props) {
     revalidatePath("/dashboard");
   }
 
-  async function refreshWorkers() {
-    "use server";
-    revalidatePath("/workers");
-    revalidatePath("/dashboard");
-  }
-
   const params = await searchParams;
   const tab = params.tab === "create" ? "create" : "list";
   const editId = Number(params.editId) || null;
@@ -392,7 +386,6 @@ export default async function WorkersPage({ searchParams }: Props) {
             toggleActive={toggleActive}
             softDeleteWorker={softDeleteWorker}
             restoreWorker={restoreWorker}
-            refreshWorkers={refreshWorkers}
           />
         </>
       )}

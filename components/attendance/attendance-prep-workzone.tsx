@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { flushSync } from "react-dom";
+import { useRouter } from "next/navigation";
 import { AttendanceWorkersTable } from "@/components/attendance/attendance-workers-table";
 import { Card } from "@/components/ui/card";
 import { matchesClientSearch } from "@/lib/utils/client-search";
@@ -39,6 +40,7 @@ export function AttendancePrepWorkzone({
   workDate,
   roundNo,
 }: Props) {
+  const router = useRouter();
   const [dayStats, setDayStats] = useState(initialDayStats);
   const [workers, setWorkers] = useState(initialWorkers);
   const [search, setSearch] = useState("");
@@ -107,15 +109,33 @@ export function AttendancePrepWorkzone({
       {statsBlock}
 
       <div className="rounded border border-slate-200 bg-white p-3">
-        <label className="block text-xs font-bold text-slate-700">بحث فوري (كل القائمة)</label>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="اسم أو رقم هوية…"
-          className="mt-1 w-full max-w-md border border-slate-300 px-2 py-1.5 text-sm"
-          autoComplete="off"
-        />
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-[200px] flex-1">
+            <label className="block text-xs font-bold text-slate-700">بحث فوري (كل القائمة)</label>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="اسم أو رقم هوية…"
+              className="mt-1 w-full max-w-md border border-slate-300 px-2 py-1.5 text-sm"
+              autoComplete="off"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setSearch("")}
+            className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800"
+          >
+            عرض الكل / إعادة ضبط
+          </button>
+          <button
+            type="button"
+            onClick={() => router.refresh()}
+            className="rounded bg-slate-700 px-3 py-2 text-xs font-bold text-white"
+          >
+            تحديث
+          </button>
+        </div>
         <p className="mt-1 text-xs text-slate-500">
           يظهر {filteredRows.length} من أصل {workers.length} معلّق
         </p>
