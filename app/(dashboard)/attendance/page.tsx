@@ -1,21 +1,20 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import Link from "next/link";
-import { AttendanceWorkzone } from "@/components/attendance/attendance-workzone";
 import { PaginationControls } from "@/components/pagination/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import {
+  getAllPendingPrepWorkers,
   getAttendanceChecksPage,
   getAttendanceDayStats,
   getAttendanceLatestStatusMap,
   getAttendancePrepTabStats,
-  getAttendanceWorkerIdsForFilters,
-  getAttendanceWorkersPage,
   getContractorOptions,
   getSiteOptions,
 } from "@/lib/data/attendance";
+import { AttendancePrepWorkzone } from "@/components/attendance/attendance-prep-workzone";
 import { ReviewCorrectionRequestModal } from "@/components/attendance/review-correction-request-modal";
 import { getSessionContext } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
@@ -110,7 +109,7 @@ export default async function AttendancePage({ searchParams }: Props) {
           workDate,
           Number.isFinite(siteId) ? siteId : undefined,
           Number.isFinite(contractorId) ? contractorId : undefined,
-          q,
+          undefined,
         )
       : getAttendanceDayStats(
           workDate,
@@ -120,35 +119,23 @@ export default async function AttendancePage({ searchParams }: Props) {
         ),
   ]);
 
-  const workersPage =
+  const prepWorkers =
     activeTab === "workers"
-      ? await getAttendanceWorkersPage({
-          page,
-          pageSize: PAGE_SIZE,
+      ? await getAllPendingPrepWorkers({
           siteId: Number.isFinite(siteId) ? siteId : undefined,
           contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
-          search: q,
+          search: undefined,
           workDate,
         })
       : null;
 
   const initialStatusMap =
-    activeTab === "workers" && workersPage
+    activeTab === "workers" && prepWorkers
       ? await getAttendanceLatestStatusMap(
           workDate,
-          workersPage.rows.map((item) => item.id),
+          prepWorkers.rows.map((item) => item.id),
         )
       : {};
-
-  const filteredWorkerIds =
-    activeTab === "workers"
-      ? await getAttendanceWorkerIdsForFilters({
-          siteId: Number.isFinite(siteId) ? siteId : undefined,
-          contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
-          search: q,
-          workDate,
-        })
-      : [];
 
   const reviewedPage =
     activeTab === "review"
@@ -208,31 +195,33 @@ export default async function AttendancePage({ searchParams }: Props) {
         </div>
 
         <p className="mt-2 text-xs text-slate-600">
-          العدادات أعلاه تتبع نفس الفلاتر (التاريخ، الموقع، المقاول، والبحث). عند تغيير التاريخ أو الموقع أو المقاول يُعاد
-          تحميل الجدول بالكامل ليتوافق مع النطاق المختار.
+          {activeTab === "workers"
+            ? "الفلاتر: التاريخ، الموقع، المقاول. البحث بالاسم فوري داخل الجدول. القائمة = عمال بلا سجل تحضير لهذا اليوم (لا صف في attendance_checks)."
+            : "العدادات تتبع الفلاتر والبحث أدناه."}
         </p>
-        <form className="mt-4 grid gap-2 sm:grid-cols-5" method="get">
-          <input type="hidden" name="tab" value={activeTab} />
-          <input type="hidden" name="page" value="1" />
-          <DatePickerField name="date" defaultValue={workDate} />
-          <Input name="q" defaultValue={q} placeholder="بحث بالاسم أو رقم الهوية" />
-          <select
-            name="siteId"
-            defaultValue={params.siteId}
-            className="min-h-12 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
-          >
-            <option value="">كل المواقع</option>
-            {sites.map((site) => (
-              <option key={site.id} value={site.id}>
-                {site.name}
-              </option>
-            ))}
-          </select>
-          {activeTab === "workers" ? (
+        {activeTab === "workers" ? (
+          <form className="mt-4 grid gap-2 sm:grid-cols-5" method="get">
+            <input type="hidden" name="tab" value="workers" />
+            <DatePickerField name="date" defaultValue={workDate} />
+            <div className="min-h-12 rounded border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
+              بحث فوري تحت الجدول
+            </div>
+            <select
+              name="siteId"
+              defaultValue={params.siteId}
+              className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base"
+            >
+              <option value="">كل المواقع</option>
+              {sites.map((site) => (
+                <option key={site.id} value={site.id}>
+                  {site.name}
+                </option>
+              ))}
+            </select>
             <select
               name="contractorId"
               defaultValue={params.contractorId}
-              className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base"
+              className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base"
             >
               <option value="">كل المقاولين</option>
               {contractors.map((contractor) => (
@@ -241,42 +230,45 @@ export default async function AttendancePage({ searchParams }: Props) {
                 </option>
               ))}
             </select>
-          ) : (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
-              فلترة المقاول متاحة في تبويب التحضير
+            <Button type="submit" className="w-full">
+              تطبيق الفلاتر
+            </Button>
+          </form>
+        ) : (
+          <form className="mt-4 grid gap-2 sm:grid-cols-5" method="get">
+            <input type="hidden" name="tab" value="review" />
+            <input type="hidden" name="page" value="1" />
+            <DatePickerField name="date" defaultValue={workDate} />
+            <Input name="q" defaultValue={q} placeholder="بحث بالاسم أو رقم الهوية" />
+            <select
+              name="siteId"
+              defaultValue={params.siteId}
+              className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base"
+            >
+              <option value="">كل المواقع</option>
+              {sites.map((site) => (
+                <option key={site.id} value={site.id}>
+                  {site.name}
+                </option>
+              ))}
+            </select>
+            <div className="min-h-12 rounded border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+              فلترة المقاول في تبويب التحضير
             </div>
-          )}
-          <Button type="submit" className="w-full">
-            تطبيق الفلاتر
-          </Button>
-        </form>
+            <Button type="submit" className="w-full">
+              تطبيق الفلاتر
+            </Button>
+          </form>
+        )}
       </Card>
 
       {activeTab === "workers" ? (
-        <AttendanceWorkzone
-          key={`wz-${workDate}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${q ?? ""}`}
+        <AttendancePrepWorkzone
+          key={`prep-${workDate}-${params.siteId ?? ""}-${params.contractorId ?? ""}`}
           initialDayStats={dayStats}
-          serverRows={workersPage?.rows ?? []}
-          workDate={workDate}
+          initialWorkers={prepWorkers?.rows ?? []}
           initialStatusMap={initialStatusMap}
-          filteredWorkerIds={filteredWorkerIds}
-          filteredTotalRows={workersPage?.meta.totalRows ?? filteredWorkerIds.length}
-          siteId={params.siteId}
-          q={q}
-          pagination={
-            <PaginationControls
-              page={workersPage?.meta.page ?? 1}
-              totalPages={workersPage?.meta.totalPages ?? 1}
-              basePath="/attendance"
-              query={{
-                tab: "workers",
-                q,
-                siteId: params.siteId,
-                contractorId: params.contractorId,
-                date: workDate,
-              }}
-            />
-          }
+          workDate={workDate}
         />
       ) : (
         <>

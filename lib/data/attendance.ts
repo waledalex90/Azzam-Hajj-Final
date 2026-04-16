@@ -130,7 +130,12 @@ export async function getPendingApprovalCheckIds(params: {
   return (data as Array<{ id: number }>).map((r) => r.id).filter(Boolean);
 }
 
-/** عمال لديهم سجل تحضير في جدول attendance_checks لجولة التاريخ المحدد (وموقع الجولة عند تمرير siteId). */
+const PREP_WORKERS_PAGE_SIZE = 12000;
+
+/**
+ * عمال أنشئ لهم صف في attendance_checks لهذا التاريخ (أي attendance_checks.id غير null لذلك اليوم/الموقع).
+ * قائمة «معلق التحضير» = عمال لا يظهرون هنا — مكافئ SQL: LEFT JOIN … WHERE check.id IS NULL.
+ */
 export async function getPreppedWorkerIdsForDate(workDate: string, siteId?: number): Promise<number[]> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return [];
   const supabase = createSupabaseAdminClient();
@@ -259,6 +264,17 @@ export async function getAttendanceWorkersPage({
     rows,
     meta: buildPaginationMeta(totalRows, page, pageSize),
   };
+}
+
+/** كل عمال التحضير المعلقين دفعة واحدة (حتى PREP_WORKERS_PAGE_SIZE) — للبحث الفوري على العميل. */
+export async function getAllPendingPrepWorkers(
+  params: Omit<WorkersPageParams, "page" | "pageSize">,
+): Promise<{ rows: WorkerRow[]; meta: PaginationMeta }> {
+  return getAttendanceWorkersPage({
+    ...params,
+    page: 1,
+    pageSize: PREP_WORKERS_PAGE_SIZE,
+  });
 }
 
 export async function getAttendanceWorkerIdsForFilters({

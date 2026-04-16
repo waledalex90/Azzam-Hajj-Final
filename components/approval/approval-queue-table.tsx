@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { approveAllPendingInFilter, approveChecksByIds } from "@/app/(dashboard)/approval/actions";
-import { Card } from "@/components/ui/card";
 import type { AttendanceCheckRow } from "@/lib/types/db";
 
 type Decision = "confirm" | "reject";
@@ -16,6 +15,7 @@ type Props = {
   totalPendingFiltered: number;
   workDate: string;
   siteId?: string;
+  /** لاعتماد الجماعي «الكل» في السيرفر؛ البحث الفوري يكون على العميل */
   q?: string;
 };
 
@@ -30,10 +30,17 @@ export function ApprovalQueueTable({
   const [isSaving, setIsSaving] = useState(false);
   const [pendingCheckIds, setPendingCheckIds] = useState<number[]>([]);
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
+  /** إخفاء فوري بعد الاعتماد/الرفض حتى يصل التحديث من السيرفر */
+  const [removed, setRemoved] = useState<Set<number>>(() => new Set());
   /** عند وجود تحديد: الصفحة فقط، أو جميع المعلّقين ضمن الفلتر */
   const [bulkScope, setBulkScope] = useState<"page" | "all">("page");
 
-  const rowIds = useMemo(() => rows.map((r) => r.id), [rows]);
+  const displayRows = useMemo(
+    () => rows.filter((r) => !removed.has(r.id)),
+    [rows, removed],
+  );
+
+  const rowIds = useMemo(() => displayRows.map((r) => r.id), [displayRows]);
   const allSelected = rowIds.length > 0 && rowIds.every((id) => selected.has(id));
   const hasSelection = selected.size > 0;
 
@@ -85,6 +92,11 @@ export function ApprovalQueueTable({
       }
       toast.success("تم الاعتماد ✅");
       setSelected(new Set());
+      setRemoved((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.add(id));
+        return next;
+      });
       router.refresh();
     } finally {
       setIsSaving(false);
@@ -117,6 +129,7 @@ export function ApprovalQueueTable({
         return;
       }
       toast.success(decision === "confirm" ? "تم الاعتماد ✅" : "تم الحفظ ✅");
+      setRemoved((prev) => new Set(prev).add(checkId));
       setSelected((prev) => {
         const next = new Set(prev);
         next.delete(checkId);
@@ -130,17 +143,17 @@ export function ApprovalQueueTable({
   }
 
   return (
-    <Card className="overflow-hidden p-0">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2">
+    <div className="overflow-hidden rounded border border-slate-300 bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-300 bg-slate-50 px-3 py-2">
         <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-bold text-slate-700">
           <input
             type="checkbox"
             checked={allSelected}
             onChange={toggleSelectAll}
-            disabled={isSaving || rows.length === 0}
+            disabled={isSaving || displayRows.length === 0}
             className="h-4 w-4 rounded border-slate-300"
           />
-          تحديد صفحة ({rows.length})
+          تحديد القائمة ({displayRows.length})
         </label>
         <button
           type="button"
@@ -194,7 +207,7 @@ export function ApprovalQueueTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
+            {displayRows.map((row) => {
               const isPending = pendingCheckIds.includes(row.id);
               return (
                 <tr key={row.id} className="border-t border-slate-200">
@@ -245,9 +258,9 @@ export function ApprovalQueueTable({
         </table>
       </div>
 
-      {rows.length === 0 && (
+      {displayRows.length === 0 && (
         <div className="p-4 text-center text-sm text-slate-500">لا توجد بيانات اعتماد معلقة.</div>
       )}
-    </Card>
+    </div>
   );
 }

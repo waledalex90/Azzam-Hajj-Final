@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { ApprovalQueueTable } from "@/components/approval/approval-queue-table";
+import { ApprovalPendingShell } from "@/components/approval/approval-pending-shell";
 import { ReviewCorrectionRequestModal } from "@/components/attendance/review-correction-request-modal";
 import { PaginationControls } from "@/components/pagination/pagination-controls";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ type Props = {
 };
 
 const PAGE_SIZE = 25;
+const PENDING_LOAD_MAX = 12000;
 
 export default async function ApprovalPage({ searchParams }: Props) {
   const { appUser } = await getSessionContext();
@@ -38,24 +39,42 @@ export default async function ApprovalPage({ searchParams }: Props) {
       : new Date().toISOString().slice(0, 10);
   const q = params.q?.trim();
 
-  const [{ rows, meta }, sites, pendingFilteredTotal] = await Promise.all([
-    getAttendanceChecksPage({
-      page,
-      pageSize: PAGE_SIZE,
-      workDate,
-      siteId: Number.isFinite(siteId) ? siteId : undefined,
-      search: q,
-      confirmationStatus: activeTab === "pending" ? "pending" : "confirmed",
-    }),
+  const sid = Number.isFinite(siteId) ? siteId : undefined;
+
+  const [pendingBlock, historyBlock, sites, pendingFilteredTotal] = await Promise.all([
+    activeTab === "pending"
+      ? getAttendanceChecksPage({
+          page: 1,
+          pageSize: PENDING_LOAD_MAX,
+          workDate,
+          siteId: sid,
+          search: undefined,
+          confirmationStatus: "pending",
+        })
+      : Promise.resolve(null),
+    activeTab === "history"
+      ? getAttendanceChecksPage({
+          page,
+          pageSize: PAGE_SIZE,
+          workDate,
+          siteId: sid,
+          search: q,
+          confirmationStatus: "confirmed",
+        })
+      : Promise.resolve(null),
     getSiteOptions(),
     activeTab === "pending"
       ? getPendingApprovalCheckIds({
           workDate,
-          siteId: Number.isFinite(siteId) ? siteId : undefined,
-          search: q,
+          siteId: sid,
+          search: undefined,
         }).then((ids) => ids.length)
       : Promise.resolve(0),
   ]);
+
+  const pendingRows = pendingBlock?.rows ?? [];
+  const historyRows = historyBlock?.rows ?? [];
+  const historyMeta = historyBlock?.meta;
 
   return (
     <section className="space-y-4">
@@ -79,62 +98,86 @@ export default async function ApprovalPage({ searchParams }: Props) {
             الاعتمادات المعتمدة
           </Link>
         </div>
-        <form className="mt-4 grid gap-2 sm:grid-cols-4" method="get">
-          <input type="hidden" name="tab" value={activeTab} />
-          <DatePickerField name="date" defaultValue={workDate} />
-          <select
-            name="siteId"
-            defaultValue={params.siteId}
-            className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3"
-          >
-            <option value="">كل المواقع</option>
-            {sites.map((site) => (
-              <option key={site.id} value={site.id}>
-                {site.name}
-              </option>
-            ))}
-          </select>
-          <Input name="q" defaultValue={q} placeholder="بحث بالاسم أو الهوية" />
-          <Button type="submit">تطبيق</Button>
-        </form>
+        {activeTab === "pending" ? (
+          <form className="mt-4 grid gap-2 sm:grid-cols-4" method="get">
+            <input type="hidden" name="tab" value="pending" />
+            <DatePickerField name="date" defaultValue={workDate} />
+            <select
+              name="siteId"
+              defaultValue={params.siteId}
+              className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3"
+            >
+              <option value="">كل المواقع</option>
+              {sites.map((site) => (
+                <option key={site.id} value={site.id}>
+                  {site.name}
+                </option>
+              ))}
+            </select>
+            <div className="min-h-12 rounded border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
+              البحث: فوري تحت الجدول
+            </div>
+            <Button type="submit">تطبيق الفلاتر</Button>
+          </form>
+        ) : (
+          <form className="mt-4 grid gap-2 sm:grid-cols-4" method="get">
+            <input type="hidden" name="tab" value="history" />
+            <input type="hidden" name="page" value="1" />
+            <DatePickerField name="date" defaultValue={workDate} />
+            <select
+              name="siteId"
+              defaultValue={params.siteId}
+              className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3"
+            >
+              <option value="">كل المواقع</option>
+              {sites.map((site) => (
+                <option key={site.id} value={site.id}>
+                  {site.name}
+                </option>
+              ))}
+            </select>
+            <Input name="q" defaultValue={q} placeholder="بحث بالاسم أو الهوية" />
+            <Button type="submit">تطبيق</Button>
+          </form>
+        )}
       </Card>
 
       {activeTab === "pending" ? (
-        <ApprovalQueueTable
-          rows={rows}
+        <ApprovalPendingShell
+          key={`pend-${workDate}-${params.siteId ?? ""}`}
+          initialRows={pendingRows}
           totalPendingFiltered={pendingFilteredTotal}
           workDate={workDate}
           siteId={params.siteId}
-          q={q}
         />
       ) : (
         <Card className="overflow-hidden p-0">
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="min-w-full border-collapse border border-slate-300 text-sm">
               <thead className="bg-slate-100 text-slate-700">
                 <tr>
-                  <th className="px-3 py-2 text-right">العامل</th>
-                  <th className="px-3 py-2 text-right">الموقع</th>
-                  <th className="px-3 py-2 text-right">الجولة</th>
-                  <th className="px-3 py-2 text-right">الحالة</th>
-                  <th className="px-3 py-2 text-right">الإجراء</th>
+                  <th className="border border-slate-300 px-3 py-2 text-right">العامل</th>
+                  <th className="border border-slate-300 px-3 py-2 text-right">الموقع</th>
+                  <th className="border border-slate-300 px-3 py-2 text-right">الجولة</th>
+                  <th className="border border-slate-300 px-3 py-2 text-right">الحالة</th>
+                  <th className="border border-slate-300 px-3 py-2 text-right">الإجراء</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id} className="border-t border-slate-200">
-                    <td className="px-3 py-2">
+                {historyRows.map((row) => (
+                  <tr key={row.id}>
+                    <td className="border border-slate-300 px-3 py-2">
                       <p className="font-bold text-slate-800">{row.workers?.name ?? "-"}</p>
                       <p className="text-xs text-slate-500">{row.workers?.id_number ?? "-"}</p>
                     </td>
-                    <td className="px-3 py-2">{row.sites?.name ?? "-"}</td>
-                    <td className="px-3 py-2">
+                    <td className="border border-slate-300 px-3 py-2">{row.sites?.name ?? "-"}</td>
+                    <td className="border border-slate-300 px-3 py-2">
                       {row.attendance_rounds?.work_date ?? "-"} / #{row.attendance_rounds?.round_no ?? "-"}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="border border-slate-300 px-3 py-2">
                       {row.status === "present" ? "حاضر" : row.status === "absent" ? "غائب" : "نصف يوم"}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="border border-slate-300 px-3 py-2">
                       {appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST) ? (
                         <ReviewCorrectionRequestModal checkId={row.id} />
                       ) : (
@@ -146,16 +189,18 @@ export default async function ApprovalPage({ searchParams }: Props) {
               </tbody>
             </table>
           </div>
-          {rows.length === 0 && <div className="p-4 text-center text-sm text-slate-500">لا توجد بيانات.</div>}
+          {historyRows.length === 0 && <div className="p-4 text-center text-sm text-slate-500">لا توجد بيانات.</div>}
         </Card>
       )}
 
-      <PaginationControls
-        page={meta.page}
-        totalPages={meta.totalPages}
-        basePath="/approval"
-        query={{ tab: activeTab, date: workDate, siteId: params.siteId, q }}
-      />
+      {activeTab === "history" && historyMeta && (
+        <PaginationControls
+          page={historyMeta.page}
+          totalPages={historyMeta.totalPages}
+          basePath="/approval"
+          query={{ tab: "history", date: workDate, siteId: params.siteId, q }}
+        />
+      )}
     </section>
   );
 }

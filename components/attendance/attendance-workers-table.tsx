@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { submitAttendancePrepBulk } from "@/app/(dashboard)/attendance/actions";
-import { Card } from "@/components/ui/card";
 import type { WorkerRow } from "@/lib/types/db";
 
 type AttendanceStatus = "present" | "absent" | "half";
@@ -16,6 +15,8 @@ type Props = {
   initialStatusMap?: Record<number, AttendanceStatus | undefined>;
   filteredWorkerIds?: number[];
   filteredTotalRows?: number;
+  /** لا يُعاد طلب الصفحة من السيرفر بعد التحضير — للإسقاط الفوري في الواجهة */
+  skipServerRefresh?: boolean;
   onAttendanceChunkSaved?: (workerIds: number[], status: AttendanceStatus) => void;
   onAttendanceSessionComplete?: () => void;
   suppressEmptyMessage?: boolean;
@@ -47,6 +48,7 @@ export function AttendanceWorkersTable({
   initialStatusMap = {},
   filteredWorkerIds = [],
   filteredTotalRows = 0,
+  skipServerRefresh = false,
   onAttendanceChunkSaved,
   onAttendanceSessionComplete,
   suppressEmptyMessage = false,
@@ -107,7 +109,7 @@ export function AttendanceWorkersTable({
       toast.success("تم التحضير ✅");
       onAttendanceChunkSaved?.(ids, status);
       setSelected([]);
-      void router.refresh();
+      if (!skipServerRefresh) void router.refresh();
       onAttendanceSessionComplete?.();
     } finally {
       setIsSaving(false);
@@ -159,7 +161,7 @@ export function AttendanceWorkersTable({
         }
         toast.success("تم التحضير ✅");
         onAttendanceChunkSaved?.([workerId], status);
-        void router.refresh();
+        if (!skipServerRefresh) void router.refresh();
       } finally {
         setIsSaving(false);
         setSyncProgress((p) => ({ ...p, active: false }));
@@ -202,7 +204,7 @@ export function AttendanceWorkersTable({
   };
 
   return (
-    <Card className="relative overflow-hidden p-0">
+    <div className="relative overflow-hidden rounded border border-slate-300 bg-white">
       {isSaving && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/80 backdrop-blur-sm">
           <div className="min-w-[280px] rounded-xl border border-slate-200 bg-white px-4 py-3 text-center shadow-sm">
@@ -289,23 +291,23 @@ export function AttendanceWorkersTable({
       </div>
 
       <div className="hidden overflow-x-auto md:block">
-        <table className="min-w-full text-sm">
+        <table className="min-w-full border-collapse border border-slate-300 text-sm">
           <thead className="bg-slate-100 text-slate-700">
             <tr>
-              <th className="px-3 py-2 text-right font-bold">
+              <th className="border border-slate-300 px-3 py-2 text-right font-bold">
                 <input type="checkbox" checked={pageAllSelected} onChange={toggleAllPage} disabled={isSaving} />
               </th>
-              <th className="px-3 py-2 text-right font-bold">#</th>
-              <th className="px-3 py-2 text-right font-bold">الاسم</th>
-              <th className="px-3 py-2 text-right font-bold">رقم الهوية</th>
-              <th className="px-3 py-2 text-right font-bold">الموقع</th>
-              <th className="px-3 py-2 text-right font-bold">الإجراء</th>
+              <th className="border border-slate-300 px-3 py-2 text-right font-bold">#</th>
+              <th className="border border-slate-300 px-3 py-2 text-right font-bold">الاسم</th>
+              <th className="border border-slate-300 px-3 py-2 text-right font-bold">رقم الهوية</th>
+              <th className="border border-slate-300 px-3 py-2 text-right font-bold">الموقع</th>
+              <th className="border border-slate-300 px-3 py-2 text-right font-bold">الإجراء</th>
             </tr>
           </thead>
           <tbody>
             {visibleRows.map((worker) => (
-              <tr key={worker.id} className="border-t border-slate-200">
-                <td className="px-3 py-2">
+              <tr key={worker.id}>
+                <td className="border border-slate-300 px-3 py-2">
                   <input
                     type="checkbox"
                     checked={selected.includes(worker.id)}
@@ -313,11 +315,11 @@ export function AttendanceWorkersTable({
                     disabled={isSaving}
                   />
                 </td>
-                <td className="px-3 py-2">{worker.id}</td>
-                <td className="px-3 py-2 font-bold text-slate-800">{worker.name}</td>
-                <td className="px-3 py-2">{worker.id_number}</td>
-                <td className="px-3 py-2 text-slate-600">{worker.sites?.name ?? "غير محدد"}</td>
-                <td className="px-3 py-2">{statusButtons(worker.id)}</td>
+                <td className="border border-slate-300 px-3 py-2">{worker.id}</td>
+                <td className="border border-slate-300 px-3 py-2 font-bold text-slate-800">{worker.name}</td>
+                <td className="border border-slate-300 px-3 py-2">{worker.id_number}</td>
+                <td className="border border-slate-300 px-3 py-2 text-slate-600">{worker.sites?.name ?? "غير محدد"}</td>
+                <td className="border border-slate-300 px-3 py-2">{statusButtons(worker.id)}</td>
               </tr>
             ))}
           </tbody>
@@ -326,6 +328,6 @@ export function AttendanceWorkersTable({
       {visibleRows.length === 0 && !suppressEmptyMessage && (
         <div className="p-4 text-center text-sm text-slate-500">لا توجد بيانات في الصفحة الحالية.</div>
       )}
-    </Card>
+    </div>
   );
 }
