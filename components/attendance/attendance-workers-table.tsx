@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import type { WorkerRow } from "@/lib/types/db";
 
@@ -10,9 +9,15 @@ type AttendanceStatus = "present" | "absent" | "half";
 type Props = {
   rows: WorkerRow[];
   workDate: string;
-  initialStatusMap?: Record<number, AttendanceStatus>;
+  initialStatusMap?: Record<number, AttendanceStatus | undefined>;
   filteredWorkerIds?: number[];
   filteredTotalRows?: number;
+  /** يُستدعى بعد كل طلب ناجح (بما فيه كل جزء من التحضير الجماعي) لتحديث العدادات وإخفاء الصف محلياً */
+  onAttendanceChunkSaved?: (workerIds: number[], status: AttendanceStatus) => void;
+  /** يُستدعى مرة واحدة بعد اكتمال العملية بالكامل (فردي أو جماعي) — مثلاً للانتقال لتبويب المراجعة */
+  onAttendanceSessionComplete?: () => void;
+  /** إخفاء رسالة «لا توجد بيانات» عندما يعرض الأب رسالة بديلة (مثلاً بعد إخفاء الصف محلياً) */
+  suppressEmptyMessage?: boolean;
 };
 
 function statusLabel(status?: AttendanceStatus) {
@@ -44,8 +49,10 @@ export function AttendanceWorkersTable({
   initialStatusMap = {},
   filteredWorkerIds = [],
   filteredTotalRows = 0,
+  onAttendanceChunkSaved,
+  onAttendanceSessionComplete,
+  suppressEmptyMessage = false,
 }: Props) {
-  const router = useRouter();
   const [selected, setSelected] = useState<number[]>([]);
   const statusMap = initialStatusMap;
   const [isSaving, setIsSaving] = useState(false);
@@ -129,6 +136,8 @@ export function AttendanceWorkersTable({
         for (let i = 0; i < selectedIdsSnapshot.length; i += BULK_CHUNK_SIZE) {
           const chunk = selectedIdsSnapshot.slice(i, i + BULK_CHUNK_SIZE);
           await submitAttendance(status, chunk);
+          onAttendanceChunkSaved?.(chunk, status);
+          setSelected((prev) => prev.filter((id) => !chunk.includes(id)));
           setSyncProgress({
             active: true,
             processed: Math.min(i + chunk.length, selectedCount),
@@ -137,7 +146,7 @@ export function AttendanceWorkersTable({
         }
         setSyncMessage(`تم التحضير بنجاح لعدد ${selectedCount} موظف.`);
         setSelected([]);
-        router.refresh();
+        onAttendanceSessionComplete?.();
       } catch (error) {
         const message = error instanceof Error ? error.message : SAVE_ERROR_MESSAGE;
         setSyncMessage(message || SAVE_ERROR_MESSAGE);
@@ -187,9 +196,10 @@ export function AttendanceWorkersTable({
       setSyncProgress({ active: true, processed: 0, total: 1 });
       try {
         await submitAttendance(status, [workerId]);
+        onAttendanceChunkSaved?.([workerId], status);
         setSyncProgress({ active: true, processed: 1, total: 1 });
         setSyncMessage("تم تحضير الموظف بنجاح.");
-        router.refresh();
+        onAttendanceSessionComplete?.();
       } catch (error) {
         const message = error instanceof Error ? error.message : SAVE_ERROR_MESSAGE;
         setSyncMessage(message || SAVE_ERROR_MESSAGE);
@@ -341,7 +351,7 @@ export function AttendanceWorkersTable({
           </tbody>
         </table>
       </div>
-      {visibleRows.length === 0 && (
+      {visibleRows.length === 0 && !suppressEmptyMessage && (
         <div className="p-4 text-center text-sm text-slate-500">لا توجد بيانات في الصفحة الحالية.</div>
       )}
     </Card>

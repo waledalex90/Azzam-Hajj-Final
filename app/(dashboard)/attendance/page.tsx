@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { AttendanceWorkersTable } from "@/components/attendance/attendance-workers-table";
+import { AttendanceWorkzone } from "@/components/attendance/attendance-workzone";
 import { PaginationControls } from "@/components/pagination/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -32,6 +32,8 @@ type Props = {
 };
 
 const PAGE_SIZE = 25;
+
+export const dynamic = "force-dynamic";
 
 export default async function AttendancePage({ searchParams }: Props) {
   async function reviewAttendanceCheck(formData: FormData) {
@@ -208,49 +210,52 @@ export default async function AttendancePage({ searchParams }: Props) {
         </form>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-4">
-        <Card className="text-center">
-          <p className="text-xs text-slate-500">معلّق</p>
-          <p className="mt-1 text-2xl font-extrabold text-slate-700">{dayStats.pending}</p>
-        </Card>
-        <Card className="text-center">
-          <p className="text-xs text-slate-500">حاضر</p>
-          <p className="mt-1 text-2xl font-extrabold text-emerald-700">{dayStats.present}</p>
-        </Card>
-        <Card className="text-center">
-          <p className="text-xs text-slate-500">غائب</p>
-          <p className="mt-1 text-2xl font-extrabold text-red-700">{dayStats.absent}</p>
-        </Card>
-        <Card className="text-center">
-          <p className="text-xs text-slate-500">نصف يوم</p>
-          <p className="mt-1 text-2xl font-extrabold text-amber-700">{dayStats.half}</p>
-        </Card>
-      </div>
-
       {activeTab === "workers" ? (
-        <>
-          <AttendanceWorkersTable
-            rows={workersPage?.rows ?? []}
-            workDate={workDate}
-            initialStatusMap={initialStatusMap}
-            filteredWorkerIds={filteredWorkerIds}
-            filteredTotalRows={workersPage?.meta.totalRows ?? filteredWorkerIds.length}
-          />
-          <PaginationControls
-            page={workersPage?.meta.page ?? 1}
-            totalPages={workersPage?.meta.totalPages ?? 1}
-            basePath="/attendance"
-            query={{
-              tab: "workers",
-              q,
-              siteId: params.siteId,
-              contractorId: params.contractorId,
-              date: workDate,
-            }}
-          />
-        </>
+        <AttendanceWorkzone
+          initialDayStats={dayStats}
+          serverRows={workersPage?.rows ?? []}
+          workDate={workDate}
+          initialStatusMap={initialStatusMap}
+          filteredWorkerIds={filteredWorkerIds}
+          filteredTotalRows={workersPage?.meta.totalRows ?? filteredWorkerIds.length}
+          siteId={params.siteId}
+          contractorId={params.contractorId}
+          q={q}
+          pagination={
+            <PaginationControls
+              page={workersPage?.meta.page ?? 1}
+              totalPages={workersPage?.meta.totalPages ?? 1}
+              basePath="/attendance"
+              query={{
+                tab: "workers",
+                q,
+                siteId: params.siteId,
+                contractorId: params.contractorId,
+                date: workDate,
+              }}
+            />
+          }
+        />
       ) : (
         <>
+          <div className="grid gap-3 sm:grid-cols-4">
+            <Card className="text-center">
+              <p className="text-xs text-slate-500">معلّق</p>
+              <p className="mt-1 text-2xl font-extrabold text-slate-700">{dayStats.pending}</p>
+            </Card>
+            <Card className="text-center">
+              <p className="text-xs text-slate-500">حاضر</p>
+              <p className="mt-1 text-2xl font-extrabold text-emerald-700">{dayStats.present}</p>
+            </Card>
+            <Card className="text-center">
+              <p className="text-xs text-slate-500">غائب</p>
+              <p className="mt-1 text-2xl font-extrabold text-red-700">{dayStats.absent}</p>
+            </Card>
+            <Card className="text-center">
+              <p className="text-xs text-slate-500">نصف يوم</p>
+              <p className="mt-1 text-2xl font-extrabold text-amber-700">{dayStats.half}</p>
+            </Card>
+          </div>
           <Card className="border-dashed border-slate-200 bg-white/80">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-extrabold text-slate-800">سجلات اليوم المحضّرة للمراجعة</p>
