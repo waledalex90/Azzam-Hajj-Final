@@ -91,6 +91,8 @@ export type AttendanceCheckRow = {
   worker_id: number;
   status: "present" | "absent" | "half";
   confirmation_status: "pending" | "confirmed" | "rejected";
+  /** يتطابق مع اعتماد نهائي؛ يُحدَّث من السيرفر عند إضافة العمود في قاعدة البيانات */
+  is_approved?: boolean;
   checked_at: string;
   confirm_note: string | null;
   attendance_rounds?: { work_date: string; round_no: number; site_id?: number } | null;

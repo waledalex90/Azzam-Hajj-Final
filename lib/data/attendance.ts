@@ -16,6 +16,8 @@ type WorkersPageParams = {
   siteId?: number;
   contractorId?: number;
   search?: string;
+  /** يُستبعد من قائمة التحضير من لديهم سجل حضور لهذا التاريخ (ربط attendance_checks + attendance_rounds) */
+  workDate?: string;
 };
 
 type RawWorkerRow = Omit<WorkerRow, "sites"> & {
@@ -128,16 +130,87 @@ export async function getPendingApprovalCheckIds(params: {
   return (data as Array<{ id: number }>).map((r) => r.id).filter(Boolean);
 }
 
+/** عمال لديهم سجل تحضير في جدول attendance_checks لجولة التاريخ المحدد (وموقع الجولة عند تمرير siteId). */
+export async function getPreppedWorkerIdsForDate(workDate: string, siteId?: number): Promise<number[]> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return [];
+  const supabase = createSupabaseAdminClient();
+  let query = supabase
+    .from("attendance_checks")
+    .select("worker_id, attendance_rounds!inner(work_date, site_id)")
+    .eq("attendance_rounds.work_date", workDate);
+  if (siteId !== undefined && Number.isFinite(siteId)) {
+    query = query.eq("attendance_rounds.site_id", siteId);
+  }
+  const { data, error } = await query.limit(50000);
+  if (error || !data) return [];
+  const ids = (data as Array<{ worker_id: number }>).map((r) => r.worker_id).filter(Boolean);
+  return Array.from(new Set(ids));
+}
+
+/** إحصائيات تبويب التحضير: نفس نطاق الفلتر، مع استبعاد المُحضَّرين من «معلق» وحساب الحالات من السجلات الفعلية. */
+export async function getAttendancePrepTabStats(
+  workDate: string,
+  siteId?: number,
+  contractorId?: number,
+  search?: string,
+): Promise<AttendanceDayStats> {
+  const filteredIds = await getAttendanceWorkerIdsForFilters({
+    siteId,
+    contractorId,
+    search,
+  });
+  const total = filteredIds.length;
+  if (total === 0) return { total: 0, pending: 0, present: 0, absent: 0, half: 0 };
+
+  const preppedList = await getPreppedWorkerIdsForDate(workDate, siteId);
+  const preppedSet = new Set(preppedList);
+  const pending = filteredIds.filter((id) => !preppedSet.has(id)).length;
+
+  const preppedInFilter = filteredIds.filter((id) => preppedSet.has(id));
+  let present = 0;
+  let absent = 0;
+  let half = 0;
+
+  const CH = 400;
+  const supabase = createSupabaseAdminClient();
+  for (let i = 0; i < preppedInFilter.length; i += CH) {
+    const chunk = preppedInFilter.slice(i, i + CH);
+    let q = supabase
+      .from("attendance_checks")
+      .select("status, attendance_rounds!inner(work_date)")
+      .in("worker_id", chunk)
+      .eq("attendance_rounds.work_date", workDate);
+    if (siteId !== undefined && Number.isFinite(siteId)) {
+      q = q.eq("attendance_rounds.site_id", siteId);
+    }
+    const { data, error } = await q;
+    if (error || !data) continue;
+    for (const row of data as Array<{ status: string }>) {
+      if (row.status === "present") present++;
+      else if (row.status === "absent") absent++;
+      else if (row.status === "half") half++;
+    }
+  }
+
+  return { total, pending, present, absent, half };
+}
+
 export async function getAttendanceWorkersPage({
   page,
   pageSize,
   siteId,
   contractorId,
   search,
+  workDate,
 }: WorkersPageParams): Promise<{ rows: WorkerRow[]; meta: PaginationMeta }> {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
   const supabase = createSupabaseAdminClient();
+
+  let preppedExclude: number[] | null = null;
+  if (workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+    preppedExclude = await getPreppedWorkerIdsForDate(workDate, siteId);
+  }
 
   let query = supabase
     .from("workers")
@@ -161,6 +234,10 @@ export async function getAttendanceWorkersPage({
   if (search && search.trim()) {
     const value = search.trim();
     query = query.or(`name.ilike.%${value}%,id_number.ilike.%${value}%`);
+  }
+
+  if (preppedExclude && preppedExclude.length > 0) {
+    query = query.not("id", "in", `(${preppedExclude.join(",")})`);
   }
 
   const { data, count, error } = await query.range(from, to);
@@ -188,11 +265,17 @@ export async function getAttendanceWorkerIdsForFilters({
   siteId,
   contractorId,
   search,
+  workDate,
 }: Omit<WorkersPageParams, "page" | "pageSize">): Promise<number[]> {
   const supabase = createSupabaseAdminClient();
   const pageSize = 1000;
   let from = 0;
   const ids: number[] = [];
+
+  let preppedExclude: number[] | null = null;
+  if (workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+    preppedExclude = await getPreppedWorkerIdsForDate(workDate, siteId);
+  }
 
   while (true) {
     let query = supabase
@@ -211,6 +294,10 @@ export async function getAttendanceWorkerIdsForFilters({
     if (search && search.trim()) {
       const value = search.trim();
       query = query.or(`name.ilike.%${value}%,id_number.ilike.%${value}%`);
+    }
+
+    if (preppedExclude && preppedExclude.length > 0) {
+      query = query.not("id", "in", `(${preppedExclude.join(",")})`);
     }
 
     const { data, error } = await query.range(from, from + pageSize - 1);
@@ -414,10 +501,13 @@ export async function getAttendanceChecksPage({
   const to = from + pageSize - 1;
   const supabase = createSupabaseAdminClient();
 
+  const workerSelect =
+    search && search.trim() ? "workers!inner(name, id_number)" : "workers(name, id_number)";
+
   let query = supabase
     .from("attendance_checks")
     .select(
-      "id, round_id, worker_id, status, confirmation_status, checked_at, confirm_note, attendance_rounds!inner(work_date, round_no, site_id, sites(name)), workers(name, id_number)",
+      `id, round_id, worker_id, status, confirmation_status, checked_at, confirm_note, attendance_rounds!inner(work_date, round_no, site_id, sites(name)), ${workerSelect}`,
       { count: "planned" },
     )
     .order("checked_at", { ascending: false });

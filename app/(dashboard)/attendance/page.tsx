@@ -10,11 +10,13 @@ import {
   getAttendanceChecksPage,
   getAttendanceDayStats,
   getAttendanceLatestStatusMap,
+  getAttendancePrepTabStats,
   getAttendanceWorkerIdsForFilters,
   getAttendanceWorkersPage,
   getContractorOptions,
   getSiteOptions,
 } from "@/lib/data/attendance";
+import { ReviewCorrectionRequestModal } from "@/components/attendance/review-correction-request-modal";
 import { getSessionContext } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
@@ -88,38 +90,6 @@ export default async function AttendancePage({ searchParams }: Props) {
     revalidateTag("dashboard-admin", "max");
   }
 
-  async function submitAttendanceCorrectionReview(formData: FormData) {
-    "use server";
-    if (isDemoModeEnabled()) return;
-    const { appUser: actor } = await getSessionContext();
-    if (!actor || !hasPermission(actor, PERM.CORRECTION_REQUEST)) return;
-
-    const checkId = Number(formData.get("checkId"));
-    const reason = String(formData.get("reason") || "طلب تعديل حضور — مراجعة تحضير اليوم").trim();
-    if (!checkId) return;
-
-    const supabase = createSupabaseAdminClient();
-    const insertRes = await supabase.from("correction_requests").insert({
-      attendance_id: checkId,
-      requester_id: actor.id,
-      reason,
-      status: "pending",
-    });
-
-    if (insertRes.error) {
-      await supabase
-        .from("attendance_checks")
-        .update({ confirm_note: `طلب تعديل حضور: ${reason}` })
-        .eq("id", checkId);
-    }
-
-    revalidatePath("/attendance");
-    revalidatePath("/corrections");
-    revalidatePath("/dashboard");
-    revalidateTag("dashboard-stats", "max");
-    revalidateTag("dashboard-admin", "max");
-  }
-
   const { appUser } = await getSessionContext();
   const params = await searchParams;
   const page = parsePage(params.page, 1);
@@ -135,12 +105,19 @@ export default async function AttendancePage({ searchParams }: Props) {
   const [sites, contractors, dayStats] = await Promise.all([
     getSiteOptions(),
     getContractorOptions(),
-    getAttendanceDayStats(
-      workDate,
-      Number.isFinite(siteId) ? siteId : undefined,
-      Number.isFinite(contractorId) ? contractorId : undefined,
-      q,
-    ),
+    activeTab === "workers"
+      ? getAttendancePrepTabStats(
+          workDate,
+          Number.isFinite(siteId) ? siteId : undefined,
+          Number.isFinite(contractorId) ? contractorId : undefined,
+          q,
+        )
+      : getAttendanceDayStats(
+          workDate,
+          Number.isFinite(siteId) ? siteId : undefined,
+          Number.isFinite(contractorId) ? contractorId : undefined,
+          q,
+        ),
   ]);
 
   const workersPage =
@@ -151,6 +128,7 @@ export default async function AttendancePage({ searchParams }: Props) {
           siteId: Number.isFinite(siteId) ? siteId : undefined,
           contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
           search: q,
+          workDate,
         })
       : null;
 
@@ -168,6 +146,7 @@ export default async function AttendancePage({ searchParams }: Props) {
           siteId: Number.isFinite(siteId) ? siteId : undefined,
           contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
           search: q,
+          workDate,
         })
       : [];
 
@@ -283,7 +262,6 @@ export default async function AttendancePage({ searchParams }: Props) {
           filteredWorkerIds={filteredWorkerIds}
           filteredTotalRows={workersPage?.meta.totalRows ?? filteredWorkerIds.length}
           siteId={params.siteId}
-          contractorId={params.contractorId}
           q={q}
           pagination={
             <PaginationControls
@@ -366,20 +344,7 @@ export default async function AttendancePage({ searchParams }: Props) {
                       </button>
                     </form>
                     {appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST) && (
-                      <form action={submitAttendanceCorrectionReview} className="flex w-full flex-col gap-2">
-                        <input type="hidden" name="checkId" value={row.id} />
-                        <Input
-                          name="reason"
-                          placeholder="سبب طلب التعديل (اختياري)"
-                          className="min-h-10 text-xs"
-                        />
-                        <button
-                          type="submit"
-                          className="w-full rounded-lg border border-amber-400 bg-amber-100 px-3 py-2 text-xs font-bold text-amber-950"
-                        >
-                          طلب تعديل
-                        </button>
-                      </form>
+                      <ReviewCorrectionRequestModal checkId={row.id} />
                     )}
                     <form action={returnAttendanceToPreparation}>
                       <input type="hidden" name="checkId" value={row.id} />
@@ -435,20 +400,7 @@ export default async function AttendancePage({ searchParams }: Props) {
                             </button>
                           </form>
                           {appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST) && (
-                            <form action={submitAttendanceCorrectionReview} className="flex flex-col gap-1.5">
-                              <input type="hidden" name="checkId" value={row.id} />
-                              <Input
-                                name="reason"
-                                placeholder="سبب طلب التعديل"
-                                className="min-h-9 min-w-[140px] px-2 py-1 text-xs"
-                              />
-                              <button
-                                type="submit"
-                                className="w-fit rounded-lg border border-amber-400 bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-950"
-                              >
-                                طلب تعديل
-                              </button>
-                            </form>
+                            <ReviewCorrectionRequestModal checkId={row.id} />
                           )}
                           <form action={returnAttendanceToPreparation} className="inline-flex">
                             <input type="hidden" name="checkId" value={row.id} />

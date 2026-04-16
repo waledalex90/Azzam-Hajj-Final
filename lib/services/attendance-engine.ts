@@ -116,6 +116,7 @@ export async function applyApprovalDecisionsEngine({
     .update({
       confirmation_status: nextStatus,
       confirmed_at: new Date().toISOString(),
+      is_approved: decision === "confirm",
     })
     .in("id", uniqueIds);
 

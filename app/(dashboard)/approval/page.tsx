@@ -1,17 +1,17 @@
-import { revalidatePath } from "next/cache";
 import Link from "next/link";
 
 import { ApprovalQueueTable } from "@/components/approval/approval-queue-table";
+import { ReviewCorrectionRequestModal } from "@/components/attendance/review-correction-request-modal";
 import { PaginationControls } from "@/components/pagination/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import { getSessionContext } from "@/lib/auth/session";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { getAttendanceChecksPage, getSiteOptions } from "@/lib/data/attendance";
+import { hasPermission } from "@/lib/auth/permissions";
+import { PERM } from "@/lib/permissions/keys";
+import { getAttendanceChecksPage, getPendingApprovalCheckIds, getSiteOptions } from "@/lib/data/attendance";
 import { parsePage } from "@/lib/utils/pagination";
-import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 type Props = {
   searchParams: Promise<{
@@ -28,38 +28,6 @@ const PAGE_SIZE = 25;
 export default async function ApprovalPage({ searchParams }: Props) {
   const { appUser } = await getSessionContext();
 
-  async function requestAttendanceCorrection(formData: FormData) {
-    "use server";
-    if (isDemoModeEnabled()) return;
-
-    const checkId = Number(formData.get("checkId"));
-    const reason = String(formData.get("reason") || "طلب تعديل حضور").trim();
-    if (!checkId) return;
-
-    const supabase = createSupabaseAdminClient();
-    const requesterId = Number(formData.get("requesterId")) || null;
-
-    const insertRes = await supabase.from("correction_requests").insert({
-      attendance_id: checkId,
-      requester_id: requesterId,
-      reason,
-      status: "pending",
-    });
-
-    if (insertRes.error) {
-      await supabase
-        .from("attendance_checks")
-        .update({
-          confirm_note: `طلب تعديل حضور: ${reason}`,
-        })
-        .eq("id", checkId);
-    }
-
-    revalidatePath("/approval");
-    revalidatePath("/corrections");
-    revalidatePath("/dashboard");
-  }
-
   const params = await searchParams;
   const page = parsePage(params.page, 1);
   const activeTab = params.tab === "history" ? "history" : "pending";
@@ -70,16 +38,23 @@ export default async function ApprovalPage({ searchParams }: Props) {
       : new Date().toISOString().slice(0, 10);
   const q = params.q?.trim();
 
-  const [{ rows, meta }, sites] = await Promise.all([
+  const [{ rows, meta }, sites, pendingFilteredTotal] = await Promise.all([
     getAttendanceChecksPage({
       page,
       pageSize: PAGE_SIZE,
       workDate,
       siteId: Number.isFinite(siteId) ? siteId : undefined,
       search: q,
-      confirmationStatus: activeTab === "pending" ? "pending" : undefined,
+      confirmationStatus: activeTab === "pending" ? "pending" : "confirmed",
     }),
     getSiteOptions(),
+    activeTab === "pending"
+      ? getPendingApprovalCheckIds({
+          workDate,
+          siteId: Number.isFinite(siteId) ? siteId : undefined,
+          search: q,
+        }).then((ids) => ids.length)
+      : Promise.resolve(0),
   ]);
 
   return (
@@ -101,7 +76,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
               activeTab === "history" ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:bg-slate-100"
             }`}
           >
-            عرض اعتمادات اليوم
+            الاعتمادات المعتمدة
           </Link>
         </div>
         <form className="mt-4 grid gap-2 sm:grid-cols-4" method="get">
@@ -127,7 +102,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
       {activeTab === "pending" ? (
         <ApprovalQueueTable
           rows={rows}
-          totalPendingFiltered={meta.totalRows}
+          totalPendingFiltered={pendingFilteredTotal}
           workDate={workDate}
           siteId={params.siteId}
           q={q}
@@ -160,18 +135,11 @@ export default async function ApprovalPage({ searchParams }: Props) {
                       {row.status === "present" ? "حاضر" : row.status === "absent" ? "غائب" : "نصف يوم"}
                     </td>
                     <td className="px-3 py-2">
-                      <form action={requestAttendanceCorrection} className="flex flex-wrap items-center gap-2">
-                        <input type="hidden" name="checkId" value={row.id} />
-                        <input type="hidden" name="requesterId" value={appUser?.id ?? ""} />
-                        <Input
-                          name="reason"
-                          placeholder="سبب طلب التعديل"
-                          className="min-h-9 min-w-[150px] px-3 py-1 text-xs"
-                        />
-                        <button className="rounded bg-amber-600 px-3 py-1 text-xs font-bold text-white">
-                          طلب تعديل حضور
-                        </button>
-                      </form>
+                      {appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST) ? (
+                        <ReviewCorrectionRequestModal checkId={row.id} />
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}

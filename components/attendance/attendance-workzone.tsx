@@ -1,45 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AttendanceWorkersTable } from "@/components/attendance/attendance-workers-table";
 import { Card } from "@/components/ui/card";
 import type { AttendanceDayStats, WorkerRow } from "@/lib/types/db";
 
 type AttendanceStatus = "present" | "absent" | "half";
-
-function storageKey(
-  workDate: string,
-  siteId?: string,
-  contractorId?: string,
-  q?: string,
-) {
-  return `attendance:hidden:${workDate}:${siteId ?? ""}:${contractorId ?? ""}:${q ?? ""}`;
-}
-
-function readHiddenSet(key: string): Set<number> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw) as unknown;
-    if (!Array.isArray(arr)) return new Set();
-    return new Set(arr.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0));
-  } catch {
-    return new Set();
-  }
-}
-
-function writeHiddenSet(key: string, ids: Set<number>) {
-  if (typeof window === "undefined") return;
-  sessionStorage.setItem(key, JSON.stringify([...ids]));
-}
-
-/** يقلّص «معلق» فقط عند أول تحضير؛ حاضر/غائب/نصف في العداد يأتي من السيرفر بعد اعتماد الإدارة (confirmed في الملخص). */
-function applyPreparationPendingOnly(prev: AttendanceDayStats, old: AttendanceStatus | undefined): AttendanceDayStats {
-  if (old !== undefined) return prev;
-  return { ...prev, pending: Math.max(0, prev.pending - 1) };
-}
 
 type Props = {
   initialDayStats: AttendanceDayStats;
@@ -49,7 +16,6 @@ type Props = {
   filteredWorkerIds: number[];
   filteredTotalRows: number;
   siteId?: string;
-  contractorId?: string;
   q?: string;
   pagination: React.ReactNode;
 };
@@ -62,27 +28,15 @@ export function AttendanceWorkzone({
   filteredWorkerIds,
   filteredTotalRows,
   siteId,
-  contractorId,
   q,
   pagination,
 }: Props) {
   const router = useRouter();
-  const key = useMemo(
-    () => storageKey(workDate, siteId, contractorId, q),
-    [workDate, siteId, contractorId, q],
-  );
-  const [hidden, setHidden] = useState<Set<number>>(() => new Set());
   const [dayStats, setDayStats] = useState(initialDayStats);
-  const initialStatusMapRef = useRef(initialStatusMap);
-  initialStatusMapRef.current = initialStatusMap;
 
   useEffect(() => {
     setDayStats(initialDayStats);
   }, [initialDayStats]);
-
-  useLayoutEffect(() => {
-    setHidden(readHiddenSet(key));
-  }, [key]);
 
   const navigateToReview = useCallback(() => {
     const qs = new URLSearchParams();
@@ -95,44 +49,15 @@ export function AttendanceWorkzone({
     router.refresh();
   }, [router, workDate, siteId, q]);
 
-  const onAttendanceChunkSaved = useCallback(
-    (workerIds: number[], _status: AttendanceStatus) => {
-      setDayStats((prev) => {
-        let s = prev;
-        for (const id of workerIds) {
-          const old = initialStatusMapRef.current[id];
-          s = applyPreparationPendingOnly(s, old);
-        }
-        return s;
-      });
-      setHidden((prev) => {
-        const next = new Set(prev);
-        workerIds.forEach((id) => next.add(id));
-        writeHiddenSet(key, next);
-        return next;
-      });
-    },
-    [key],
-  );
+  const onAttendanceChunkSaved = useCallback(() => {
+    router.refresh();
+  }, [router]);
 
   const onAttendanceSessionComplete = useCallback(() => {
     navigateToReview();
   }, [navigateToReview]);
 
-  const visibleRows = useMemo(
-    () => serverRows.filter((r) => !hidden.has(r.id)),
-    [serverRows, hidden],
-  );
-
-  const effectiveFilteredIds = useMemo(() => {
-    if (filteredWorkerIds.length > 0) {
-      return Array.from(new Set(filteredWorkerIds.filter((id) => !hidden.has(id))));
-    }
-    return visibleRows.map((r) => r.id);
-  }, [filteredWorkerIds, visibleRows, hidden]);
-
-  const remainingInScope = Math.max(0, filteredTotalRows - hidden.size);
-  const allWorkersScopedDone = filteredTotalRows > 0 && hidden.size >= filteredTotalRows;
+  const allWorkersScopedDone = filteredTotalRows === 0;
 
   const statsBlock = (
     <div className="grid gap-3 sm:grid-cols-4">
@@ -174,21 +99,15 @@ export function AttendanceWorkzone({
       {statsBlock}
 
       <AttendanceWorkersTable
-        rows={visibleRows}
+        rows={serverRows}
         workDate={workDate}
         initialStatusMap={initialStatusMap}
-        filteredWorkerIds={effectiveFilteredIds}
-        filteredTotalRows={remainingInScope}
+        filteredWorkerIds={filteredWorkerIds}
+        filteredTotalRows={filteredTotalRows}
         onAttendanceChunkSaved={onAttendanceChunkSaved}
         onAttendanceSessionComplete={onAttendanceSessionComplete}
-        suppressEmptyMessage={serverRows.length > 0 && visibleRows.length === 0}
+        suppressEmptyMessage={false}
       />
-
-      {visibleRows.length === 0 && serverRows.length > 0 && (
-        <Card className="border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-700">
-          تم تحضير جميع موظفي هذه الصفحة. انتقل للصفحة التالية إن وُجدت، أو راجع التبويب «مراجعة تحضير اليوم».
-        </Card>
-      )}
 
       {pagination}
     </>
