@@ -22,7 +22,7 @@ type Props = {
 };
 
 const TABLE_H = "min(70vh,900px)";
-const CLIENT_APPROVAL_CHUNK = 500;
+const CLIENT_APPROVAL_CHUNK = 100;
 
 function chunkIds(ids: number[], size: number): number[][] {
   const out: number[][] = [];
@@ -162,6 +162,7 @@ export function ApprovalQueueTable({
     try {
       const response = await fetch("/api/attendance/sync", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "approval_decision",
@@ -169,19 +170,23 @@ export function ApprovalQueueTable({
           checkIds: [checkId],
         }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        code?: string;
+      };
       if (!response.ok) {
         setRemoved((prev) => {
           const next = new Set(prev);
           next.delete(checkId);
           return next;
         });
+        const detail = [payload.code, payload.error].filter(Boolean).join(" — ");
         toast.error(
           response.status === 403
             ? "لا توجد صلاحية"
             : response.status === 401
               ? "يجب تسجيل الدخول"
-              : payload.error || "فشل الاتصال بالخادم",
+              : detail || `فشل الاتصال (${response.status})`,
         );
         void router.refresh();
         return;

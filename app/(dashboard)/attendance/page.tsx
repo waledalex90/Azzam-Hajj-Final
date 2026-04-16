@@ -47,6 +47,8 @@ const FULL_LOAD = 50000;
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
+/** مهلة أطول لاستدعاءات RPC التحضير (دفعات متعددة). */
+export const maxDuration = 120;
 
 export default async function AttendancePage({ searchParams }: Props) {
   noStore();

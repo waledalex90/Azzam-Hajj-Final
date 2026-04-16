@@ -41,7 +41,7 @@ function statusBadgeClass(status?: AttendanceStatus) {
 const TABLE_H = "min(70vh,900px)";
 const MOBILE_H = "min(55vh,560px)";
 /** يطابق الحد في `submitAttendancePrepBulk` — دفعات متتابعة مع شريط تقدّم */
-const CLIENT_PREP_CHUNK = 500;
+const CLIENT_PREP_CHUNK = 100;
 
 export function AttendanceWorkersTable({
   rows,

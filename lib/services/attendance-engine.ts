@@ -3,6 +3,7 @@ import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { formatPostgrestLikeError } from "@/lib/utils/postgrest-error";
 
 type AttendanceStatus = "present" | "absent" | "half";
 
@@ -67,7 +68,6 @@ export async function submitAttendanceByWorkersEngine({
   if (isDemoModeEnabled()) return;
   if (idempotencyKey && (await hasProcessedIdempotencyKey(idempotencyKey))) return;
 
-  const supabase = createSupabaseAdminClient();
   const payload = items
     .map((item) => ({
       worker_id: Number(item.worker_id),
@@ -86,7 +86,7 @@ export async function submitAttendanceByWorkersEngine({
     p_round_no: roundNo,
   });
   if (error) {
-    throw new Error(error.message || "submit_attendance_bulk_checks_failed");
+    throw new Error(formatPostgrestLikeError(error));
   }
 
   if (idempotencyKey) {
@@ -125,7 +125,7 @@ async function applyApprovalDecisionsViaDirectUpdate(
     .select("id");
 
   if (error) {
-    throw new Error(error.message || "attendance_checks_update_failed");
+    throw new Error(formatPostgrestLikeError(error));
   }
 
   const got = data?.length ?? 0;
@@ -136,7 +136,7 @@ async function applyApprovalDecisionsViaDirectUpdate(
     .select("id, confirmation_status")
     .in("id", uniqueIds);
   if (selErr) {
-    throw new Error(selErr.message || "attendance_checks_select_failed");
+    throw new Error(formatPostgrestLikeError(selErr));
   }
   if (!rows || rows.length !== uniqueIds.length) {
     throw new Error("attendance_checks_invalid_ids");
@@ -166,7 +166,14 @@ export async function applyApprovalDecisionsEngine({
   const n = typeof rpcRows === "number" ? rpcRows : Number(rpcRows);
   const rpcSucceeded = !rpcError && Number.isFinite(n) && n > 0;
   if (!rpcSucceeded) {
-    await applyApprovalDecisionsViaDirectUpdate(uniqueIds, decision);
+    try {
+      await applyApprovalDecisionsViaDirectUpdate(uniqueIds, decision);
+    } catch (e) {
+      if (rpcError) {
+        throw new Error(`${formatPostgrestLikeError(rpcError)} | ${formatPostgrestLikeError(e)}`);
+      }
+      throw e;
+    }
   }
 
   if (idempotencyKey) {

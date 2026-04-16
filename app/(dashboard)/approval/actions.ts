@@ -8,6 +8,7 @@ import { PERM } from "@/lib/permissions/keys";
 import { getPendingApprovalCheckIds } from "@/lib/data/attendance";
 import { applyApprovalDecisionsEngine } from "@/lib/services/attendance-engine";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { formatPostgrestLikeError } from "@/lib/utils/postgrest-error";
 
 const CHUNK = 500;
 
@@ -24,7 +25,7 @@ export type ActionResult = { ok: true } | { ok: false; error: string };
 
 export type FetchPendingIdsResult = { ok: true; ids: number[] } | { ok: false; error: string };
 
-/** دفعة واحدة بحد أقصى 500 — التجميع من الواجهة مع شريط تقدّم (مثل التحضير). */
+/** دفعة واحدة بحد أقصى 100 — التجميع من الواجهة مع شريط تقدّم (مثل التحضير). */
 export async function approveApprovalChunk(checkIds: number[]): Promise<ActionResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser } = await getSessionContext();
@@ -34,14 +35,14 @@ export async function approveApprovalChunk(checkIds: number[]): Promise<ActionRe
   const ids = Array.from(new Set(checkIds.map((id) => Number(id)).filter(Boolean)));
   if (ids.length === 0) return { ok: false, error: "لم يُحدد أي سجل." };
   if (ids.length > CHUNK) {
-    return { ok: false, error: `الحد الأقصى ${CHUNK} سجلًا لكل دفعة — يُجمع من الواجهة.` };
+    return { ok: false, error: `الحد الأقصى ${CHUNK} سجلًا لكل طلب — يُجمع من الواجهة.` };
   }
   try {
     await applyApprovalDecisionsEngine({ checkIds: ids, decision: "confirm" });
     revalidateApprovalCaches();
     return { ok: true };
-  } catch {
-    return { ok: false, error: "فشل الحفظ — حاول مرة أخرى." };
+  } catch (e) {
+    return { ok: false, error: formatPostgrestLikeError(e) };
   }
 }
 
@@ -69,7 +70,7 @@ export async function fetchPendingApprovalIds(input: {
       roundNo: input.roundNo,
     });
     return { ok: true, ids };
-  } catch {
-    return { ok: false, error: "فشل الاتصال." };
+  } catch (e) {
+    return { ok: false, error: formatPostgrestLikeError(e) };
   }
 }

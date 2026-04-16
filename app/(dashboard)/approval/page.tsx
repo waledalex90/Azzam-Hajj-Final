@@ -35,6 +35,7 @@ const FULL_LOAD = 50000;
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
+export const maxDuration = 120;
 
 function approvalQueryString(params: {
   tab: string;

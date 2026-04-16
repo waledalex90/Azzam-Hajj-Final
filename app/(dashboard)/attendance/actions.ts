@@ -7,6 +7,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
 import { submitAttendanceByWorkersEngine } from "@/lib/services/attendance-engine";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { formatPostgrestLikeError } from "@/lib/utils/postgrest-error";
 
 export type PrepActionResult = { ok: true } | { ok: false; error: string };
 
@@ -20,7 +21,8 @@ export async function revalidateAttendancePageCache(): Promise<void> {
 
 type Status = "present" | "absent" | "half";
 
-const CHUNK = 500;
+/** دفعات صغيرة لتفادي timeout الـ RPC على السيرفر */
+const CHUNK = 100;
 
 export async function submitAttendancePrepBulk(
   workDate: string,
@@ -60,7 +62,7 @@ export async function submitAttendancePrepBulk(
       revalidateTag("dashboard-admin", "max");
     }
     return { ok: true };
-  } catch {
-    return { ok: false, error: "فشل الاتصال أو الحفظ." };
+  } catch (e) {
+    return { ok: false, error: formatPostgrestLikeError(e) };
   }
 }
