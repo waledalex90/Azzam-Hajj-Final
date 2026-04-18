@@ -31,6 +31,7 @@ export function ViolationsTable({ rows }: Props) {
             <div className="mt-2 space-y-1 text-xs text-slate-600">
               <p>الموقع: {violation.sites?.name ?? "غير محدد"}</p>
               <p>المخالفة: {violation.violation_types?.name_ar ?? "-"}</p>
+              <p>الخصم (ريال): {Number(violation.deduction_sar ?? 0).toFixed(2)}</p>
               <p>الحالة: {getStatusLabel(violation.status)}</p>
               <p>التاريخ: {new Date(violation.occurred_at).toLocaleDateString("ar-SA")}</p>
             </div>
@@ -45,6 +46,7 @@ export function ViolationsTable({ rows }: Props) {
               <th className="px-3 py-2 text-right font-bold">العامل</th>
               <th className="px-3 py-2 text-right font-bold">الموقع</th>
               <th className="px-3 py-2 text-right font-bold">نوع المخالفة</th>
+              <th className="px-3 py-2 text-right font-bold">الخصم</th>
               <th className="px-3 py-2 text-right font-bold">الحالة</th>
               <th className="px-3 py-2 text-right font-bold">التاريخ</th>
             </tr>
@@ -58,6 +60,7 @@ export function ViolationsTable({ rows }: Props) {
                 </td>
                 <td className="px-3 py-2">{violation.sites?.name ?? "غير محدد"}</td>
                 <td className="px-3 py-2">{violation.violation_types?.name_ar ?? "-"}</td>
+                <td className="px-3 py-2">{Number(violation.deduction_sar ?? 0).toFixed(2)}</td>
                 <td className="px-3 py-2">{getStatusLabel(violation.status)}</td>
                 <td className="px-3 py-2">{new Date(violation.occurred_at).toLocaleDateString("ar-SA")}</td>
               </tr>

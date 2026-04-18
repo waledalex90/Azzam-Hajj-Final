@@ -32,6 +32,8 @@ export type ViolationRow = {
   description: string | null;
   status: "pending_review" | "needs_more_info" | "approved" | "rejected";
   occurred_at: string;
+  /** خصم بالريال (من نوع المخالفة أو تعديل يدوي) */
+  deduction_sar?: number;
   workers?: { name: string; id_number: string } | null;
   sites?: { name: string } | null;
   violation_types?: { name_ar: string } | null;

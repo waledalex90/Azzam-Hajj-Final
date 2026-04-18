@@ -27,9 +27,9 @@ export function PaginationControls({ page, totalPages, basePath, query }: Props)
   return (
     <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
       {page <= 1 ? (
-        <Button variant="secondary" disabled className="min-h-10 rounded-lg px-4 py-2 text-sm">
+        <span className="inline-flex min-h-10 cursor-not-allowed items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-400">
           السابق
-        </Button>
+        </span>
       ) : (
         <Link href={`${basePath}?${createQueryString(query, prevPage)}`}>
           <Button variant="secondary" className="min-h-10 rounded-lg px-4 py-2 text-sm">
@@ -41,9 +41,9 @@ export function PaginationControls({ page, totalPages, basePath, query }: Props)
         صفحة {page} من {totalPages}
       </p>
       {page >= totalPages ? (
-        <Button variant="secondary" disabled className="min-h-10 rounded-lg px-4 py-2 text-sm">
+        <span className="inline-flex min-h-10 cursor-not-allowed items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-400">
           التالي
-        </Button>
+        </span>
       ) : (
         <Link href={`${basePath}?${createQueryString(query, nextPage)}`}>
           <Button variant="secondary" className="min-h-10 rounded-lg px-4 py-2 text-sm">

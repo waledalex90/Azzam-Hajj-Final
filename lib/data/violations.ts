@@ -15,12 +15,11 @@ type ViolationsPageParams = {
   pageSize: number;
   siteId?: number;
   status?: "pending_review" | "needs_more_info" | "approved" | "rejected";
-};
-
-type RawViolationRow = Omit<ViolationRow, "workers" | "sites" | "violation_types"> & {
-  workers?: { name: string; id_number: string } | { name: string; id_number: string }[] | null;
-  sites?: { name: string } | { name: string }[] | null;
-  violation_types?: { name_ar: string } | { name_ar: string }[] | null;
+  /** yyyy-mm-dd */
+  dateFrom?: string;
+  dateTo?: string;
+  /** 1 صباحي، 2 مسائي */
+  shiftRound?: number;
 };
 
 const NOTICE_VIOLATION_TYPES = [
@@ -40,42 +39,56 @@ export async function getViolationsPage({
   pageSize,
   siteId,
   status,
+  dateFrom,
+  dateTo,
+  shiftRound,
 }: ViolationsPageParams): Promise<{ rows: ViolationRow[]; meta: PaginationMeta }> {
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
   const supabase = createSupabaseAdminClient();
 
-  let query = supabase
-    .from("worker_violations")
-    .select(
-      "id, worker_id, site_id, description, status, occurred_at, workers(name,id_number), sites(name), violation_types(name_ar)",
-      { count: "planned" },
-    )
-    .order("occurred_at", { ascending: false });
+  const { data, error } = await supabase.rpc("get_violations_report_page", {
+    p_date_from: dateFrom?.trim() || null,
+    p_date_to: dateTo?.trim() || null,
+    p_site_id: siteId && Number.isFinite(siteId) ? siteId : null,
+    p_status: status ?? null,
+    p_shift_round: shiftRound === 1 || shiftRound === 2 ? shiftRound : null,
+    p_page: page,
+    p_page_size: pageSize,
+  });
 
-  if (siteId) {
-    query = query.eq("site_id", siteId);
-  }
-
-  if (status) {
-    query = query.eq("status", status);
-  }
-
-  const { data, count, error } = await query.range(from, to);
   if (error) {
-    throw new Error(`Violations query failed: ${error.message}`);
+    throw new Error(`Violations report RPC failed: ${error.message}`);
   }
 
-  const totalRows = count ?? 0;
-  const rows: ViolationRow[] =
-    ((data as RawViolationRow[]) ?? []).map((item) => ({
-      ...item,
-      workers: Array.isArray(item.workers) ? (item.workers[0] ?? null) : (item.workers ?? null),
-      sites: Array.isArray(item.sites) ? (item.sites[0] ?? null) : (item.sites ?? null),
-      violation_types: Array.isArray(item.violation_types)
-        ? (item.violation_types[0] ?? null)
-        : (item.violation_types ?? null),
-    })) ?? [];
+  type RpcRow = {
+    id: number;
+    worker_id: number;
+    site_id: number;
+    description: string | null;
+    status: ViolationRow["status"];
+    occurred_at: string;
+    worker_name: string;
+    worker_id_number: string;
+    site_name: string;
+    violation_type_name: string;
+    deduction_sar: number;
+    total_count: number;
+  };
+
+  const list = (data ?? []) as RpcRow[];
+  const totalRows = list[0] ? Number(list[0].total_count) : 0;
+
+  const rows: ViolationRow[] = list.map((item) => ({
+    id: item.id,
+    worker_id: item.worker_id,
+    site_id: item.site_id,
+    description: item.description,
+    status: item.status,
+    occurred_at: item.occurred_at,
+    deduction_sar: Number(item.deduction_sar),
+    workers: { name: item.worker_name, id_number: item.worker_id_number },
+    sites: { name: item.site_name },
+    violation_types: { name_ar: item.violation_type_name },
+  }));
 
   return {
     rows,

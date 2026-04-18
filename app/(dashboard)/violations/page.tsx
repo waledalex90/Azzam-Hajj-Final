@@ -17,6 +17,9 @@ type Props = {
     status?: "pending_review" | "needs_more_info" | "approved" | "rejected";
     siteId?: string;
     workerQ?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    shiftRound?: string;
   }>;
 };
 
@@ -69,6 +72,10 @@ export default async function ViolationsPage({ searchParams }: Props) {
   const siteId = params.siteId ? Number(params.siteId) : undefined;
   const status = params.status;
   const workerQ = params.workerQ?.trim();
+  const dateFrom = params.dateFrom?.trim();
+  const dateTo = params.dateTo?.trim();
+  const shiftRound =
+    params.shiftRound === "1" ? 1 : params.shiftRound === "2" ? 2 : undefined;
 
   const [{ rows, meta }, formOptions] = await Promise.all([
     getViolationsPage({
@@ -76,6 +83,9 @@ export default async function ViolationsPage({ searchParams }: Props) {
       pageSize: PAGE_SIZE,
       siteId: Number.isFinite(siteId) ? siteId : undefined,
       status,
+      dateFrom,
+      dateTo,
+      shiftRound,
     }),
     getViolationFormOptions(workerQ),
   ]);
@@ -92,7 +102,7 @@ export default async function ViolationsPage({ searchParams }: Props) {
         <p className="mt-1 text-sm text-slate-600">
           عرض المخالفات بشكل منظم مع خيارات فرز حسب الحالة والموقع.
         </p>
-        <form className="mt-4 grid gap-2 sm:grid-cols-3" method="get">
+        <form className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6" method="get">
           <select
             name="status"
             defaultValue={status}
@@ -105,6 +115,17 @@ export default async function ViolationsPage({ searchParams }: Props) {
             <option value="rejected">مرفوض</option>
           </select>
           <Input name="siteId" defaultValue={params.siteId} placeholder="رقم الموقع (اختياري)" />
+          <Input name="dateFrom" type="date" defaultValue={dateFrom} />
+          <Input name="dateTo" type="date" defaultValue={dateTo} />
+          <select
+            name="shiftRound"
+            defaultValue={params.shiftRound ?? ""}
+            className="min-h-12 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base"
+          >
+            <option value="">كل الورديات</option>
+            <option value="1">صباحي</option>
+            <option value="2">مسائي</option>
+          </select>
           <Button type="submit" className="w-full">
             تطبيق الفلاتر
           </Button>
@@ -182,7 +203,14 @@ export default async function ViolationsPage({ searchParams }: Props) {
         page={meta.page}
         totalPages={meta.totalPages}
         basePath="/violations"
-        query={{ status, siteId: params.siteId, workerQ }}
+        query={{
+          status,
+          siteId: params.siteId,
+          workerQ,
+          dateFrom,
+          dateTo,
+          shiftRound: params.shiftRound,
+        }}
       />
     </section>
   );
