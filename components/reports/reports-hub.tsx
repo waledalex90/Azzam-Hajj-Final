@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  listReportsFilterOptionsAction,
   runReportsPreviewAction,
   type ReportsTab,
 } from "@/app/(dashboard)/reports/actions";
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import type { ReportFilters } from "@/lib/reports/queries";
 import type { PaginationMeta } from "@/lib/types/db";
 
+import { HorizontalAttendanceMatrixTable } from "./horizontal-attendance-matrix";
 import { MultiEntityPicker } from "./multi-entity-picker";
 
 function defaultDates() {
@@ -56,18 +58,32 @@ function buildExportQuery(
     violationStatus: string;
     workerStatus: string;
     workerQ: string;
+    horizontalSite?: string;
+    horizontalContractor?: string;
+    horizontalShift?: "" | "1" | "2";
   },
 ): string {
   const p = new URLSearchParams();
   const reportKey: Record<ReportsTab, string> = {
     attendance_log: "attendance_log",
     matrix: "matrix",
+    horizontal_report: "horizontal_report",
     payroll: "payroll",
     contractors: "contractors",
     violations: "violations",
     workers: "workers",
   };
   p.set("report", reportKey[tab]);
+
+  if (tab === "horizontal_report") {
+    p.set("year", String(filters.year));
+    p.set("month", String(filters.month));
+    if (filters.horizontalSite) p.set("sites", filters.horizontalSite);
+    if (filters.horizontalContractor) p.set("contractors", filters.horizontalContractor);
+    if (filters.horizontalShift) p.set("shiftRound", filters.horizontalShift);
+    return p.toString();
+  }
+
   if (tab !== "workers") {
     p.set("dateFrom", filters.dateFrom);
     p.set("dateTo", filters.dateTo);
@@ -92,6 +108,7 @@ function buildExportQuery(
 const TABS: { id: ReportsTab; label: string }[] = [
   { id: "attendance_log", label: "سجل الحضور" },
   { id: "matrix", label: "مصفوفة شهرية" },
+  { id: "horizontal_report", label: "Horizontal Report" },
   { id: "payroll", label: "مسير الرواتب" },
   { id: "contractors", label: "مستخلص المقاولين" },
   { id: "violations", label: "المخالفات" },
@@ -113,6 +130,14 @@ export function ReportsHub() {
   const [violationStatus, setViolationStatus] = useState("all");
   const [workerStatus, setWorkerStatus] = useState("all");
   const [workerQ, setWorkerQ] = useState("");
+  /** Horizontal Report: dropdown filters (موقع / مقاول / وردية) */
+  const [horizontalSite, setHorizontalSite] = useState("");
+  const [horizontalContractor, setHorizontalContractor] = useState("");
+  const [horizontalShift, setHorizontalShift] = useState<"" | "1" | "2">("");
+  const [filterLists, setFilterLists] = useState<{
+    sites: { id: number; name: string }[];
+    contractors: { id: number; name: string }[];
+  }>({ sites: [], contractors: [] });
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
@@ -121,10 +146,39 @@ export function ReportsHub() {
   const [exportPct, setExportPct] = useState<number | null>(null);
   const [exportLabel, setExportLabel] = useState<string | null>(null);
 
-  const filters = useMemo(
-    () => buildFilters(dateFrom, dateTo, siteIds, contractorIds, supervisorIds, shiftRound),
-    [dateFrom, dateTo, siteIds, contractorIds, supervisorIds, shiftRound],
-  );
+  const filters = useMemo((): ReportFilters => {
+    if (tab === "horizontal_report") {
+      const s = horizontalSite === "" ? [] : [Number(horizontalSite)];
+      const c = horizontalContractor === "" ? [] : [Number(horizontalContractor)];
+      return buildFilters(dateFrom, dateTo, s, c, [], horizontalShift);
+    }
+    return buildFilters(dateFrom, dateTo, siteIds, contractorIds, supervisorIds, shiftRound);
+  }, [
+    tab,
+    dateFrom,
+    dateTo,
+    siteIds,
+    contractorIds,
+    supervisorIds,
+    shiftRound,
+    horizontalSite,
+    horizontalContractor,
+    horizontalShift,
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listReportsFilterOptionsAction()
+      .then((d) => {
+        if (!cancelled) setFilterLists(d);
+      })
+      .catch(() => {
+        if (!cancelled) setFilterLists({ sites: [], contractors: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -230,6 +284,9 @@ export function ReportsHub() {
         violationStatus,
         workerStatus,
         workerQ,
+        horizontalSite,
+        horizontalContractor,
+        horizontalShift,
       }),
     [
       tab,
@@ -245,6 +302,9 @@ export function ReportsHub() {
       violationStatus,
       workerStatus,
       workerQ,
+      horizontalSite,
+      horizontalContractor,
+      horizontalShift,
     ],
   );
 
@@ -328,6 +388,139 @@ export function ReportsHub() {
         </div>
       </Card>
 
+      {tab === "horizontal_report" ? (
+        <Card className="space-y-4 p-4">
+          <div className="border-b border-slate-100 pb-3">
+            <h2 className="text-base font-extrabold text-slate-900">Horizontal Report</h2>
+            <p className="mt-1 text-xs text-slate-600">
+              مصفوفة حضور أفقية: صفوف الموظفين وأعمدة أيام الشهر (P / A / H). اختر السنة والشهر والموقع
+              والمقاول من القوائم ثم تطبيق الفلاتر.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700" htmlFor="hr-year">
+                السنة
+              </label>
+              <select
+                id="hr-year"
+                className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900"
+                value={year}
+                onChange={(e) => setYear(Number(e.target.value))}
+              >
+                {Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - 3 + i).map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700" htmlFor="hr-month">
+                الشهر
+              </label>
+              <select
+                id="hr-month"
+                className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900"
+                value={month}
+                onChange={(e) => setMonth(Number(e.target.value))}
+              >
+                {[
+                  "يناير",
+                  "فبراير",
+                  "مارس",
+                  "أبريل",
+                  "مايو",
+                  "يونيو",
+                  "يوليو",
+                  "أغسطس",
+                  "سبتمبر",
+                  "أكتوبر",
+                  "نوفمبر",
+                  "ديسمبر",
+                ].map((name, i) => (
+                  <option key={name} value={i + 1}>
+                    {i + 1} — {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700" htmlFor="hr-site">
+                الموقع
+              </label>
+              <select
+                id="hr-site"
+                className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                value={horizontalSite}
+                onChange={(e) => setHorizontalSite(e.target.value)}
+              >
+                <option value="">كل المواقع</option>
+                {filterLists.sites.map((s) => (
+                  <option key={s.id} value={String(s.id)}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700" htmlFor="hr-contractor">
+                المقاول
+              </label>
+              <select
+                id="hr-contractor"
+                className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                value={horizontalContractor}
+                onChange={(e) => setHorizontalContractor(e.target.value)}
+              >
+                <option value="">كل المقاولين</option>
+                {filterLists.contractors.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700" htmlFor="hr-shift">
+                الوردية
+              </label>
+              <select
+                id="hr-shift"
+                className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                value={horizontalShift}
+                onChange={(e) => setHorizontalShift(e.target.value as "" | "1" | "2")}
+              >
+                <option value="">كل الورديات</option>
+                <option value="1">صباحي</option>
+                <option value="2">مسائي</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+            <button
+              type="button"
+              className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-bold text-white"
+              onClick={() => {
+                setPage(1);
+                void refresh();
+              }}
+            >
+              تطبيق الفلاتر
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-emerald-700 bg-emerald-50 px-5 py-2.5 text-sm font-bold text-emerald-900"
+              onClick={() => void handleExportCsv()}
+            >
+              تصدير CSV كامل
+            </button>
+            <span className="text-[11px] text-slate-500">
+              المعاينة صفحات من الخادم (≤50 موظف/صفحة)؛ التصدير على دفعات حتى 1000 سطر.
+            </span>
+          </div>
+        </Card>
+      ) : (
       <Card className="grid gap-3 p-4 md:grid-cols-2 lg:grid-cols-3">
         {tab !== "workers" && (
           <>
@@ -460,6 +653,7 @@ export function ReportsHub() {
           </button>
         </div>
       </Card>
+      )}
 
       {exportLabel && (
         <Card className="p-3">
@@ -486,7 +680,12 @@ export function ReportsHub() {
         {!loading && rows.length === 0 && (
           <div className="p-4 text-center text-sm text-slate-500">لا بيانات للمعاينة.</div>
         )}
-        {!loading && rows.length > 0 && (
+        {!loading && rows.length > 0 && tab === "horizontal_report" && (
+          <div className="p-3">
+            <HorizontalAttendanceMatrixTable rows={rows} year={year} month={month} />
+          </div>
+        )}
+        {!loading && rows.length > 0 && tab !== "horizontal_report" && (
           <div className="max-h-[480px] overflow-auto">
             <table className="min-w-full text-xs">
               <thead className="sticky top-0 bg-slate-100">
@@ -525,6 +724,11 @@ export function ReportsHub() {
                               <div className="text-[10px] text-slate-500">
                                 {String(row.id_number ?? "")}
                               </div>
+                              {row.contractor_name ? (
+                                <div className="text-[10px] text-slate-500">
+                                  {String(row.contractor_name)}
+                                </div>
+                              ) : null}
                             </td>
                             {matrixDayCols.map((d) => (
                               <td key={d} className="px-1 py-1 text-center">

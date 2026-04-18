@@ -34,14 +34,15 @@ export async function GET(req: NextRequest) {
   }
 
   const f = filtersFromRequest(url);
-  if (report !== "workers" && (!f.dateFrom || !f.dateTo)) {
+  const skipsDateRange = report === "workers" || report === "matrix" || report === "horizontal_report";
+  if (!skipsDateRange && (!f.dateFrom || !f.dateTo)) {
     return NextResponse.json({ error: "dateFrom/dateTo required" }, { status: 400 });
   }
-  if (report === "matrix") {
+  if (report === "matrix" || report === "horizontal_report") {
     const y = url.searchParams.get("year");
     const m = url.searchParams.get("month");
     if (!y || !m) {
-      return NextResponse.json({ error: "year/month required for matrix" }, { status: 400 });
+      return NextResponse.json({ error: "year/month required for matrix-style reports" }, { status: 400 });
     }
   }
 

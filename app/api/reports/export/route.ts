@@ -36,14 +36,15 @@ export async function GET(req: NextRequest) {
   }
 
   const f = filtersFromUrl(url);
-  if (report !== "workers" && (!f.dateFrom || !f.dateTo)) {
+  const skipsDateRange = report === "workers" || report === "matrix" || report === "horizontal_report";
+  if (!skipsDateRange && (!f.dateFrom || !f.dateTo)) {
     return new Response("dateFrom/dateTo required", { status: 400 });
   }
 
   const year = url.searchParams.get("year") ? Number(url.searchParams.get("year")) : null;
   const month = url.searchParams.get("month") ? Number(url.searchParams.get("month")) : null;
-  if (report === "matrix" && (!year || !month)) {
-    return new Response("year/month required for matrix", { status: 400 });
+  if ((report === "matrix" || report === "horizontal_report") && (!year || !month)) {
+    return new Response("year/month required for matrix-style reports", { status: 400 });
   }
 
   const attendanceStatus = url.searchParams.get("attendanceStatus");
@@ -116,7 +117,8 @@ export async function GET(req: NextRequest) {
               }
               break;
             }
-            case "matrix": {
+            case "matrix":
+            case "horizontal_report": {
               const { data, error } = await supabase.rpc("get_monthly_attendance_matrix_page_v2", {
                 p_year: year!,
                 p_month: month!,
@@ -135,6 +137,7 @@ export async function GET(req: NextRequest) {
                 "worker_name",
                 "id_number",
                 "site_name",
+                "contractor_name",
                 ...dayKeys,
                 "present_days",
                 "absent_days",
@@ -147,6 +150,7 @@ export async function GET(req: NextRequest) {
                   r.worker_name,
                   r.id_number,
                   r.site_name,
+                  r.contractor_name,
                   ...dayKeys.map((k) => r[k] ?? ""),
                   r.present_days,
                   r.absent_days,

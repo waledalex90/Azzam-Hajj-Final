@@ -2,6 +2,7 @@
 
 import { getSessionContext } from "@/lib/auth/session";
 import {
+  listReportsFilterOptions,
   previewAttendanceLog,
   previewContractors,
   previewMatrix,
@@ -15,6 +16,7 @@ import {
 export type ReportsTab =
   | "attendance_log"
   | "matrix"
+  | "horizontal_report"
   | "payroll"
   | "contractors"
   | "violations"
@@ -27,6 +29,12 @@ export async function searchReportEntitiesAction(
   const { appUser } = await getSessionContext();
   if (!appUser) return [];
   return rpcSearchEntities(kind, q);
+}
+
+export async function listReportsFilterOptionsAction() {
+  const { appUser } = await getSessionContext();
+  if (!appUser) throw new Error("غير مصرح");
+  return listReportsFilterOptions();
 }
 
 export async function runReportsPreviewAction(payload: {
@@ -50,7 +58,8 @@ export async function runReportsPreviewAction(payload: {
   switch (tab) {
     case "attendance_log":
       return previewAttendanceLog(filters, page, payload.attendanceStatus ?? null);
-    case "matrix": {
+    case "matrix":
+    case "horizontal_report": {
       const y = payload.year ?? new Date().getFullYear();
       const m = payload.month ?? new Date().getMonth() + 1;
       return previewMatrix(y, m, filters, page);

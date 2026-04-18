@@ -19,6 +19,23 @@ const EXPORT_CHUNK = 1000;
 
 export type EntitySearchRow = { id: number; name: string; subtitle: string };
 
+export async function listReportsFilterOptions(): Promise<{
+  sites: { id: number; name: string }[];
+  contractors: { id: number; name: string }[];
+}> {
+  const supabase = createSupabaseAdminClient();
+  const [sites, contractors] = await Promise.all([
+    supabase.from("sites").select("id, name").order("name"),
+    supabase.from("contractors").select("id, name").order("name"),
+  ]);
+  if (sites.error) throw new Error(sites.error.message);
+  if (contractors.error) throw new Error(contractors.error.message);
+  return {
+    sites: (sites.data ?? []) as { id: number; name: string }[],
+    contractors: (contractors.data ?? []) as { id: number; name: string }[],
+  };
+}
+
 export async function rpcSearchEntities(
   kind: "site" | "contractor" | "supervisor",
   q: string,
@@ -183,7 +200,8 @@ export async function estimateExportTotal(
       const r = (data ?? []) as { total_count?: number }[];
       return r[0] ? Number(r[0].total_count) : 0;
     }
-    case "matrix": {
+    case "matrix":
+    case "horizontal_report": {
       const { data, error } = await supabase.rpc("get_monthly_attendance_matrix_page_v2", {
         p_year: extra.year!,
         p_month: extra.month!,

@@ -744,6 +744,7 @@ returns table(
   worker_name text,
   id_number text,
   site_name text,
+  contractor_name text,
   d01 text, d02 text, d03 text, d04 text, d05 text, d06 text, d07 text, d08 text, d09 text, d10 text,
   d11 text, d12 text, d13 text, d14 text, d15 text, d16 text, d17 text, d18 text, d19 text, d20 text,
   d21 text, d22 text, d23 text, d24 text, d25 text, d26 text, d27 text, d28 text, d29 text, d30 text, d31 text,
@@ -766,9 +767,11 @@ base_workers as (
     w.id,
     w.name as worker_name,
     w.id_number,
-    s.name as site_name
+    s.name as site_name,
+    cn.name as contractor_name
   from public.workers w
   left join public.sites s on s.id = w.current_site_id
+  left join public.contractors cn on cn.id = w.contractor_id
   where w.is_active = true
     and w.is_deleted = false
     and (p_site_ids is null or cardinality(p_site_ids) = 0 or w.current_site_id = any(p_site_ids))
@@ -806,6 +809,7 @@ select
   bw.worker_name,
   bw.id_number,
   bw.site_name,
+  bw.contractor_name,
   max(agg.mark) filter (where extract(day from agg.work_date) = 1) as d01,
   max(agg.mark) filter (where extract(day from agg.work_date) = 2) as d02,
   max(agg.mark) filter (where extract(day from agg.work_date) = 3) as d03,
@@ -842,7 +846,7 @@ select
   coalesce(sum(agg.half_points), 0)::numeric(8,2) as half_days
 from base_workers bw
 left join agg on agg.worker_id = bw.id
-group by bw.id, bw.worker_name, bw.id_number, bw.site_name
+group by bw.id, bw.worker_name, bw.id_number, bw.site_name, bw.contractor_name
 order by bw.worker_name;
 $$;
 
@@ -861,6 +865,7 @@ returns table(
   worker_name text,
   id_number text,
   site_name text,
+  contractor_name text,
   d01 text, d02 text, d03 text, d04 text, d05 text, d06 text, d07 text, d08 text, d09 text, d10 text,
   d11 text, d12 text, d13 text, d14 text, d15 text, d16 text, d17 text, d18 text, d19 text, d20 text,
   d21 text, d22 text, d23 text, d24 text, d25 text, d26 text, d27 text, d28 text, d29 text, d30 text, d31 text,
