@@ -14,8 +14,14 @@ export type ReportFilters = {
 };
 
 const PREVIEW_SIZE = 50;
-/** ≤ PostgREST max_rows الافتراضي (1000) حتى لا تُقطع الدفعات */
+/**
+ * عدد الصفوف في **طلب RPC واحد** (دفعة). التصدير الكامل يكرر الطلبات page=1,2,3… حتى تنفد البيانات —
+ * لا يوجد حد أصلي 1000 على إجمالي الملف (قد يصل لملايين الصفوف ما دامت الحلقة تعمل).
+ * القيمة ≤ `max_rows` الافتراضي لـ PostgREST في Supabase (غالباً 1000) حتى لا تُقطع الدفعة صامتاً.
+ */
 const EXPORT_CHUNK = 1000;
+/** يطابق `least(p_page_size, N)` في SQL؛ يُستخدم مع EXPORT_CHUNK في شرط إنهاء التصفح. */
+export const REPORT_RPC_PAGE_CAP = 1000;
 
 export type EntitySearchRow = { id: number; name: string; subtitle: string };
 

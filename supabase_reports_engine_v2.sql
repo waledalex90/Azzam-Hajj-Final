@@ -141,8 +141,8 @@ as $$
   paged as (
     select * from numbered
     order by wd desc, wn asc
-    offset greatest(0, (greatest(1, p_page) - 1) * greatest(1, least(p_page_size, 500)))
-    limit greatest(1, least(p_page_size, 500))
+    offset greatest(0, (greatest(1, p_page) - 1) * greatest(1, least(p_page_size, 1000)))
+    limit greatest(1, least(p_page_size, 1000))
   )
   select
     p.wid as worker_id,
@@ -294,8 +294,8 @@ as $$
     counted.tc as total_count
   from counted
   order by counted.wname
-  offset greatest(0, (greatest(1, p_page) - 1) * greatest(1, least(p_page_size, 500)))
-  limit greatest(1, least(p_page_size, 500));
+  offset greatest(0, (greatest(1, p_page) - 1) * greatest(1, least(p_page_size, 1000)))
+  limit greatest(1, least(p_page_size, 1000));
 $$;
 
 -- Period payroll stats for all workers (for violations linkage)
@@ -492,8 +492,8 @@ as $$
     n.tc as total_count
   from numbered n
   order by n.net_sar desc
-  offset greatest(0, (greatest(1, p_page) - 1) * greatest(1, least(p_page_size, 500)))
-  limit greatest(1, least(p_page_size, 500));
+  offset greatest(0, (greatest(1, p_page) - 1) * greatest(1, least(p_page_size, 1000)))
+  limit greatest(1, least(p_page_size, 1000));
 $$;
 
 -- ============== Violations detail + payroll period columns ==============
@@ -618,8 +618,8 @@ as $$
     n.tc as total_count
   from numbered n
   order by n.occurred_at desc
-  offset greatest(0, (greatest(1, p_page) - 1) * greatest(1, least(p_page_size, 500)))
-  limit greatest(1, least(p_page_size, 500));
+  offset greatest(0, (greatest(1, p_page) - 1) * greatest(1, least(p_page_size, 1000)))
+  limit greatest(1, least(p_page_size, 1000));
 $$;
 
 -- ============== Workers master data ==============
@@ -726,11 +726,15 @@ as $$
     n.tc as total_count
   from numbered n
   order by n.wn asc
-  offset greatest(0, (greatest(1, p_page) - 1) * greatest(1, least(p_page_size, 500)))
-  limit greatest(1, least(p_page_size, 500));
+  offset greatest(0, (greatest(1, p_page) - 1) * greatest(1, least(p_page_size, 1000)))
+  limit greatest(1, least(p_page_size, 1000));
 $$;
 
 -- ============== Monthly matrix + pagination (multi filters) ==============
+-- Return type changed (e.g. contractor_name): must DROP first — CREATE OR REPLACE cannot alter OUT row type.
+drop function if exists public.get_monthly_attendance_matrix_page_v2(integer, integer, bigint[], bigint[], bigint[], smallint, integer, integer);
+drop function if exists app.get_monthly_attendance_matrix_arrays(integer, integer, bigint[], bigint[], bigint[], smallint);
+
 create or replace function app.get_monthly_attendance_matrix_arrays(
   p_year integer,
   p_month integer,
@@ -890,8 +894,8 @@ as $$
   select *
   from numbered
   order by worker_name
-  offset greatest(0, (greatest(1, p_page) - 1) * greatest(1, least(p_page_size, 500)))
-  limit greatest(1, least(p_page_size, 500));
+  offset greatest(0, (greatest(1, p_page) - 1) * greatest(1, least(p_page_size, 1000)))
+  limit greatest(1, least(p_page_size, 1000));
 $$;
 
 grant execute on function public.search_report_entities(text, text, integer) to service_role;

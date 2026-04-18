@@ -4,7 +4,7 @@ import { getSessionContext } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { CSV_UTF8_BOM, rowToCsvLine } from "@/lib/reports/csv";
 import { parseIdList } from "@/lib/reports/filters";
-import { EXPORT_CHUNK } from "@/lib/reports/queries";
+import { EXPORT_CHUNK, REPORT_RPC_PAGE_CAP } from "@/lib/reports/queries";
 import type { ReportFilters } from "@/lib/reports/queries";
 
 function filtersFromUrl(url: URL): ReportFilters {
@@ -70,6 +70,9 @@ export async function GET(req: NextRequest) {
         };
 
         let page = 1;
+        /** حجم «دفعة كاملة» في استجابة واحدة؛ طالما الدفعة كاملة نطلب الصفحة التالية حتى لا يبقى بيان. */
+        const batchCeil = Math.min(EXPORT_CHUNK, REPORT_RPC_PAGE_CAP);
+
         // eslint-disable-next-line no-constant-condition
         while (true) {
           let rows: Record<string, unknown>[] = [];
@@ -356,7 +359,10 @@ export async function GET(req: NextRequest) {
               throw new Error("Unknown report");
           }
 
-          if (rows.length < EXPORT_CHUNK) break;
+          if (rows.length === 0) break;
+          /* دفعة كاملة ⇒ غالباً يوجد المزيد؛ نكرر بنفس p_page_size وزيادة page.
+             دفعة أخيرة (عدد أقل من batchCeil) ⇒ انتهى التصدير — الإجمالي = مجموع كل الدفعات. */
+          if (rows.length < batchCeil) break;
           page += 1;
         }
 
