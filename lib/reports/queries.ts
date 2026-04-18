@@ -14,7 +14,8 @@ export type ReportFilters = {
 };
 
 const PREVIEW_SIZE = 50;
-const EXPORT_CHUNK = 2000;
+/** ≤ PostgREST max_rows الافتراضي (1000) حتى لا تُقطع الدفعات */
+const EXPORT_CHUNK = 1000;
 
 export type EntitySearchRow = { id: number; name: string; subtitle: string };
 
