@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { env } from "@/lib/env";
 import { PERMISSION_CATALOG } from "@/lib/permissions/keys";
+import { ROLE_SLUG_PATTERN } from "@/lib/permissions/role-slug";
 import { SiteIdsMultiSelect } from "@/components/users/site-ids-multi-select";
 import {
   bulkImportUsersAction,
@@ -57,9 +58,6 @@ function permLabelsForRole(roles: RoleOption[], slug: string): string[] {
   const keys = Array.isArray(raw) ? (raw as string[]) : [];
   return PERMISSION_CATALOG.filter((p) => keys.includes(p.key)).map((p) => p.label);
 }
-
-/** يطابق enum app_role / أعمدة role — يستبعد slugs خاطئة من user_roles (مثل "-") */
-const ROLE_SLUG_PATTERN = /^[a-z][a-z0-9_]*$/;
 
 function firstSafeRoleSlug(roleList: RoleOption[]): string {
   return roleList.find((r) => ROLE_SLUG_PATTERN.test(r.slug))?.slug ?? "";

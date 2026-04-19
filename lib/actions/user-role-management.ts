@@ -9,12 +9,10 @@ import { isDemoModeEnabled } from "@/lib/demo-mode";
 import { resolveStoredLoginEmail } from "@/lib/auth/resolve-login-email";
 import { env } from "@/lib/env";
 import { PERM, PERMISSION_CATALOG } from "@/lib/permissions/keys";
+import { isValidRoleSlug } from "@/lib/permissions/role-slug";
 import * as XLSX from "xlsx";
 
 const LEGACY_SLUGS = new Set(["admin", "hr", "technical_observer", "field_observer"]);
-
-/** يطابق عمود role / enum app_role — يمنع قيماً مثل "-" من user_roles */
-const ROLE_SLUG_PATTERN = /^[a-z][a-z0-9_]*$/;
 
 /** عدة حقول مخفية `allowedSiteIds` أو نص قديم مفصول بفواصل → مصفوفة معرفات فريدة */
 function parseSiteIdsFromFormData(formData: FormData): number[] {
@@ -96,7 +94,7 @@ export async function createAppUserAction(formData: FormData): Promise<CreateApp
       return { success: false, error: "البيانات ناقصة أو كلمة المرور أقل من 6 أحرف." };
     }
 
-    if (!ROLE_SLUG_PATTERN.test(role)) {
+    if (!isValidRoleSlug(role)) {
       return {
         success: false,
         error:
@@ -176,7 +174,7 @@ export async function updateAppUserAction(formData: FormData) {
     return { ok: false as const, error: "بيانات ناقصة." };
   }
 
-  if (!ROLE_SLUG_PATTERN.test(role)) {
+  if (!isValidRoleSlug(role)) {
     return {
       ok: false as const,
       error:
@@ -292,6 +290,107 @@ export async function createRoleAction(formData: FormData) {
 /** لـ `<form action>` — React 19 يتوقع Promise<void> بينما createRoleAction يعيد نتيجة */
 export async function createRoleFormAction(formData: FormData): Promise<void> {
   void (await createRoleAction(formData));
+}
+
+export type RoleMutationResult = { ok: true } | { ok: false; error: string };
+
+export async function updateRoleAction(formData: FormData): Promise<RoleMutationResult> {
+  if (isDemoModeEnabled()) return { ok: true };
+  try {
+    await assertRolesManage();
+    const slug = String(formData.get("slug") || "").trim();
+    const nameAr = String(formData.get("name_ar") || "").trim();
+    if (!slug || !nameAr) {
+      return { ok: false, error: "اسم الدور مطلوب." };
+    }
+
+    const perms = PERMISSION_CATALOG.map((p) => p.key).filter((key) => formData.get(`perm_${key}`) === "on");
+
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase
+      .from("user_roles")
+      .update({ name_ar: nameAr, permissions: perms })
+      .eq("slug", slug);
+
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+    revalidatePath("/users");
+    revalidatePath("/roles");
+    return { ok: true };
+  } catch (e) {
+    const err = e instanceof Error ? e : new Error(String(e));
+    console.error("[updateRoleAction]", err);
+    if (err.message === "forbidden") {
+      return { ok: false, error: "لا تملك صلاحية إدارة الأدوار." };
+    }
+    return { ok: false, error: `فشل التحديث: ${err.message}` };
+  }
+}
+
+export async function updateRoleFormStateAction(
+  _prev: RoleMutationResult | null,
+  formData: FormData,
+): Promise<RoleMutationResult> {
+  return updateRoleAction(formData);
+}
+
+/**
+ * حذف صف في user_roles بمعرّف خاطئ (تنظيف). لا يُسمح بحذف معرّفات صالحة من هنا.
+ */
+export async function deleteRoleAction(formData: FormData): Promise<RoleMutationResult> {
+  if (isDemoModeEnabled()) return { ok: true };
+  try {
+    await assertRolesManage();
+    const slug = String(formData.get("slug") || "").trim();
+    if (!slug) {
+      return { ok: false, error: "معرّف الدور ناقص." };
+    }
+    if (isValidRoleSlug(slug)) {
+      return {
+        ok: false,
+        error: "الحذف السريع متاح فقط للمعرّفات غير الصالحة (تنظيف). الأدوار الصالحة تُدار من قاعدة البيانات عند الحاجة.",
+      };
+    }
+
+    const admin = createSupabaseAdminClient();
+    const { count, error: countErr } = await admin
+      .from("app_users")
+      .select("id", { count: "exact", head: true })
+      .eq("role", slug);
+
+    if (countErr) {
+      return { ok: false, error: countErr.message };
+    }
+    if ((count ?? 0) > 0) {
+      return {
+        ok: false,
+        error: `لا يمكن حذف الدور: يوجد ${count} مستخدم مرتبط بهذا المعرّف. غيّر أدوارهم أولاً.`,
+      };
+    }
+
+    const { error } = await admin.from("user_roles").delete().eq("slug", slug);
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+    revalidatePath("/users");
+    revalidatePath("/roles");
+    return { ok: true };
+  } catch (e) {
+    const err = e instanceof Error ? e : new Error(String(e));
+    console.error("[deleteRoleAction]", err);
+    if (err.message === "forbidden") {
+      return { ok: false, error: "لا تملك صلاحية إدارة الأدوار." };
+    }
+    return { ok: false, error: `فشل الحذف: ${err.message}` };
+  }
+}
+
+export async function deleteRoleFormStateAction(
+  _prev: RoleMutationResult | null,
+  formData: FormData,
+): Promise<RoleMutationResult> {
+  return deleteRoleAction(formData);
 }
 
 /** استيراد من Excel: أعمدة — full_name, login_email, username, password, role, site_ids (اختياري، عدة معرفات في خلية واحدة) */
