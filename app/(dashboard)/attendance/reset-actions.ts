@@ -17,10 +17,7 @@ export type ResetAttendanceResult = { ok: true } | { ok: false; error: string };
 export async function resetAttendanceChecksForDateRound(formData: FormData): Promise<ResetAttendanceResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "demo" };
   const { appUser } = await getSessionContext();
-  if (
-    !appUser ||
-    (!hasPermission(appUser, PERM.PREP) && !hasPermission(appUser, PERM.APPROVAL))
-  ) {
+  if (!appUser || !hasPermission(appUser, PERM.USERS_MANAGE)) {
     return { ok: false, error: "forbidden" };
   }
 

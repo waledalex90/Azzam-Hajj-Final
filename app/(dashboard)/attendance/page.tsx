@@ -3,7 +3,6 @@ import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { Card } from "@/components/ui/card";
 import { AttendanceFilterToolbar } from "@/components/attendance/attendance-filter-toolbar";
-import { AttendanceResetButton } from "@/components/attendance/attendance-reset-button";
 import {
   getAllPendingPrepWorkers,
   getAttendanceChecksPage,
@@ -57,9 +56,6 @@ export default async function AttendancePage({ searchParams }: Props) {
   const appUser = await requireScreen(PERM.PREP);
   const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
   const canCorrection = Boolean(appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST));
-  const canResetAttendance = Boolean(
-    appUser && (hasPermission(appUser, PERM.PREP) || hasPermission(appUser, PERM.APPROVAL)),
-  );
 
   const params = await searchParams;
   const activeTab = params.tab === "review" ? "review" : "workers";
@@ -217,9 +213,10 @@ export default async function AttendancePage({ searchParams }: Props) {
             workDate={workDate}
             roundNo={roundNo}
             siteId={params.siteId}
+            contractorId={params.contractorId}
             contractors={contractors}
             sites={sites}
-            showContractor={false}
+            showContractor
           />
         )}
       </Card>
@@ -261,9 +258,6 @@ export default async function AttendancePage({ searchParams }: Props) {
                 سجلات المحضّرة للمراجعة — {workDate} — {roundNo === 2 ? "مسائي" : "صباحي"}
               </p>
               <div className="flex flex-wrap items-center gap-2">
-                {canResetAttendance ? (
-                  <AttendanceResetButton workDate={workDate} roundNo={roundNo} siteId={params.siteId} />
-                ) : null}
                 <p className="rounded-lg bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
                   إجمالي السجلات: {reviewedRows.length}
                 </p>

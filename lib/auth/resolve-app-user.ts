@@ -30,11 +30,20 @@ const OPS_PERMS: string[] = [
 const LEGACY_PERMISSIONS: Record<string, string[]> = {
   admin: [...SCREEN_PERMS, ...OPS_PERMS, PERM.USERS_MANAGE, PERM.ROLES_MANAGE],
   hr: [...SCREEN_PERMS, ...OPS_PERMS, PERM.USERS_MANAGE],
-  technical_observer: [PERM.DASHBOARD, PERM.PREP, PERM.WORKERS, PERM.SITES, PERM.REPORTS],
-  field_observer: [
+  /** اعتماد الحضور وطلب التعديل — للمراقب الفني وليس الميداني */
+  technical_observer: [
+    PERM.DASHBOARD,
     PERM.PREP,
     PERM.APPROVAL,
     PERM.CORRECTION_REQUEST,
+    PERM.CORRECTIONS_SCREEN,
+    PERM.WORKERS,
+    PERM.SITES,
+    PERM.REPORTS,
+  ],
+  /** تحضير فقط في الميدان؛ بدون اعتماد ولا طلب تعديل */
+  field_observer: [
+    PERM.PREP,
     PERM.WORKERS,
     PERM.SITES,
     PERM.VIOLATIONS,

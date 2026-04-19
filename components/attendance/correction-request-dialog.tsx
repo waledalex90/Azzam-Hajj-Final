@@ -41,14 +41,15 @@ export function CorrectionRequestDialog({ checkId, disabled }: { checkId: number
     }
   }
 
+  if (disabled) return null;
+
   return (
     <>
       <button
         type="button"
-        className="w-full rounded border-2 border-amber-600 bg-amber-100 px-3 py-2 text-xs font-extrabold text-amber-950 shadow-sm disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
-        disabled={disabled}
+        className="w-full rounded border-2 border-amber-600 bg-amber-100 px-3 py-2 text-xs font-extrabold text-amber-950 shadow-sm md:w-auto"
         onClick={() => {
-          if (!disabled) dlg.current?.showModal();
+          dlg.current?.showModal();
         }}
       >
         طلب تعديل

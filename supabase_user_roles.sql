@@ -26,12 +26,12 @@ insert into public.user_roles (slug, name_ar, permissions) values
 (
   'technical_observer',
   'مراقب فني',
-  '["prep"]'::jsonb
+  '["dashboard","prep","approval","correction_request","corrections_screen","workers","sites","reports"]'::jsonb
 ),
 (
   'field_observer',
   'مراقب ميداني',
-  '["prep","approval","correction_request"]'::jsonb
+  '["prep","workers","sites","violations","violation_notice","transfers"]'::jsonb
 )
 on conflict (slug) do nothing;
 

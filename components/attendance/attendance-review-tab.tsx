@@ -50,7 +50,10 @@ export function AttendanceReviewTab({ initialRows, canCorrection, shiftLabel }: 
       <div className="rounded border border-slate-200 bg-white p-3">
         {shiftLabel ? (
           <p className="mb-2 text-xs font-bold text-emerald-800">
-            الوردية المعروضة: <span className="text-slate-900">{shiftLabel}</span> — طلب التعديل يُرسل للإدارة مع السبب والحالة المطلوبة.
+            الوردية المعروضة: <span className="text-slate-900">{shiftLabel}</span>
+            {canCorrection
+              ? " — طلب التعديل (للمراقب الفني) يُرسل للإدارة مع السبب والحالة المطلوبة."
+              : " — نفس تاريخ التحضير والفلاتر؛ الاعتماد وطلب التعديل من المراقب الفني."}
           </p>
         ) : null}
         <label className="block text-xs font-bold text-slate-700">بحث فوري</label>

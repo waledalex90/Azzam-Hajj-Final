@@ -5,7 +5,6 @@ import { unstable_noStore as noStore } from "next/cache";
 import { ApprovalHistoryShell } from "@/components/approval/approval-history-shell";
 import { ApprovalPendingShell } from "@/components/approval/approval-pending-shell";
 import { AttendanceFilterToolbar } from "@/components/attendance/attendance-filter-toolbar";
-import { AttendanceResetButton } from "@/components/attendance/attendance-reset-button";
 import { Card } from "@/components/ui/card";
 import { requireScreen } from "@/lib/auth/require-screen";
 import { hasPermission } from "@/lib/auth/permissions";
@@ -198,11 +197,6 @@ export default async function ApprovalPage({ searchParams }: Props) {
           contractors={contractors}
           showContractor={true}
         />
-        {canResetAttendance ? (
-          <div className="mt-2 flex flex-wrap justify-end">
-            <AttendanceResetButton workDate={workDate} roundNo={roundNo} siteId={params.siteId} />
-          </div>
-        ) : null}
       </Card>
 
       {activeTab === "pending" ? (

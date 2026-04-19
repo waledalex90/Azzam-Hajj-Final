@@ -93,7 +93,7 @@ export function AttendancePrepWorkzone({
     qs.set("shift", String(roundNo));
     if (siteId) qs.set("siteId", siteId);
     if (contractorId) qs.set("contractorId", contractorId);
-    router.push(`/attendance?${qs.toString()}`);
+    router.replace(`/attendance?${qs.toString()}`);
   }, [router, workDate, roundNo, siteId, contractorId]);
 
   const allDone = workers.length === 0;
