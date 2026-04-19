@@ -30,18 +30,35 @@ const APPROVAL_BATCH_RPC = "approve_attendance_checks_batch";
 
 function parseBulkAttendanceRpcRows(data: unknown): { inserted: number; updated: number } {
   if (data == null) return { inserted: 0, updated: 0 };
-  const rows = Array.isArray(data) ? data : [data];
+
+  let rows: unknown[] = [];
+  if (Array.isArray(data)) {
+    rows = data;
+  } else if (typeof data === "object") {
+    const o = data as Record<string, unknown>;
+    if (Array.isArray(o.data)) rows = o.data as unknown[];
+    else rows = [data];
+  }
+
   let inserted = 0;
   let updated = 0;
   for (const row of rows) {
     if (!row || typeof row !== "object") continue;
     const o = row as Record<string, unknown>;
-    const i = Number(o.inserted_count ?? 0);
-    const u = Number(o.updated_count ?? 0);
+    const rawI = o.inserted_count ?? o.insertedCount;
+    const rawU = o.updated_count ?? o.updatedCount;
+    const i = Number(rawI ?? 0);
+    const u = Number(rawU ?? 0);
     if (Number.isFinite(i)) inserted += i;
     if (Number.isFinite(u)) updated += u;
   }
   return { inserted, updated };
+}
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 async function hasProcessedIdempotencyKey(idempotencyKey: string) {
@@ -96,18 +113,34 @@ export async function submitAttendanceByWorkersEngine({
   const roundNo = Math.max(1, Math.min(Number(roundNoRaw) || 1, 9));
 
   const rpcClient = await createSupabaseServerClient();
-  const { data, error } = await rpcClient.rpc(BULK_ATTENDANCE_PUBLIC_RPC, {
-    p_work_date: workDate,
-    p_payload: payload,
-    p_notes: note,
-    p_round_no: roundNo,
-  });
+  const runRpc = () =>
+    rpcClient.rpc(BULK_ATTENDANCE_PUBLIC_RPC, {
+      p_work_date: workDate,
+      p_payload: payload,
+      p_notes: note,
+      p_round_no: roundNo,
+    });
+
+  let { data, error } = await runRpc();
   if (error) {
     throw new Error(formatPostgrestLikeError(error));
   }
 
-  const { inserted, updated } = parseBulkAttendanceRpcRows(data);
-  const touched = inserted + updated;
+  let { inserted, updated } = parseBulkAttendanceRpcRows(data);
+  let touched = inserted + updated;
+
+  /** أحياناً تُرجع أول استجابة body فارغاً أو غير قابل للتحليل رغم نجاح الـ RPC؛ إعادة واحدة تزيل «اضغط مرتين». */
+  if (touched === 0 && payload.length > 0) {
+    await delay(280);
+    const second = await runRpc();
+    if (second.error) {
+      throw new Error(formatPostgrestLikeError(second.error));
+    }
+    data = second.data;
+    ({ inserted, updated } = parseBulkAttendanceRpcRows(second.data));
+    touched = inserted + updated;
+  }
+
   if (touched === 0 && payload.length > 0) {
     throw new Error(
       "لم يُحفظ أي سجل في الحضور. إن كان الموقع وصلاحيات حسابك صحيحة: اطلب من مسؤول قاعدة البيانات تشغيل سكربت supabase_fix_can_access_match_app_user_sites.sql (يصلح قراءة المواقع من app_user_sites وصلاحية المراقب الفني). يمكن أيضاً تجربة تسجيل الخروج والدخول.",
