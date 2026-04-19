@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { TableVirtuoso, Virtuoso } from "react-virtuoso";
 
 import { submitAttendancePrepBulk } from "@/app/(dashboard)/attendance/actions";
+import { useAttendanceRscRefreshLock } from "@/components/attendance/attendance-rsc-refresh-lock";
 import type { WorkerRow } from "@/lib/types/db";
 
 type AttendanceStatus = "present" | "absent" | "half";
@@ -59,6 +60,7 @@ export function AttendanceWorkersTable({
   suppressEmptyMessage = false,
 }: Props) {
   const router = useRouter();
+  const rscRefreshLock = useAttendanceRscRefreshLock();
   const [selected, setSelected] = useState<number[]>([]);
   const [bulkScope, setBulkScope] = useState<"page" | "all">("page");
   const statusMap = initialStatusMap;
@@ -102,6 +104,7 @@ export function AttendanceWorkersTable({
     }
 
     setIsSaving(true);
+    if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = true;
     const progressId = chunks.length > 1 ? toast.loading(`جاري التحضير… 1/${chunks.length}`) : undefined;
 
     try {
@@ -139,6 +142,7 @@ export function AttendanceWorkersTable({
       onPrepSuccessNavigate?.();
     } finally {
       setIsSaving(false);
+      if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = false;
     }
   }
 
@@ -177,6 +181,7 @@ export function AttendanceWorkersTable({
     async function onStatusClick(status: AttendanceStatus) {
       if (isSaving) return;
       setIsSaving(true);
+      if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = true;
       try {
         const res = await submitAttendancePrepBulk(
           workDate,
@@ -202,6 +207,7 @@ export function AttendanceWorkersTable({
         onPrepSuccessNavigate?.();
       } finally {
         setIsSaving(false);
+        if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = false;
       }
     }
 

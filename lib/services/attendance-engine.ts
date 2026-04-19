@@ -28,6 +28,19 @@ const BULK_ATTENDANCE_PUBLIC_RPC = "submit_attendance_bulk_checks";
 /** `public.approve_attendance_checks_batch(bigint[],boolean)` — انظر `supabase_approve_checks_batch_rpc.sql`. */
 const APPROVAL_BATCH_RPC = "approve_attendance_checks_batch";
 
+function parseBulkAttendanceRpcRows(data: unknown): { inserted: number; updated: number } {
+  if (data == null) return { inserted: 0, updated: 0 };
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== "object") return { inserted: 0, updated: 0 };
+  const o = row as Record<string, unknown>;
+  const inserted = Number(o.inserted_count ?? 0);
+  const updated = Number(o.updated_count ?? 0);
+  return {
+    inserted: Number.isFinite(inserted) ? inserted : 0,
+    updated: Number.isFinite(updated) ? updated : 0,
+  };
+}
+
 async function hasProcessedIdempotencyKey(idempotencyKey: string) {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
@@ -79,7 +92,7 @@ export async function submitAttendanceByWorkersEngine({
   const roundNo = Math.max(1, Math.min(Number(roundNoRaw) || 1, 9));
 
   const rpcClient = await createSupabaseServerClient();
-  const { error } = await rpcClient.rpc(BULK_ATTENDANCE_PUBLIC_RPC, {
+  const { data, error } = await rpcClient.rpc(BULK_ATTENDANCE_PUBLIC_RPC, {
     p_work_date: workDate,
     p_payload: payload,
     p_notes: note,
@@ -87,6 +100,19 @@ export async function submitAttendanceByWorkersEngine({
   });
   if (error) {
     throw new Error(formatPostgrestLikeError(error));
+  }
+
+  const { inserted, updated } = parseBulkAttendanceRpcRows(data);
+  const touched = inserted + updated;
+  if (touched === 0 && payload.length > 0) {
+    throw new Error(
+      "لم يُحفظ أي سجل. غالباً عامل بلا موقع (current_site_id) أو خارج نطاق مواقعك في النظام.",
+    );
+  }
+  if (touched < payload.length) {
+    throw new Error(
+      `حُفظ ${touched} من ${payload.length} فقط. الباقي غير مؤهل — تأكد من تعبئة موقع كل عامل وصلاحيتك على ذلك الموقع.`,
+    );
   }
 
   if (idempotencyKey) {
