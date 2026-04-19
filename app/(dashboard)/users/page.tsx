@@ -8,6 +8,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
 import { UsersManagementClient } from "@/components/users/users-management-client";
 import { RolesManagementPanel } from "@/components/users/roles-management-panel";
+import { fetchAppUsersForManagement } from "@/lib/data/app-users-queries";
 
 type Props = {
   searchParams: Promise<{ tab?: string }>;
@@ -38,25 +39,39 @@ export default async function UsersManagementPage({ searchParams }: Props) {
 
   const supabase = createSupabaseAdminClient();
 
-  const { data: userRows, error: usersErr } = await supabase
-    .from("app_users")
-    .select("id, auth_user_id, full_name, username, role, login_email, allowed_site_ids")
-    .order("id", { ascending: true });
+  let userPayload: Awaited<ReturnType<typeof fetchAppUsersForManagement>>;
+  try {
+    userPayload = await fetchAppUsersForManagement(supabase);
+  } catch (e) {
+    console.error("[users-page] fetchAppUsersForManagement threw:", e);
+    userPayload = {
+      rows: [],
+      error: { message: e instanceof Error ? e.message : String(e) },
+      usedFallbackColumns: false,
+    };
+  }
 
-  const { data: roleRows } = await supabase.from("user_roles").select("slug, name_ar, permissions, created_at").order("name_ar");
+  const { data: roleRows, error: rolesErr } = await supabase
+    .from("user_roles")
+    .select("slug, name_ar, permissions, created_at")
+    .order("name_ar");
 
-  const { data: siteRows } = await supabase.from("sites").select("id, name").order("name");
+  const { data: siteRows, error: sitesErr } = await supabase.from("sites").select("id, name").order("name");
 
-  const users =
-    userRows?.map((u) => ({
-      id: u.id as number,
-      auth_user_id: (u.auth_user_id as string | null) ?? null,
-      full_name: u.full_name as string,
-      username: u.username as string,
-      role: u.role as string,
-      login_email: (u as { login_email?: string | null }).login_email ?? null,
-      allowed_site_ids: (u as { allowed_site_ids?: number[] | null }).allowed_site_ids ?? [],
-    })) ?? [];
+  if (rolesErr) console.error("[users-page] user_roles query failed:", rolesErr.message, rolesErr.code, rolesErr);
+  if (sitesErr) console.error("[users-page] sites query failed:", sitesErr.message, sitesErr.code, sitesErr);
+
+  const usersErr = userPayload.error;
+
+  const users = userPayload.rows.map((u) => ({
+    id: u.id as number,
+    auth_user_id: (u.auth_user_id as string | null) ?? null,
+    full_name: u.full_name as string,
+    username: u.username as string,
+    role: u.role as string,
+    login_email: u.login_email ?? null,
+    allowed_site_ids: Array.isArray(u.allowed_site_ids) ? u.allowed_site_ids : [],
+  }));
 
   const roles =
     roleRows?.map((r) => ({
@@ -105,8 +120,50 @@ export default async function UsersManagementPage({ searchParams }: Props) {
 
       {usersErr && (
         <Card className="border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          تعذّر تحميل المستخدمين. نفّذ سكربت <code className="rounded bg-white px-1">supabase_app_users_allowed_sites.sql</code> إن
-          لزم.
+          <p className="font-extrabold">تعذّر تحميل المستخدمين</p>
+          <p className="mt-1 font-mono text-xs break-words">{usersErr.message}</p>
+          {usersErr.code && (
+            <p className="mt-1 text-xs">
+              كود: <code className="rounded bg-white px-1">{usersErr.code}</code>
+            </p>
+          )}
+          {usersErr.details && (
+            <p className="mt-1 text-xs break-words opacity-90">{usersErr.details}</p>
+          )}
+          <p className="mt-2 text-xs">
+            إن كان الخطأ يشير لعمود غير موجود، نفّذ في SQL Editor:{" "}
+            <code className="rounded bg-white px-1">supabase_app_users_allowed_sites.sql</code>
+          </p>
+        </Card>
+      )}
+
+      {!usersErr && userPayload.usedFallbackColumns && (
+        <Card className="border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+          <p className="font-bold">تنبيه: تم تحميل المستخدمين بدون أعمدة المواقع/البريد</p>
+          <p className="mt-1 text-xs">
+            نفّذ <code className="rounded bg-white px-1">supabase_app_users_allowed_sites.sql</code> لتفعيل{" "}
+            <code className="rounded bg-white px-1">login_email</code> و<code className="rounded bg-white px-1">allowed_site_ids</code>.
+          </p>
+          {userPayload.attemptedDetail && (
+            <p className="mt-1 font-mono text-[11px] break-words text-amber-900/90">{userPayload.attemptedDetail}</p>
+          )}
+        </Card>
+      )}
+
+      {(rolesErr || sitesErr) && (
+        <Card className="border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {rolesErr && (
+            <p>
+              <span className="font-extrabold">الأدوار: </span>
+              <span className="font-mono text-xs">{rolesErr.message}</span>
+            </p>
+          )}
+          {sitesErr && (
+            <p className={rolesErr ? "mt-2" : ""}>
+              <span className="font-extrabold">المواقع: </span>
+              <span className="font-mono text-xs">{sitesErr.message}</span>
+            </p>
+          )}
         </Card>
       )}
 

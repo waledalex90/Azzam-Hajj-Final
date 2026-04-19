@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { fetchAppUserRowForSession } from "@/lib/data/app-users-queries";
 import type { AppUser } from "@/lib/types/db";
 import { LEGACY_ROLE_LABELS } from "@/lib/constants/roles";
 import { PERM } from "@/lib/permissions/keys";
@@ -64,12 +65,11 @@ export function enrichAppUserWithRoleRow(base: AppUserRow, roleRow: UserRoleRow 
 /** تحميل مستخدم التطبيق مع صلاحيات الدور من جدول user_roles (أو التراجع الافتراضي). */
 export async function loadAppUserWithRole(authUserId: string): Promise<AppUser | null> {
   const supabase = createSupabaseAdminClient();
-  const { data: base } = await supabase
-    .from("app_users")
-    .select("id, auth_user_id, full_name, username, role, allowed_site_ids")
-    .eq("auth_user_id", authUserId)
-    .maybeSingle<AppUserRow>();
-
+  const { data: base, error: baseErr } = await fetchAppUserRowForSession(supabase, authUserId);
+  if (baseErr) {
+    console.error("[loadAppUserWithRole] app_users query failed:", baseErr.message);
+    return null;
+  }
   if (!base) return null;
 
   const { data: roleRow, error: roleErr } = await supabase
