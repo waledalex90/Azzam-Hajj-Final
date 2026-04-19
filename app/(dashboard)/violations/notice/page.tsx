@@ -8,13 +8,21 @@ import { Input } from "@/components/ui/input";
 import { BrandLogo } from "@/components/branding/brand-logo";
 import { PrintButton } from "@/components/violations/print-button";
 import { NoticeLinkedSelects } from "@/components/violations/notice-linked-selects";
+import { NoticeAttachments } from "@/components/violations/notice-attachments";
 import { getSessionContext } from "@/lib/auth/session";
-import { getInfractionNoticeOptions } from "@/lib/data/violations";
+import {
+  getInfractionNoticeOptions,
+  getNoticeBundleForView,
+  getRecentContractorNotices,
+  uploadContractorNoticeMediaFiles,
+  type NoticeBundleView,
+  type NoticeSiteKey,
+} from "@/lib/data/violations";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 type Props = {
-  searchParams: Promise<{ workerQ?: string; saved?: string }>;
+  searchParams: Promise<{ workerQ?: string; saved?: string; viewId?: string }>;
 };
 
 function toDateValue(date: Date) {
@@ -23,6 +31,19 @@ function toDateValue(date: Date) {
 
 function toTimeValue(date: Date) {
   return date.toTimeString().slice(0, 5);
+}
+
+function siteLabelAr(key: NoticeSiteKey) {
+  switch (key) {
+    case "mina":
+      return "منى";
+    case "arafat":
+      return "عرفات";
+    case "muzdalifah":
+      return "مزدلفة";
+    default:
+      return key;
+  }
 }
 
 export default async function InfractionNoticePage({ searchParams }: Props) {
@@ -38,6 +59,7 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
     const noticeNo = String(formData.get("noticeNo") || "");
     const supervisorName = String(formData.get("supervisorName") || "").trim();
     const delegateName = String(formData.get("delegateName") || "").trim();
+    const complexNo = String(formData.get("complexNo") || "").trim();
     const notes = String(formData.get("extraNotes") || "").trim();
     const date = String(formData.get("date") || "");
     const time = String(formData.get("time") || "");
@@ -45,6 +67,9 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
       .getAll("violationTypeIds")
       .map((value) => Number(value))
       .filter((value) => Number.isFinite(value) && value > 0);
+
+    const mediaRaw = formData.getAll("mediaFiles");
+    const mediaFiles = mediaRaw.filter((f): f is File => typeof f === "object" && f !== null && "size" in f && f.size > 0);
 
     if (!workerId || !contractorId || violationTypeIds.length === 0) return;
 
@@ -73,14 +98,18 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
     const occurredAt = new Date(`${date}T${time || "00:00"}:00`);
     const selectedTypes = options.violationTypes.filter((item) => violationTypeIds.includes(item.id));
     const typeNamesJoined = selectedTypes.map((item) => item.name_ar).join("، ");
+
     const summaryBase =
       `إشعار مخالفة رقم ${noticeNo}\n` +
       `الموقع: ${selectedSite}\n` +
+      `رقم مجمع: ${complexNo || "-"}\n` +
       `المقاول: ${contractor?.name ?? "-"}\n` +
       `اسم مشرف المقاول: ${supervisorName || "-"}\n` +
       `المندوب: ${delegateName || "-"}\n` +
       `تفاصيل المخالفة: ${typeNamesJoined}\n` +
       `ملاحظات: ${notes || "-"}`;
+
+    const mediaUrls = await uploadContractorNoticeMediaFiles(workerId, mediaFiles);
 
     /** سجل لكل نوع مخالفة — يُحسب خصم كل نوع في مستخلص المقاول بعد الاعتماد */
     const rowsToInsert = violationTypeIds.map((vid) => {
@@ -94,6 +123,7 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
         occurred_at: occurredAt.toISOString(),
         reported_by: appUser.id,
         status: "pending_review" as const,
+        attachment_urls: mediaUrls,
       };
     });
 
@@ -113,15 +143,42 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
 
   const params = await searchParams;
   const workerQ = params.workerQ?.trim();
+  const viewIdNum = params.viewId ? Number(params.viewId) : NaN;
+  const viewMode = Number.isFinite(viewIdNum) && viewIdNum > 0;
+
   const now = new Date();
   const options = await getInfractionNoticeOptions(workerQ);
 
+  let viewBundle: NoticeBundleView | null = null;
+  let workersForSelect = options.workers;
+
+  if (viewMode) {
+    const got = await getNoticeBundleForView(viewIdNum, options.workers);
+    if (got) {
+      viewBundle = got.bundle;
+      workersForSelect = got.workers;
+    }
+  }
+
+  const recentNotices = viewBundle ? [] : await getRecentContractorNotices(12);
+
+  const contractorNameForView = viewBundle
+    ? ((viewBundle.contractorId != null
+        ? options.contractors.find((c) => c.id === viewBundle.contractorId)?.name
+        : undefined) ?? viewBundle.parsed.contractorName)
+    : undefined;
+
   return (
     <section className="space-y-4">
-      <div className="no-print flex items-center justify-between">
-        <h1 className="text-xl font-extrabold text-slate-900">إشعار مخالفة (نسخة 1447هـ)</h1>
-        <div className="flex gap-2">
+      <div className="no-print flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-xl font-extrabold text-slate-900">إشعار مخالفة — مقاول (نسخة 1447هـ)</h1>
+        <div className="flex flex-wrap gap-2">
           <PrintButton />
+          {viewBundle ? (
+            <Link href="/violations/notice">
+              <Button variant="primary">إشعار مخالفة جديد</Button>
+            </Link>
+          ) : null}
           <Link href="/violations">
             <Button variant="ghost">العودة إلى المخالفات</Button>
           </Link>
@@ -134,91 +191,55 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
         </Card>
       )}
 
+      {viewMode && !viewBundle && (
+        <Card className="no-print border-amber-300 bg-amber-50 text-amber-900">
+          لم يُعثر على إشعار بهذا الرقم أو لا يمكن عرضه.{" "}
+          <Link className="font-bold underline" href="/violations/notice">
+            العودة لنموذج جديد
+          </Link>
+        </Card>
+      )}
+
+      {viewBundle ? (
+        <Card className="no-print border-slate-200 bg-slate-50 text-slate-800">
+          <p className="font-bold">عرض إشعار محفوظ</p>
+          <p className="text-sm">
+            هذا النموذج للمراجعة أو الطباعة فقط. لإصدار إشعار جديد استخدم زر «إشعار مخالفة جديد» أعلاه.
+          </p>
+        </Card>
+      ) : null}
+
+      {!viewBundle && recentNotices.length > 0 ? (
+        <Card className="no-print border border-slate-200 p-4">
+          <p className="mb-2 font-bold text-slate-900">إشعارات مقاول حديثة (عرض / طباعة)</p>
+          <ul className="max-h-48 space-y-1 overflow-y-auto text-sm">
+            {recentNotices.map((n) => (
+              <li key={`${n.workerId}-${n.occurredAt}-${n.id}`} className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 py-1">
+                <span>
+                  إشعار رقم <strong>{n.noticeNo}</strong> — {n.workerName} — {n.contractorName}
+                </span>
+                <Link className="shrink-0 font-semibold text-blue-700 underline" href={`/violations/notice?viewId=${n.id}`}>
+                  عرض
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
       <Card className="paper-card overflow-hidden border border-black bg-white p-0">
-        <form action={saveNotice} className="paper-form">
-          <div className="paper-header">
-            <div className="paper-logo">
-              <BrandLogo priority className="w-[160px]" />
-            </div>
-            <div className="paper-title">
-              <h2>إشعار مخالفة</h2>
-              <p>مشاريع دورات المياه موسم حج 1447هـ</p>
-            </div>
-          </div>
-
-          <div className="paper-grid three">
-            <label>
-              التاريخ:
-              <Input name="date" type="date" defaultValue={toDateValue(now)} />
-            </label>
-            <label>
-              الوقت:
-              <Input name="time" type="time" defaultValue={toTimeValue(now)} />
-            </label>
-            <label>
-              رقم الإشعار:
-              <Input name="noticeNo" defaultValue={String(options.noticeNo)} readOnly />
-            </label>
-          </div>
-
-          <div className="paper-grid two">
-            <label>
-              رقم مجمع:
-              <Input name="complexNo" />
-            </label>
-            <label>
-              اسم مشرف المقاول:
-              <Input name="supervisorName" />
-            </label>
-          </div>
-
-          <NoticeLinkedSelects
-            workers={options.workers}
-            contractors={options.contractors}
-            siteMapping={options.siteMapping}
+        {viewBundle ? (
+          <ViewNoticeBody
+            options={options}
+            workersForSelect={workersForSelect}
+            viewBundle={viewBundle}
+            contractorNameForView={contractorNameForView ?? "—"}
           />
-
-          <div className="section-title">تفاصيل المخالفة</div>
-          <label className="multi-select-label">
-            اختر نوع/أنواع المخالفة:
-            <select name="violationTypeIds" multiple size={9} required>
-              {options.violationTypes.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name_ar}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            ملاحظات إضافية:
-            <textarea name="extraNotes" rows={4} />
-          </label>
-
-          <div className="notes">
-            <p>1- وفقاً لجدول الغرامات المرفق بالعقد سيتم توقيع الغرامات الواردة بالعقد.</p>
-            <p>2- الإشعار من أصل يرسل للحسابات والصورة لمندوب المقاول ويوقع بالاستلام.</p>
-            <p>3- في حال عدم حضور أو رفض مندوب المقاول التوقيع يتم إثبات الرفض على الإشعار.</p>
-            <p>4- يتم إرسال صورة الإشعار على الجروب المخصص للأعمال.</p>
-          </div>
-
-          <div className="signatures">
-            <div>
-              <p className="sig-title">المشرف:</p>
-              <p>الاسم: ..............................................</p>
-              <p>التوقيع: ............................................</p>
-            </div>
-            <div>
-              <p className="sig-title">المندوب:</p>
-              <p>الاسم: ..............................................</p>
-              <p>التوقيع: ............................................</p>
-            </div>
-          </div>
-
-          <div className="no-print save-wrap">
-            <Button type="submit">حفظ إشعار المخالفة</Button>
-          </div>
-        </form>
+        ) : (
+          <form action={saveNotice} className="paper-form" encType="multipart/form-data">
+            <EditNoticeBody options={options} workersForSelect={workersForSelect} now={now} />
+          </form>
+        )}
       </Card>
 
       <style>{`
@@ -288,6 +309,9 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           padding: 6px 8px;
           font-size: 14px;
         }
+        textarea {
+          min-height: 100px;
+        }
         .section-title {
           text-align: center;
           font-size: 30px;
@@ -297,8 +321,81 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           margin: 12px 0 10px;
           padding: 6px 0;
         }
-        .multi-select-label select {
-          min-height: 230px;
+        .violation-checkboxes {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          margin: 8px 0 12px;
+          padding: 10px 12px;
+          border: 1px solid #111;
+          background: #fafafa;
+        }
+        .violation-check-row {
+          display: flex;
+          flex-direction: row;
+          align-items: flex-start;
+          gap: 10px;
+          font-weight: 600;
+          line-height: 1.35;
+        }
+        .violation-check-row input {
+          margin-top: 4px;
+          min-height: auto;
+        }
+        .violation-check-glyph {
+          font-size: 16px;
+          line-height: 1.2;
+          min-width: 1.2em;
+        }
+        .notice-view-fields .notice-view-label {
+          font-weight: 700;
+          display: block;
+          margin-bottom: 4px;
+        }
+        .notice-view-value {
+          margin: 0;
+          font-weight: 600;
+          border: 1px solid #111;
+          padding: 8px;
+          min-height: 38px;
+          background: #fff;
+        }
+        .notice-media-block {
+          margin-top: 10px;
+          padding-top: 8px;
+          border-top: 1px dashed #ccc;
+        }
+        .notice-media-title {
+          font-size: 18px !important;
+          margin: 8px 0 !important;
+        }
+        .notice-media-hint {
+          font-size: 13px;
+          font-weight: 600;
+          color: #444;
+          margin: 0 0 8px;
+        }
+        .notice-media-empty {
+          margin: 0;
+          font-weight: 600;
+          color: #555;
+        }
+        .notice-file-input {
+          max-width: 100%;
+          font-weight: 600;
+        }
+        .notice-media-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+          gap: 10px;
+          margin-top: 10px;
+        }
+        .notice-media-item {
+          width: 100%;
+          max-height: 220px;
+          object-fit: contain;
+          border: 1px solid #111;
+          background: #f8f8f8;
         }
         .notes {
           border-top: 1px solid #111;
@@ -313,6 +410,8 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           border-top: 1px solid #111;
           margin-top: 12px;
           padding-top: 10px;
+          break-inside: avoid;
+          page-break-inside: avoid;
         }
         .sig-title {
           font-weight: 800;
@@ -351,18 +450,248 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
             box-shadow: none !important;
           }
           .paper-form {
-            width: 210mm;
-            min-height: 297mm;
+            width: 190mm;
+            max-width: 190mm;
+            min-height: auto;
             margin: 0 auto;
             box-sizing: border-box;
             border: 1px solid #111;
+            padding: 10mm !important;
+          }
+          .section-title,
+          .paper-title h2 {
+            break-after: avoid;
+            page-break-after: avoid;
+          }
+          .signatures,
+          .violation-checkboxes {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          .notice-media-grid {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          .notice-media-item {
+            max-height: 70mm;
           }
           @page {
             size: A4 portrait;
-            margin: 8mm;
+            margin: 10mm;
           }
         }
       `}</style>
     </section>
+  );
+}
+
+function EditNoticeBody({
+  options,
+  workersForSelect,
+  now,
+}: {
+  options: Awaited<ReturnType<typeof getInfractionNoticeOptions>>;
+  workersForSelect: Awaited<ReturnType<typeof getInfractionNoticeOptions>>["workers"];
+  now: Date;
+}) {
+  return (
+    <>
+      <PaperHeader />
+
+      <div className="paper-grid three">
+        <label>
+          التاريخ:
+          <Input name="date" type="date" defaultValue={toDateValue(now)} />
+        </label>
+        <label>
+          الوقت:
+          <Input name="time" type="time" defaultValue={toTimeValue(now)} />
+        </label>
+        <label>
+          رقم الإشعار:
+          <Input name="noticeNo" defaultValue={String(options.noticeNo)} readOnly />
+        </label>
+      </div>
+
+      <div className="paper-grid two">
+        <label>
+          رقم مجمع:
+          <Input name="complexNo" />
+        </label>
+        <label>
+          اسم مشرف المقاول:
+          <Input name="supervisorName" />
+        </label>
+      </div>
+
+      <NoticeLinkedSelects
+        workers={workersForSelect}
+        contractors={options.contractors}
+        siteMapping={options.siteMapping}
+      />
+
+      <div className="section-title">تفاصيل المخالفة</div>
+      <div className="violation-checkboxes">
+        <span className="mb-1 block font-extrabold">اختر نوع/أنواع المخالفة:</span>
+        {options.violationTypes.map((item) => (
+          <label key={item.id} className="violation-check-row">
+            <input type="checkbox" name="violationTypeIds" value={item.id} />
+            <span>{item.name_ar}</span>
+          </label>
+        ))}
+      </div>
+
+      <label>
+        ملاحظات إضافية:
+        <textarea name="extraNotes" rows={4} />
+      </label>
+
+      <label>
+        اسم المندوب:
+        <Input name="delegateName" />
+      </label>
+
+      <NoticeAttachments />
+
+      <NotesBlock />
+
+      <SignaturesBlock />
+
+      <div className="no-print save-wrap">
+        <Button type="submit">حفظ إشعار المخالفة</Button>
+      </div>
+    </>
+  );
+}
+
+function ViewNoticeBody({
+  options,
+  workersForSelect,
+  viewBundle,
+  contractorNameForView,
+}: {
+  options: Awaited<ReturnType<typeof getInfractionNoticeOptions>>;
+  workersForSelect: Awaited<ReturnType<typeof getInfractionNoticeOptions>>["workers"];
+  viewBundle: NoticeBundleView;
+  contractorNameForView: string;
+}) {
+  const d = new Date(viewBundle.occurredAtIso);
+  return (
+    <div className="paper-form">
+      <PaperHeader />
+
+      <div className="paper-grid three">
+        <label>
+          التاريخ:
+          <Input name="date" type="date" readOnly value={toDateValue(d)} />
+        </label>
+        <label>
+          الوقت:
+          <Input name="time" type="time" readOnly value={toTimeValue(d)} />
+        </label>
+        <label>
+          رقم الإشعار:
+          <Input name="noticeNo" readOnly value={viewBundle.parsed.noticeNo} />
+        </label>
+      </div>
+
+      <div className="paper-grid two">
+        <label>
+          رقم مجمع:
+          <Input readOnly value={viewBundle.parsed.complexNo || "—"} />
+        </label>
+        <label>
+          اسم مشرف المقاول:
+          <Input readOnly value={viewBundle.parsed.supervisorName || "—"} />
+        </label>
+      </div>
+
+      <NoticeLinkedSelects
+        key={`view-${viewBundle.primaryViolationId}`}
+        mode="view"
+        workers={workersForSelect}
+        contractors={options.contractors}
+        siteMapping={options.siteMapping}
+        viewLabels={{
+          contractorName: contractorNameForView,
+          workerLabel: `${viewBundle.worker.name} - ${viewBundle.worker.id_number}`,
+          siteLabel: siteLabelAr(viewBundle.siteKey),
+        }}
+      />
+
+      <div className="section-title">تفاصيل المخالفة</div>
+      <div className="violation-checkboxes">
+        <span className="mb-1 block font-extrabold">نوع/أنواع المخالفة:</span>
+        {options.violationTypes.map((item) => {
+          const on = viewBundle.violationTypeIds.includes(item.id);
+          return (
+            <div key={item.id} className="violation-check-row">
+              <span className="violation-check-glyph" aria-hidden>
+                {on ? "☑" : "☐"}
+              </span>
+              <span>{item.name_ar}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      <label>
+        ملاحظات إضافية:
+        <textarea readOnly rows={4} value={viewBundle.parsed.extraNotes || "—"} />
+      </label>
+
+      <label>
+        اسم المندوب:
+        <Input readOnly value={viewBundle.parsed.delegateName || "—"} />
+      </label>
+
+      <NoticeAttachments readOnly initialUrls={viewBundle.attachmentUrls} />
+
+      <NotesBlock />
+
+      <SignaturesBlock />
+    </div>
+  );
+}
+
+function PaperHeader() {
+  return (
+    <div className="paper-header">
+      <div className="paper-logo">
+        <BrandLogo priority className="w-[160px]" />
+      </div>
+      <div className="paper-title">
+        <h2>إشعار مخالفة</h2>
+        <p>مشاريع دورات المياه موسم حج 1447هـ</p>
+      </div>
+    </div>
+  );
+}
+
+function NotesBlock() {
+  return (
+    <div className="notes">
+      <p>1- وفقاً لجدول الغرامات المرفق بالعقد سيتم توقيع الغرامات الواردة بالعقد.</p>
+      <p>2- الإشعار من أصل يرسل للحسابات والصورة لمندوب المقاول ويوقع بالاستلام.</p>
+      <p>3- في حال عدم حضور أو رفض مندوب المقاول التوقيع يتم إثبات الرفض على الإشعار.</p>
+      <p>4- يتم إرسال صورة الإشعار على الجروب المخصص للأعمال.</p>
+    </div>
+  );
+}
+
+function SignaturesBlock() {
+  return (
+    <div className="signatures">
+      <div>
+        <p className="sig-title">المشرف:</p>
+        <p>الاسم: ..............................................</p>
+        <p>التوقيع: ............................................</p>
+      </div>
+      <div>
+        <p className="sig-title">المندوب:</p>
+        <p>الاسم: ..............................................</p>
+        <p>التوقيع: ............................................</p>
+      </div>
+    </div>
   );
 }

@@ -12,6 +12,19 @@ type Props = {
     arafatSiteId: number | null;
     muzdalifahSiteId: number | null;
   };
+  /** عرض إشعار محفوظ للطباعة فقط */
+  mode?: "edit" | "view";
+  initial?: {
+    workerId: string;
+    contractorId: string;
+    siteKey: SiteKey;
+  };
+  /** عند mode=view يُفضَّل تمرير النصوص الجاهزة بدل القوائم */
+  viewLabels?: {
+    contractorName: string;
+    workerLabel: string;
+    siteLabel: string;
+  };
 };
 
 type SiteKey = "mina" | "arafat" | "muzdalifah";
@@ -27,10 +40,37 @@ function mapSiteIdToKey(
   return null;
 }
 
-export function NoticeLinkedSelects({ workers, contractors, siteMapping }: Props) {
-  const [workerId, setWorkerId] = useState<string>("");
-  const [contractorId, setContractorId] = useState<string>("");
-  const [siteKey, setSiteKey] = useState<SiteKey>("mina");
+export function NoticeLinkedSelects({
+  workers,
+  contractors,
+  siteMapping,
+  mode = "edit",
+  initial,
+  viewLabels,
+}: Props) {
+  const [workerId, setWorkerId] = useState<string>(initial?.workerId ?? "");
+  const [contractorId, setContractorId] = useState<string>(initial?.contractorId ?? "");
+  const [siteKey, setSiteKey] = useState<SiteKey>(initial?.siteKey ?? "mina");
+  const isView = mode === "view";
+
+  if (isView && viewLabels) {
+    return (
+      <div className="paper-grid three notice-view-fields">
+        <div className="notice-view-field">
+          <span className="notice-view-label">بيانات المقاول:</span>
+          <p className="notice-view-value">{viewLabels.contractorName}</p>
+        </div>
+        <div className="notice-view-field">
+          <span className="notice-view-label">العامل:</span>
+          <p className="notice-view-value">{viewLabels.workerLabel}</p>
+        </div>
+        <div className="notice-view-field">
+          <span className="notice-view-label">الموقع (المشعر):</span>
+          <p className="notice-view-value">{viewLabels.siteLabel}</p>
+        </div>
+      </div>
+    );
+  }
 
   const workerMap = useMemo(() => {
     const map = new Map<number, WorkerRow>();
@@ -57,7 +97,8 @@ export function NoticeLinkedSelects({ workers, contractors, siteMapping }: Props
         بيانات المقاول:
         <select
           name="contractorId"
-          required
+          required={!isView}
+          disabled={isView}
           value={contractorId}
           onChange={(e) => setContractorId(e.target.value)}
         >
@@ -75,7 +116,8 @@ export function NoticeLinkedSelects({ workers, contractors, siteMapping }: Props
         العامل:
         <select
           name="workerId"
-          required
+          required={!isView}
+          disabled={isView}
           value={workerId}
           onChange={(e) => handleWorkerChange(e.target.value)}
         >
@@ -91,7 +133,13 @@ export function NoticeLinkedSelects({ workers, contractors, siteMapping }: Props
       </label>
       <label>
         الموقع (المشعر):
-        <select name="siteKey" required value={siteKey} onChange={(e) => setSiteKey(e.target.value as SiteKey)}>
+        <select
+          name="siteKey"
+          required={!isView}
+          disabled={isView}
+          value={siteKey}
+          onChange={(e) => setSiteKey(e.target.value as SiteKey)}
+        >
           <option value="mina">منى</option>
           <option value="arafat">عرفات</option>
           <option value="muzdalifah">مزدلفة</option>
