@@ -294,66 +294,75 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
         }
         .violation-picker-float-inner {
-          max-height: 220px;
+          max-height: min(55vh, 320px);
           overflow-y: auto;
-          padding: 8px 10px;
+          padding: 6px 8px;
           display: flex;
           flex-direction: column;
-          gap: 6px;
+          gap: 4px;
         }
+        /* عمود المربع ملاصق لعمود النص — بدون فراغ في المنتصف */
         .violation-picker-row {
-          display: flex;
-          gap: 10px;
-          align-items: flex-start;
-          font-weight: 600;
-          line-height: 1.35;
-          cursor: pointer;
-        }
-        .violation-selected-below {
-          margin-top: 10px;
-          padding: 8px 10px;
-          border: 1px dashed #333;
-          background: #fafafa;
-        }
-        .violation-selected-title {
-          display: block;
-          font-size: 12px;
-          font-weight: 800;
-          margin-bottom: 6px;
-          color: #333;
-        }
-        .violation-selected-ul {
-          margin: 0;
-          padding: 0;
-          list-style: none;
-        }
-        .violation-selected-li {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
+          display: grid;
+          grid-template-columns: 18px minmax(0, 1fr);
           gap: 8px;
-          padding: 4px 0;
-          border-bottom: 1px solid #e5e5e5;
-          font-weight: 600;
-          font-size: 13px;
-        }
-        .violation-selected-li:last-child {
-          border-bottom: 0;
-        }
-        .violation-selected-name {
-          flex: 1;
-          text-align: right;
-        }
-        .violation-selected-remove {
-          flex-shrink: 0;
-          width: 26px;
-          height: 26px;
-          border: 1px solid #999;
-          background: #fff;
+          align-items: start;
+          direction: rtl;
           cursor: pointer;
-          font-size: 18px;
+          font-weight: 600;
+          line-height: 1.4;
+          padding: 4px 2px;
+          border-radius: 2px;
+        }
+        .violation-picker-row:hover {
+          background: #f3f4f6;
+        }
+        .violation-picker-cb {
+          width: 16px;
+          height: 16px;
+          margin: 2px 0 0 0;
+          flex-shrink: 0;
+          accent-color: #166534;
+        }
+        .violation-picker-txt {
+          text-align: right;
+          word-break: break-word;
+          min-width: 0;
+        }
+        .violation-selected-chips {
+          margin-top: 8px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          align-items: center;
+        }
+        .violation-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          max-width: 100%;
+          padding: 4px 8px;
+          border: 1px solid #166534;
+          border-radius: 999px;
+          background: #f0fdf4;
+          font-size: 12px;
+          font-weight: 700;
+        }
+        .violation-chip-text {
+          text-align: right;
+          word-break: break-word;
+        }
+        .violation-chip-x {
+          flex-shrink: 0;
+          width: 22px;
+          height: 22px;
+          border: none;
+          background: #fff;
+          border-radius: 50%;
+          cursor: pointer;
+          font-size: 16px;
           line-height: 1;
-          border-radius: 4px;
+          color: #991b1b;
         }
         .violation-print-box {
           border: 1px solid #111;
@@ -558,6 +567,11 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           }
         }
         @media print {
+          .paper-form,
+          .paper-form * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
           .no-print,
           aside,
           header {

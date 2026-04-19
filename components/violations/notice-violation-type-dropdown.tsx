@@ -11,8 +11,8 @@ type Props = {
 };
 
 /**
- * شاشة: سطر واحد (زر يفتح قائمة عائمة) + تحته أسماء المختار فقط.
- * طباعة: نسخة `.only-print` بالأسماء فقط.
+ * سطر اختيار + قائمة منسدلة: كل صف = مربع اختيار ملاصق لنص المخالفة (شبكة RTL).
+ * طباعة: .only-print
  */
 export function NoticeViolationTypeDropdown({ types, viewMode, viewSelectedIds }: Props) {
   const viewLabels = useMemo(() => {
@@ -95,8 +95,13 @@ export function NoticeViolationTypeDropdown({ types, viewMode, viewSelectedIds }
               <div className="violation-picker-float-inner">
                 {types.map((t) => (
                   <label key={t.id} className="violation-picker-row">
-                    <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggle(t.id)} />
-                    <span>{t.name_ar}</span>
+                    <input
+                      type="checkbox"
+                      className="violation-picker-cb"
+                      checked={selected.has(t.id)}
+                      onChange={() => toggle(t.id)}
+                    />
+                    <span className="violation-picker-txt">{t.name_ar}</span>
                   </label>
                 ))}
               </div>
@@ -105,18 +110,15 @@ export function NoticeViolationTypeDropdown({ types, viewMode, viewSelectedIds }
         </div>
 
         {selectedItems.length > 0 && (
-          <div className="violation-selected-below">
-            <span className="violation-selected-title">المختار:</span>
-            <ul className="violation-selected-ul">
-              {selectedItems.map((t) => (
-                <li key={t.id} className="violation-selected-li">
-                  <span className="violation-selected-name">{t.name_ar}</span>
-                  <button type="button" className="violation-selected-remove" onClick={() => remove(t.id)} aria-label="إزالة">
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
+          <div className="violation-selected-chips" aria-label="المختار">
+            {selectedItems.map((t) => (
+              <span key={t.id} className="violation-chip">
+                <span className="violation-chip-text">{t.name_ar}</span>
+                <button type="button" className="violation-chip-x" onClick={() => remove(t.id)} aria-label="إزالة">
+                  ×
+                </button>
+              </span>
+            ))}
           </div>
         )}
 
@@ -132,7 +134,7 @@ export function NoticeViolationTypeDropdown({ types, viewMode, viewSelectedIds }
             .filter((t) => selected.has(t.id))
             .map((t) => (
               <li key={t.id} className="violation-print-li">
-                {t.name_ar}
+                ☑ {t.name_ar}
               </li>
             ))}
         </ul>
