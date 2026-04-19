@@ -1,3 +1,6 @@
+/** مطلوب أحياناً لتحميل وحدة instrumentation بالكامل */
+export function register(): void {}
+
 type RequestErrorContext = {
   routerKind: "Pages Router" | "App Router";
   routePath: string;

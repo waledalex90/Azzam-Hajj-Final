@@ -56,6 +56,12 @@ export function RouteErrorDisplay({ error, reset, boundaryLabel = "Route" }: Pro
           في سجلات السيرفر ابحث عن <code className="rounded bg-white px-1">[onRequestError]</code> بنفس الـ digest — هناك تظهر الرسالة
           الكاملة. ومن المتصفح: <code className="rounded bg-white px-1">console.error</code> أعلاه.
         </p>
+        <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-950">
+          <span className="font-extrabold">تشخيص فوري (نفس الجلسة):</span> افتح في تبويب جديد{" "}
+          <code className="rounded bg-white px-1 text-[11px]">/api/debug/users-management</code>
+          — يعيد JSON فيه رسائل Supabase الحقيقية (عمود مفقود، صلاحية، إلخ) لأن Route Handlers لا تخفي الأخطاء مثل واجهة
+          RSC.
+        </p>
         <div className="flex justify-center pt-2">
           <Button type="button" onClick={() => reset()}>
             إعادة المحاولة
