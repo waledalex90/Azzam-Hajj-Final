@@ -1,22 +1,25 @@
--- إضافة مفاتيح شاشات جديدة لصلاحيات الأدوار الموجودة (دمج بدون تكرار).
--- نفّذ بعد نشر كود التطبيق الذي يعرّف PERM الجديدة.
+-- إضافة مفاتيح شاشات جديدة لصلاحيات الأدوار (عمود permissions من نوع jsonb = مصفوفة نصوص).
+-- نفّذ في SQL Editor بعد نشر كود التطبيق.
 
--- تحديث admin + hr بكل مفاتيح الشاشات (يمكن حذف السطور حسب الحاجة)
-UPDATE public.user_roles
+UPDATE public.user_roles ur
 SET permissions = (
-  SELECT coalesce(array_agg(DISTINCT x ORDER BY x), '{}')
-  FROM unnest(
-    coalesce(permissions, '{}'::text[]) || ARRAY[
-      'dashboard',
-      'workers',
-      'sites',
-      'contractors',
-      'transfers',
-      'reports',
-      'corrections_screen',
-      'violation_notice',
-      'violations'
-    ]
-  ) AS t(x)
+  SELECT to_jsonb(array_agg(elem ORDER BY elem))
+  FROM (
+    SELECT jsonb_array_elements_text(coalesce(ur.permissions, '[]'::jsonb)) AS elem
+    UNION
+    SELECT unnest(
+      ARRAY[
+        'dashboard',
+        'workers',
+        'sites',
+        'contractors',
+        'transfers',
+        'reports',
+        'corrections_screen',
+        'violation_notice',
+        'violations'
+      ]::text[]
+    ) AS elem
+  ) s
 )
-WHERE slug IN ('admin', 'hr');
+WHERE ur.slug IN ('admin', 'hr');
