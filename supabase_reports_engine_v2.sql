@@ -17,11 +17,97 @@ create table if not exists public.payroll_manual_deductions (
 create index if not exists idx_payroll_manual_deductions_period
   on public.payroll_manual_deductions (period_start, period_end);
 
+-- تطبيع مصفوفات معرفات للمقارنة (فلاتر مسير الرواتب + قفل الاعتماد)
+create or replace function app.normalize_bigint_ids(p_ids bigint[])
+returns bigint[]
+language sql
+immutable
+set search_path = public
+as $$
+  select case
+    when p_ids is null or cardinality(p_ids) = 0 then '{}'::bigint[]
+    else (select array_agg(distinct u order by u) from unnest(p_ids) as u)
+  end
+$$;
+
+create or replace function app.payroll_ids_signature(p_ids bigint[])
+returns text
+language sql
+immutable
+set search_path = public
+as $$
+  select coalesce(
+    (select string_agg(x::text, ',' order by x)
+     from unnest(app.normalize_bigint_ids(p_ids)) as t(x)),
+    ''
+  );
+$$;
+
+-- قفل اعتماد المسير: نفس الفترة + نفس فلاتر المواقع/المقاولين/المشرفين
+create table if not exists public.payroll_period_locks (
+  id bigint generated always as identity primary key,
+  period_start date not null,
+  period_end date not null,
+  site_ids bigint[] not null default '{}',
+  contractor_ids bigint[] not null default '{}',
+  supervisor_ids bigint[] not null default '{}',
+  scope_sig text generated always as (
+    md5(
+      app.payroll_ids_signature(site_ids)
+      || '||'
+      || app.payroll_ids_signature(contractor_ids)
+      || '||'
+      || app.payroll_ids_signature(supervisor_ids)
+    )
+  ) stored,
+  created_at timestamptz not null default now(),
+  created_by bigint references public.app_users(id)
+);
+
+alter table public.payroll_period_locks
+  add column if not exists supervisor_ids bigint[] not null default '{}';
+
+create unique index if not exists payroll_period_locks_scope_uq
+  on public.payroll_period_locks (period_start, period_end, scope_sig);
+
+create or replace function public.is_payroll_scope_locked(
+  p_period_start date,
+  p_period_end date,
+  p_site_ids bigint[],
+  p_contractor_ids bigint[],
+  p_supervisor_ids bigint[]
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.payroll_period_locks pl
+    where pl.period_start = p_period_start
+      and pl.period_end = p_period_end
+      and pl.scope_sig = md5(
+        app.payroll_ids_signature(coalesce(p_site_ids, '{}'))
+        || '||'
+        || app.payroll_ids_signature(coalesce(p_contractor_ids, '{}'))
+        || '||'
+        || app.payroll_ids_signature(coalesce(p_supervisor_ids, '{}'))
+      )
+  );
+$$;
+
+drop function if exists public.upsert_payroll_manual_deduction(bigint, date, date, numeric);
+
 create or replace function public.upsert_payroll_manual_deduction(
   p_worker_id bigint,
   p_period_start date,
   p_period_end date,
-  p_amount_sar numeric
+  p_amount_sar numeric,
+  p_filter_site_ids bigint[] default null,
+  p_filter_contractor_ids bigint[] default null,
+  p_filter_supervisor_ids bigint[] default null
 )
 returns void
 language plpgsql
@@ -29,6 +115,16 @@ security definer
 set search_path = public
 as $$
 begin
+  if public.is_payroll_scope_locked(
+    p_period_start,
+    p_period_end,
+    coalesce(p_filter_site_ids, '{}'),
+    coalesce(p_filter_contractor_ids, '{}'),
+    coalesce(p_filter_supervisor_ids, '{}')
+  ) then
+    raise exception 'PAYROLL_LOCKED';
+  end if;
+
   insert into public.payroll_manual_deductions (worker_id, period_start, period_end, amount_sar, updated_at)
   values (p_worker_id, p_period_start, p_period_end, coalesce(p_amount_sar, 0), now())
   on conflict (worker_id, period_start, period_end)
@@ -38,7 +134,78 @@ begin
 end;
 $$;
 
-grant execute on function public.upsert_payroll_manual_deduction (bigint, date, date, numeric) to service_role;
+create or replace function public.approve_payroll_period(
+  p_period_start date,
+  p_period_end date,
+  p_site_ids bigint[],
+  p_contractor_ids bigint[],
+  p_supervisor_ids bigint[],
+  p_created_by bigint
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_s bigint[] := app.normalize_bigint_ids(coalesce(p_site_ids, '{}'));
+  v_c bigint[] := app.normalize_bigint_ids(coalesce(p_contractor_ids, '{}'));
+  v_u bigint[] := app.normalize_bigint_ids(coalesce(p_supervisor_ids, '{}'));
+  v_sig text := md5(
+    app.payroll_ids_signature(v_s)
+    || '||'
+    || app.payroll_ids_signature(v_c)
+    || '||'
+    || app.payroll_ids_signature(v_u)
+  );
+begin
+  if exists (
+    select 1
+    from public.payroll_period_locks pl
+    where pl.period_start = p_period_start
+      and pl.period_end = p_period_end
+      and pl.scope_sig = v_sig
+  ) then
+    return;
+  end if;
+
+  insert into public.payroll_period_locks (period_start, period_end, site_ids, contractor_ids, supervisor_ids, created_by)
+  values (p_period_start, p_period_end, v_s, v_c, v_u, p_created_by);
+end;
+$$;
+
+create or replace function public.unlock_payroll_period(
+  p_period_start date,
+  p_period_end date,
+  p_site_ids bigint[],
+  p_contractor_ids bigint[],
+  p_supervisor_ids bigint[]
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_sig text := md5(
+    app.payroll_ids_signature(coalesce(p_site_ids, '{}'))
+    || '||'
+    || app.payroll_ids_signature(coalesce(p_contractor_ids, '{}'))
+    || '||'
+    || app.payroll_ids_signature(coalesce(p_supervisor_ids, '{}'))
+  );
+begin
+  delete from public.payroll_period_locks pl
+  where pl.period_start = p_period_start
+    and pl.period_end = p_period_end
+    and pl.scope_sig = v_sig;
+end;
+$$;
+
+grant execute on function public.upsert_payroll_manual_deduction (bigint, date, date, numeric, bigint[], bigint[], bigint[]) to service_role;
+grant execute on function public.is_payroll_scope_locked (date, date, bigint[], bigint[], bigint[]) to service_role;
+grant execute on function public.approve_payroll_period (date, date, bigint[], bigint[], bigint[], bigint) to service_role;
+grant execute on function public.unlock_payroll_period (date, date, bigint[], bigint[], bigint[]) to service_role;
 
 -- ============== Shared filter helpers (nullable empty array = no filter) ==============
 -- p_ids null OR empty → match all rows for that dimension

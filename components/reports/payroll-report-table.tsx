@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { savePayrollManualDeductionAction } from "@/app/(dashboard)/reports/payroll-actions";
+import type { ReportFilters } from "@/lib/reports/queries";
 
 function num(v: unknown): number {
   if (v === null || v === undefined || v === "") return 0;
@@ -14,16 +15,22 @@ export function PayrollReportTable({
   rows,
   periodStart,
   periodEnd,
+  filter,
+  locked,
   onSaved,
 }: {
   rows: Record<string, unknown>[];
   periodStart: string;
   periodEnd: string;
+  filter: Pick<ReportFilters, "siteIds" | "contractorIds" | "supervisorIds">;
+  locked: boolean;
   onSaved: () => void;
 }) {
   const [manual, setManual] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** تمييز الصافي مباشرة بعد الضغط على حفظ (قبل انتهاء الطلب). */
+  const [flashNetId, setFlashNetId] = useState<number | null>(null);
 
   useEffect(() => {
     setManual((prev) => {
@@ -41,6 +48,7 @@ export function PayrollReportTable({
 
   const saveOne = useCallback(
     async (workerId: number) => {
+      if (locked) return;
       setError(null);
       const raw = manual[workerId]?.trim() ?? "";
       const amount = raw === "" ? 0 : Number(raw);
@@ -48,6 +56,9 @@ export function PayrollReportTable({
         setError("أدخل مبلغاً رقماً صالحاً للخصم اليدوي");
         return;
       }
+      setFlashNetId(workerId);
+      window.setTimeout(() => setFlashNetId(null), 600);
+
       setSaving(workerId);
       try {
         await savePayrollManualDeductionAction({
@@ -55,6 +66,7 @@ export function PayrollReportTable({
           periodStart,
           periodEnd,
           amountSar: amount,
+          filter,
         });
         onSaved();
       } catch (e) {
@@ -63,7 +75,7 @@ export function PayrollReportTable({
         setSaving(null);
       }
     },
-    [manual, onSaved, periodEnd, periodStart],
+    [filter, locked, manual, onSaved, periodEnd, periodStart],
   );
 
   return (
@@ -74,8 +86,8 @@ export function PayrollReportTable({
         </p>
       )}
       <p className="text-[11px] text-slate-600">
-        اليومية المعروضة هي المستخدمة في الحساب (يومي = الراتب الأساسي، شهري = الأساس ÷ 30). الصافي = المستحق −
-        خصومات المخالفات − الخصم اليدوي. احفظ الخصم بعد التعديل.
+        اليومية المعروضة هي المستخدمة في الحساب (يومي = الراتب الأساسي، شهري = الأساس ÷ 30). الصافي يُحدَّث فور
+        تغيير الخصم أو عند الحفظ. عند اعتماد المسير يُقفل التعديل.
       </p>
       <div className="overflow-auto">
         <table className="min-w-full text-xs">
@@ -103,6 +115,7 @@ export function PayrollReportTable({
               const manualAmt = manualStr.trim() === "" ? 0 : Number(manualStr);
               const manualOk = manualStr.trim() === "" || Number.isFinite(manualAmt);
               const net = gross - viol - (manualOk ? manualAmt : 0);
+              const flash = flashNetId === workerId;
               return (
                 <tr key={workerId || idx} className="border-t border-slate-200">
                   <td className="max-w-[10rem] px-2 py-1.5 font-bold text-slate-900">
@@ -129,7 +142,8 @@ export function PayrollReportTable({
                     <input
                       type="text"
                       inputMode="decimal"
-                      className="w-full min-w-[4.5rem] rounded border border-slate-200 px-1 py-1 text-center font-mono"
+                      disabled={locked}
+                      className="w-full min-w-[4.5rem] rounded border border-slate-200 px-1 py-1 text-center font-mono disabled:bg-slate-100"
                       value={manual[workerId] ?? ""}
                       onChange={(e) => {
                         const v = e.target.value;
@@ -138,14 +152,18 @@ export function PayrollReportTable({
                       placeholder="0"
                     />
                   </td>
-                  <td className="whitespace-nowrap px-2 py-1.5 text-center font-bold text-emerald-900">
+                  <td
+                    className={`whitespace-nowrap px-2 py-1.5 text-center font-bold text-emerald-900 transition-shadow ${
+                      flash ? "rounded bg-emerald-100 ring-2 ring-emerald-500" : ""
+                    }`}
+                  >
                     {manualOk ? net.toFixed(2) : "—"}
                   </td>
                   <td className="px-1 py-1 text-center">
                     <button
                       type="button"
                       className="rounded border border-slate-300 bg-white px-2 py-1 text-[10px] font-bold text-slate-800 disabled:opacity-40"
-                      disabled={!Number.isFinite(workerId) || saving === workerId}
+                      disabled={!Number.isFinite(workerId) || saving === workerId || locked}
                       onClick={() => void saveOne(workerId)}
                     >
                       {saving === workerId ? "…" : "حفظ"}

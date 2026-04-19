@@ -7,6 +7,8 @@ import {
   runReportsPreviewAction,
   type ReportsTab,
 } from "@/app/(dashboard)/reports/actions";
+import { getPayrollLockStateAction } from "@/app/(dashboard)/reports/payroll-actions";
+import { SearchableSelect } from "@/components/filters/searchable-select";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { ReportFilters } from "@/lib/reports/queries";
@@ -15,6 +17,7 @@ import type { PaginationMeta } from "@/lib/types/db";
 import { HorizontalAttendanceMatrixTable } from "./horizontal-attendance-matrix";
 import { MultiEntityPicker } from "./multi-entity-picker";
 import { PayrollReportTable } from "./payroll-report-table";
+import { PayrollReportToolbar } from "./payroll-report-toolbar";
 
 function defaultDates() {
   const to = new Date();
@@ -163,6 +166,7 @@ export function ReportsHub() {
   const [error, setError] = useState<string | null>(null);
   const [exportPct, setExportPct] = useState<number | null>(null);
   const [exportLabel, setExportLabel] = useState<string | null>(null);
+  const [payrollLocked, setPayrollLocked] = useState(false);
 
   const filters = useMemo((): ReportFilters => {
     if (tab === "horizontal_report") {
@@ -243,6 +247,22 @@ export function ReportsHub() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (tab !== "payroll") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const locked = await getPayrollLockStateAction(filters);
+        if (!cancelled) setPayrollLocked(locked);
+      } catch {
+        if (!cancelled) setPayrollLocked(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, filters]);
 
   const columns = useMemo(() => {
     if (!rows.length) return [] as { key: string; label: string }[];
@@ -475,42 +495,20 @@ export function ReportsHub() {
                 ))}
               </select>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700" htmlFor="hr-site">
-                الموقع
-              </label>
-              <select
-                id="hr-site"
-                className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
-                value={horizontalSite}
-                onChange={(e) => setHorizontalSite(e.target.value)}
-              >
-                <option value="">كل المواقع</option>
-                {filterLists.sites.map((s) => (
-                  <option key={s.id} value={String(s.id)}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700" htmlFor="hr-contractor">
-                المقاول
-              </label>
-              <select
-                id="hr-contractor"
-                className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
-                value={horizontalContractor}
-                onChange={(e) => setHorizontalContractor(e.target.value)}
-              >
-                <option value="">كل المقاولين</option>
-                {filterLists.contractors.map((c) => (
-                  <option key={c.id} value={String(c.id)}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SearchableSelect
+              label="الموقع"
+              value={horizontalSite}
+              onChange={setHorizontalSite}
+              options={filterLists.sites.map((s) => ({ id: String(s.id), label: s.name }))}
+              emptyLabel="كل المواقع"
+            />
+            <SearchableSelect
+              label="المقاول"
+              value={horizontalContractor}
+              onChange={setHorizontalContractor}
+              options={filterLists.contractors.map((c) => ({ id: String(c.id), label: c.name }))}
+              emptyLabel="كل المقاولين"
+            />
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700" htmlFor="hr-shift">
                 الوردية
@@ -551,7 +549,7 @@ export function ReportsHub() {
           </div>
         </Card>
       ) : (
-      <Card className="grid gap-3 p-4 md:grid-cols-2 lg:grid-cols-3">
+      <Card className="flex flex-wrap items-end gap-3 p-4">
         {tab !== "workers" && tab !== "payroll" && (
           <>
             <div className="space-y-1">
@@ -707,7 +705,7 @@ export function ReportsHub() {
 
       <Card className="overflow-x-auto p-0">
         {loading && <div className="p-4 text-sm text-slate-500">جاري تحميل المعاينة…</div>}
-        {!loading && rows.length === 0 && (
+        {!loading && rows.length === 0 && tab !== "payroll" && (
           <div className="p-4 text-center text-sm text-slate-500">لا بيانات للمعاينة.</div>
         )}
         {!loading && rows.length > 0 && tab === "horizontal_report" && (
@@ -715,14 +713,40 @@ export function ReportsHub() {
             <HorizontalAttendanceMatrixTable rows={rows} year={year} month={month} />
           </div>
         )}
-        {!loading && rows.length > 0 && tab === "payroll" && (
-          <div className="p-3">
-            <PayrollReportTable
-              rows={rows}
-              periodStart={monthDateBounds(year, month).dateFrom}
-              periodEnd={monthDateBounds(year, month).dateTo}
-              onSaved={() => void refresh()}
+        {!loading && tab === "payroll" && (
+          <div className="space-y-2 p-3">
+            <PayrollReportToolbar
+              filters={filters}
+              year={year}
+              month={month}
+              locked={payrollLocked}
+              onAfterMutation={() => {
+                void refresh();
+                void (async () => {
+                  try {
+                    setPayrollLocked(await getPayrollLockStateAction(filters));
+                  } catch {
+                    setPayrollLocked(false);
+                  }
+                })();
+              }}
             />
+            {rows.length > 0 ? (
+              <PayrollReportTable
+                rows={rows}
+                periodStart={monthDateBounds(year, month).dateFrom}
+                periodEnd={monthDateBounds(year, month).dateTo}
+                filter={{
+                  siteIds: filters.siteIds,
+                  contractorIds: filters.contractorIds,
+                  supervisorIds: filters.supervisorIds,
+                }}
+                locked={payrollLocked}
+                onSaved={() => void refresh()}
+              />
+            ) : (
+              <p className="text-center text-sm text-slate-500">لا بيانات للمعاينة.</p>
+            )}
           </div>
         )}
         {!loading && rows.length > 0 && tab !== "horizontal_report" && tab !== "payroll" && (

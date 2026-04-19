@@ -4,6 +4,7 @@ import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { revalidateAttendancePageCache } from "@/app/(dashboard)/attendance/actions";
+import { SearchableSelect } from "@/components/filters/searchable-select";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 
@@ -61,6 +62,9 @@ export function AttendanceFilterToolbar(props: {
     });
   };
 
+  const siteOptions = sites.map((s) => ({ id: String(s.id), label: s.name }));
+  const contractorOptions = contractors.map((c) => ({ id: String(c.id), label: c.name }));
+
   return (
     <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
       <DatePickerField
@@ -81,33 +85,23 @@ export function AttendanceFilterToolbar(props: {
       <div className="min-h-12 rounded border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600 lg:col-span-1">
         بحث فوري تحت الجدول
       </div>
-      <select
+      <SearchableSelect
+        label="الموقع"
         value={siteId ?? ""}
-        onChange={(e) => navigate({ siteId: e.target.value })}
+        onChange={(id) => navigate({ siteId: id })}
+        options={siteOptions}
+        emptyLabel="كل المواقع"
         disabled={isNavPending}
-        className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base disabled:opacity-60"
-      >
-        <option value="">كل المواقع</option>
-        {sites.map((site) => (
-          <option key={site.id} value={site.id}>
-            {site.name}
-          </option>
-        ))}
-      </select>
+      />
       {showContractor ? (
-        <select
+        <SearchableSelect
+          label="المقاول"
           value={contractorId ?? ""}
-          onChange={(e) => navigate({ contractorId: e.target.value })}
+          onChange={(id) => navigate({ contractorId: id })}
+          options={contractorOptions}
+          emptyLabel="كل المقاولين"
           disabled={isNavPending}
-          className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base disabled:opacity-60"
-        >
-          <option value="">كل المقاولين</option>
-          {contractors.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        />
       ) : (
         <div className="min-h-12 rounded border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
           {basePath === "/approval" ? "فلتر الموقع" : "المقاول من تبويب التحضير"}

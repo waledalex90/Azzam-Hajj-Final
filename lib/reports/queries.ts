@@ -101,11 +101,25 @@ export async function previewMatrix(
   return { rows, meta: buildPaginationMeta(total, page, PREVIEW_SIZE) };
 }
 
+export async function isPayrollScopeLockedRpc(f: ReportFilters): Promise<boolean> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.rpc("is_payroll_scope_locked", {
+    p_period_start: f.dateFrom,
+    p_period_end: f.dateTo,
+    p_site_ids: f.siteIds ?? [],
+    p_contractor_ids: f.contractorIds ?? [],
+    p_supervisor_ids: f.supervisorIds ?? [],
+  });
+  if (error) throw new Error(error.message);
+  return Boolean(data);
+}
+
 export async function upsertPayrollManualDeduction(
   workerId: number,
   periodStart: string,
   periodEnd: string,
   amountSar: number,
+  filter: Pick<ReportFilters, "siteIds" | "contractorIds" | "supervisorIds">,
 ) {
   const supabase = createSupabaseAdminClient();
   const { error } = await supabase.rpc("upsert_payroll_manual_deduction", {
@@ -113,6 +127,39 @@ export async function upsertPayrollManualDeduction(
     p_period_start: periodStart,
     p_period_end: periodEnd,
     p_amount_sar: amountSar,
+    p_filter_site_ids: filter.siteIds ?? [],
+    p_filter_contractor_ids: filter.contractorIds ?? [],
+    p_filter_supervisor_ids: filter.supervisorIds ?? [],
+  });
+  if (error) {
+    if (error.message.includes("PAYROLL_LOCKED")) {
+      throw new Error("تم اعتماد المسير لهذه الفترة والفلاتر ولا يمكن تعديل الخصومات.");
+    }
+    throw new Error(error.message);
+  }
+}
+
+export async function approvePayrollPeriodRpc(f: ReportFilters, createdBy: number) {
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.rpc("approve_payroll_period", {
+    p_period_start: f.dateFrom,
+    p_period_end: f.dateTo,
+    p_site_ids: f.siteIds ?? [],
+    p_contractor_ids: f.contractorIds ?? [],
+    p_supervisor_ids: f.supervisorIds ?? [],
+    p_created_by: createdBy,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function unlockPayrollPeriodRpc(f: ReportFilters) {
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.rpc("unlock_payroll_period", {
+    p_period_start: f.dateFrom,
+    p_period_end: f.dateTo,
+    p_site_ids: f.siteIds ?? [],
+    p_contractor_ids: f.contractorIds ?? [],
+    p_supervisor_ids: f.supervisorIds ?? [],
   });
   if (error) throw new Error(error.message);
 }
