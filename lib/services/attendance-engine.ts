@@ -106,12 +106,12 @@ export async function submitAttendanceByWorkersEngine({
   const touched = inserted + updated;
   if (touched === 0 && payload.length > 0) {
     throw new Error(
-      "لم يُحفظ أي سجل. غالباً عامل بلا موقع (current_site_id) أو خارج نطاق مواقعك في النظام.",
+      "لم يُحفظ أي سجل. الأسباب الشائعة: (1) العامل بلا «موقع حالي» في شاشة العمال. (2) المراقب الميداني: موقع العامل غير مضاف لك في إعدادات المستخدم/المواقع. (3) أدمن/موارد: تحقق من بيانات العامل في قاعدة البيانات.",
     );
   }
   if (touched < payload.length) {
     throw new Error(
-      `حُفظ ${touched} من ${payload.length} فقط. الباقي غير مؤهل — تأكد من تعبئة موقع كل عامل وصلاحيتك على ذلك الموقع.`,
+      `حُفظ ${touched} من ${payload.length} فقط. الباقي غير مؤهل (موقع فارغ أو موقع خارج نطاق صلاحياتك).`,
     );
   }
 

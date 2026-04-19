@@ -7,6 +7,7 @@ import { revalidateAttendancePageCache } from "@/app/(dashboard)/attendance/acti
 import { AttendanceWorkersTable } from "@/components/attendance/attendance-workers-table";
 import { Card } from "@/components/ui/card";
 import { matchesClientSearch } from "@/lib/utils/client-search";
+import { workerHasSiteForPrep } from "@/lib/utils/worker-prep-eligibility";
 import type { AttendanceDayStats, WorkerRow } from "@/lib/types/db";
 
 type AttendanceStatus = "present" | "absent" | "half";
@@ -66,6 +67,10 @@ export function AttendancePrepWorkzone({
   }, [workers, deferredSearch]);
 
   const scopeIds = useMemo(() => workers.map((w) => w.id), [workers]);
+  const workersWithoutSiteCount = useMemo(
+    () => workers.filter((w) => !workerHasSiteForPrep(w)).length,
+    [workers],
+  );
 
   /** بعد التحضير: الانتقال لتبويب المراجعة لرؤية من نُقِل للطابور (ميداني = اطلاع، فني = اعتماد). */
   const goToReviewTab = useCallback(() => {
@@ -146,6 +151,16 @@ export function AttendancePrepWorkzone({
 
   return (
     <>
+      {workersWithoutSiteCount > 0 ? (
+        <Card className="border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-950">
+          <p className="font-extrabold">
+            تنبيه: {workersWithoutSiteCount} عامل بلا «موقع حالي» — لن يُحفظ تحضيرهم حتى تعيّن الموقع من شاشة «العمال»
+          </p>
+          <p className="mt-1 text-xs text-rose-900">
+            للمراقب الميداني: إن كان الموقع مظبوطاً للعامل فتأكد أن نفس الموقع مربوط بحسابك في إعدادات المستخدم.
+          </p>
+        </Card>
+      ) : null}
       {statsBlock}
 
       <div className="rounded border border-slate-200 bg-white p-3">

@@ -9,6 +9,7 @@ import { TableVirtuoso, Virtuoso } from "react-virtuoso";
 import { submitAttendancePrepBulk } from "@/app/(dashboard)/attendance/actions";
 import { useAttendanceRscRefreshLock } from "@/components/attendance/attendance-rsc-refresh-lock";
 import type { WorkerRow } from "@/lib/types/db";
+import { workerHasSiteForPrep } from "@/lib/utils/worker-prep-eligibility";
 
 type AttendanceStatus = "present" | "absent" | "half";
 
@@ -67,23 +68,46 @@ export function AttendanceWorkersTable({
   const [isSaving, setIsSaving] = useState(false);
 
   const visibleRows = rows;
+  const rowById = useMemo(() => new Map(visibleRows.map((r) => [r.id, r])), [visibleRows]);
   const allIds = useMemo(() => visibleRows.map((row) => row.id), [visibleRows]);
-  const pageAllSelected = allIds.length > 0 && allIds.every((id) => selected.includes(id));
+  const eligibleOnPageIds = useMemo(
+    () =>
+      allIds.filter((id) => {
+        const r = rowById.get(id);
+        return r != null && workerHasSiteForPrep(r);
+      }),
+    [allIds, rowById],
+  );
+  const pageAllSelected =
+    eligibleOnPageIds.length > 0 && eligibleOnPageIds.every((id) => selected.includes(id));
   const hasSelection = selected.length > 0;
 
   const allFilteredIds = useMemo(() => Array.from(new Set(filteredWorkerIds)), [filteredWorkerIds]);
 
   function toggle(id: number) {
+    const row = rowById.get(id);
+    if (row && !workerHasSiteForPrep(row)) {
+      toast.error("هذا العامل بلا موقع معتمد في النظام. عيّن الموقع من شاشة «العمال» ثم أعد المحاولة.");
+      return;
+    }
     setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   }
 
   function toggleAllPage() {
     setSelected((prev) => {
-      const pageSelected = allIds.every((id) => prev.includes(id));
-      if (pageSelected) {
-        return prev.filter((id) => !allIds.includes(id));
+      const eligibleOnPage = allIds.filter((id) => {
+        const r = rowById.get(id);
+        return r != null && workerHasSiteForPrep(r);
+      });
+      if (eligibleOnPage.length === 0) {
+        toast.error("لا يوجد في الصفحة عمال لهم موقع معتمد — عيّن الموقع من «العمال».");
+        return prev;
       }
-      return Array.from(new Set([...prev, ...allIds]));
+      const pageSelected = eligibleOnPage.every((id) => prev.includes(id));
+      if (pageSelected) {
+        return prev.filter((id) => !eligibleOnPage.includes(id));
+      }
+      return Array.from(new Set([...prev, ...eligibleOnPage]));
     });
   }
 
@@ -98,9 +122,23 @@ export function AttendanceWorkersTable({
       return;
     }
 
+    const withSite = ids.filter((id) => {
+      const r = rowById.get(id) ?? rows.find((x) => x.id === id);
+      return r != null && workerHasSiteForPrep(r);
+    });
+    if (withSite.length === 0) {
+      toast.error(
+        "لا يوجد في التحديد أي عامل له موقع (الموقع الحالي). عيّن الموقع لكل عامل من شاشة «العمال» أو حدّث الاستيراد.",
+      );
+      return;
+    }
+    if (withSite.length < ids.length) {
+      toast.warning(`تجاهل ${ids.length - withSite.length} عامل بلا موقع — يُحفظ ${withSite.length} فقط.`);
+    }
+
     const chunks: number[][] = [];
-    for (let i = 0; i < ids.length; i += CLIENT_PREP_CHUNK) {
-      chunks.push(ids.slice(i, i + CLIENT_PREP_CHUNK));
+    for (let i = 0; i < withSite.length; i += CLIENT_PREP_CHUNK) {
+      chunks.push(withSite.slice(i, i + CLIENT_PREP_CHUNK));
     }
 
     setIsSaving(true);
@@ -131,7 +169,7 @@ export function AttendanceWorkersTable({
       }
 
       toast.success(
-        chunks.length > 1 ? `تم التحضير — ${chunks.length} دفعة (${ids.length} عامل)` : "تم التحضير ✅",
+        chunks.length > 1 ? `تم التحضير — ${chunks.length} دفعة (${withSite.length} عامل)` : "تم التحضير ✅",
         { id: progressId },
       );
       setSelected([]);
@@ -178,8 +216,15 @@ export function AttendanceWorkersTable({
   }
 
   const statusButtons = (workerId: number) => {
+    const worker = rowById.get(workerId);
+    const prepEligible = worker != null && workerHasSiteForPrep(worker);
+
     async function onStatusClick(status: AttendanceStatus) {
       if (isSaving) return;
+      if (!prepEligible) {
+        toast.error("لا يمكن التحضير بدون موقع معتمد للعامل — حدّث الموقع من «العمال».");
+        return;
+      }
       setIsSaving(true);
       if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = true;
       try {
@@ -209,6 +254,17 @@ export function AttendanceWorkersTable({
         setIsSaving(false);
         if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = false;
       }
+    }
+
+    if (!prepEligible) {
+      return (
+        <span
+          className="inline-block max-w-[140px] text-[11px] font-bold leading-snug text-rose-700"
+          title="التحضير في النظام يتطلب تعبئة «الموقع الحالي» للعامل من شاشة العمال."
+        >
+          بلا موقع — عيّن الموقع أولاً
+        </span>
+      );
     }
 
     return (
@@ -310,13 +366,17 @@ export function AttendanceWorkersTable({
                   type="checkbox"
                   checked={selected.includes(worker.id)}
                   onChange={() => toggle(worker.id)}
-                  disabled={isSaving}
+                  disabled={isSaving || !workerHasSiteForPrep(worker)}
                 />
                 تحديد
               </label>
               <p className="font-bold text-slate-800">{worker.name}</p>
               <p className="text-xs text-slate-500">{worker.id_number}</p>
-              <p className="mt-1 text-xs text-slate-500">{worker.sites?.name ?? "غير محدد"}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {workerHasSiteForPrep(worker) ? (worker.sites?.name ?? "—") : (
+                  <span className="font-bold text-rose-600">بلا موقع — لن يُحفظ التحضير</span>
+                )}
+              </p>
               <div className="mt-2">{statusButtons(worker.id)}</div>
             </div>
           )}
@@ -356,13 +416,17 @@ export function AttendanceWorkersTable({
                   type="checkbox"
                   checked={selected.includes(worker.id)}
                   onChange={() => toggle(worker.id)}
-                  disabled={isSaving}
+                  disabled={isSaving || !workerHasSiteForPrep(worker)}
                 />
               </td>
               <td className="border border-slate-300 px-3 py-1">{worker.id}</td>
               <td className="border border-slate-300 px-3 py-1 font-bold text-slate-800">{worker.name}</td>
               <td className="border border-slate-300 px-3 py-1">{worker.id_number}</td>
-              <td className="border border-slate-300 px-3 py-1 text-slate-600">{worker.sites?.name ?? "—"}</td>
+              <td className="border border-slate-300 px-3 py-1 text-slate-600">
+                {workerHasSiteForPrep(worker) ? (worker.sites?.name ?? "—") : (
+                  <span className="font-bold text-rose-600">بلا موقع</span>
+                )}
+              </td>
               <td className="border border-slate-300 px-3 py-1">{statusButtons(worker.id)}</td>
             </>
           )}
