@@ -165,9 +165,12 @@ const WorkerListRowCard = memo(function WorkerListRowCard({
             <select
               name="siteId"
               defaultValue={worker.current_site_id ?? ""}
+              required={worker.current_site_id == null}
               className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
             >
-              <option value="">الموقع</option>
+              <option value="" disabled={worker.current_site_id == null}>
+                {worker.current_site_id == null ? "— اختر الموقع (إلزامي) —" : "الموقع"}
+              </option>
               {sites.map((site) => (
                 <option key={site.id} value={site.id}>
                   {site.name}

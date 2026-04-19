@@ -92,9 +92,13 @@ export default async function WorkersPage({ searchParams }: Props) {
 
   async function updateWorker(formData: FormData) {
     "use server";
-    if (isDemoModeEnabled()) return;
+    if (isDemoModeEnabled()) {
+      throw new Error("وضع العرض فقط — لا يُحفظ.");
+    }
     const { appUser } = await getSessionContext();
-    if (!appUser) return;
+    if (!appUser) {
+      throw new Error("انتهت الجلسة — أعد تسجيل الدخول.");
+    }
     const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
 
     const workerId = Number(formData.get("workerId"));
@@ -104,14 +108,17 @@ export default async function WorkersPage({ searchParams }: Props) {
     const paymentType = normalizeText(formData.get("paymentType")) === "daily" ? "daily" : "salary";
     const basicSalary = Number(formData.get("basicSalary"));
     const iqamaExpiryRaw = normalizeText(formData.get("iqamaExpiry"));
-    let siteId = Number(formData.get("siteId")) || null;
+    const siteIdRaw = formData.get("siteId");
+    const siteIdParsed = Number(siteIdRaw);
+    const siteId =
+      siteIdRaw != null && String(siteIdRaw).trim() !== "" && Number.isFinite(siteIdParsed) && siteIdParsed > 0
+        ? siteIdParsed
+        : null;
     const contractorId = Number(formData.get("contractorId")) || null;
     const shiftRaw = normalizeText(formData.get("shiftRound"));
     const shift_round = shiftRaw === "1" ? 1 : shiftRaw === "2" ? 2 : null;
-    if (!workerId || !name || !idNumber) return;
-    if (allowedSiteIds !== undefined) {
-      if (allowedSiteIds.length === 0) return;
-      if (!siteId || !allowedSiteIds.includes(siteId)) return;
+    if (!workerId || !name || !idNumber) {
+      throw new Error("الاسم ورقم الهوية مطلوبان.");
     }
 
     const supabase = createSupabaseAdminClient();
@@ -121,13 +128,18 @@ export default async function WorkersPage({ searchParams }: Props) {
       .eq("id", workerId)
       .maybeSingle();
     if (allowedSiteIds !== undefined) {
-      if (allowedSiteIds.length === 0) return;
+      if (allowedSiteIds.length === 0) {
+        throw new Error("لا توجد مواقع مسموحة لحسابك — ربط المواقع من إدارة المستخدمين.");
+      }
       const prevSid = existingRow?.current_site_id ?? null;
       const wasInMySites = prevSid != null && allowedSiteIds.includes(prevSid);
       const hadNoSite = prevSid == null;
-      /** عامل بلا موقع: نسمح بالتعديل إن اختير موقع ضمن صلاحياتي (تعيين أول موقع). */
-      if (!wasInMySites && !hadNoSite) return;
-      if (siteId == null || !allowedSiteIds.includes(siteId)) return;
+      if (!wasInMySites && !hadNoSite) {
+        throw new Error("لا يمكن تعديل موظف ليس ضمن مواقعك.");
+      }
+      if (siteId == null || !allowedSiteIds.includes(siteId)) {
+        throw new Error("اختر موقعاً من القائمة (موقع مسموح لك). بدون موقع لن يُحفظ التعديل ولن يعمل التحضير.");
+      }
     }
 
     const { data: exists } = await supabase
@@ -136,9 +148,11 @@ export default async function WorkersPage({ searchParams }: Props) {
       .eq("id_number", idNumber)
       .neq("id", workerId)
       .maybeSingle();
-    if (exists?.id) return;
+    if (exists?.id) {
+      throw new Error("رقم الهوية مستخدم لموظف آخر — غيّر الرقم أو راجع السجلات.");
+    }
 
-    await supabase
+    const { error: updateError } = await supabase
       .from("workers")
       .update({
         name,
@@ -152,6 +166,9 @@ export default async function WorkersPage({ searchParams }: Props) {
         shift_round,
       })
       .eq("id", workerId);
+    if (updateError) {
+      throw new Error(updateError.message || "فشل حفظ التعديل في قاعدة البيانات.");
+    }
 
     revalidatePath("/workers");
     revalidatePath("/attendance");
