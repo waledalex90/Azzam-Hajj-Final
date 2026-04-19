@@ -15,6 +15,7 @@ import {
 } from "@/lib/data/attendance";
 import { AttendancePrepWorkzone } from "@/components/attendance/attendance-prep-workzone";
 import { AttendanceReviewTab } from "@/components/attendance/attendance-review-tab";
+import { AttendanceSyncBridge } from "@/components/attendance/attendance-sync-bridge";
 import { requireScreen } from "@/lib/auth/require-screen";
 import { hasPermission } from "@/lib/auth/permissions";
 import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
@@ -157,6 +158,7 @@ export default async function AttendancePage({ searchParams }: Props) {
 
   return (
     <section className="space-y-4">
+      <AttendanceSyncBridge />
       <Card>
         <h1 className="text-lg font-extrabold text-slate-900">تسجيل الحضور والمراجعة</h1>
         <p className="mt-1 text-sm text-slate-600">
