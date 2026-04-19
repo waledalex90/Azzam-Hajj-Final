@@ -32,16 +32,38 @@ export async function getAppUserSiteIds(appUserId: number): Promise<number[]> {
   return (data as Array<{ site_id: number }>).map((r) => r.site_id).filter(Boolean);
 }
 
+/** جدول قديم في بعض التركيبات — يطابق فرع user_sites في app.current_user_site_ids(). */
+async function getLegacyUserSitesIds(appUserId: number): Promise<number[]> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("user_sites")
+    .select("site_id")
+    .eq("user_id", appUserId);
+  if (error) {
+    const code = (error as { code?: string }).code;
+    if (code === "42P01") return [];
+    return [];
+  }
+  if (!data) return [];
+  return (data as Array<{ site_id: number }>).map((r) => r.site_id).filter(Boolean);
+}
+
 /**
- * مواقع المستخدم: أولاً من `app_users.allowed_site_ids` (واجهة إدارة المستخدمين)،
- * وإلا من جدول `app_user_sites` إن وُجد.
+ * مواقع المستخدم — يجب أن يطابق اتحاد Postgres في app.current_user_site_ids():
+ * app_user_sites ∪ user_sites (legacy) ∪ allowed_site_ids (إن كانت غير فارغة).
+ * عندما يكون العمود allowed_site_ids موجوداً لكن فارغاً {} لا نتجاهل صفوف app_user_sites.
  */
 export async function getEffectiveSiteIdsForAppUser(appUser: AppUser): Promise<number[]> {
+  const [fromJoin, fromLegacy] = await Promise.all([
+    getAppUserSiteIds(appUser.id),
+    getLegacyUserSitesIds(appUser.id),
+  ]);
+  const fromTables = [...new Set([...fromJoin, ...fromLegacy])];
   if (appUser.allowedSiteIds === undefined) {
-    return getAppUserSiteIds(appUser.id);
+    return [...fromTables].sort((a, b) => a - b);
   }
   const fromColumn = appUser.allowedSiteIds.filter((id) => Number.isFinite(id) && id > 0);
-  return [...new Set(fromColumn)].sort((a, b) => a - b);
+  return [...new Set([...fromColumn, ...fromTables])].sort((a, b) => a - b);
 }
 
 /**

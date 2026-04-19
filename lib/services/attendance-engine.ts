@@ -84,12 +84,13 @@ export async function submitAttendanceByWorkersEngine({
   if (isDemoModeEnabled()) return;
   if (idempotencyKey && (await hasProcessedIdempotencyKey(idempotencyKey))) return;
 
-  const payload = items
-    .map((item) => ({
-      worker_id: Number(item.worker_id),
-      status: item.status,
-    }))
-    .filter((item) => Number.isFinite(item.worker_id) && item.worker_id > 0);
+  const lastByWorker = new Map<number, { worker_id: number; status: AttendanceStatus }>();
+  for (const item of items) {
+    const worker_id = Number(item.worker_id);
+    if (!Number.isFinite(worker_id) || worker_id <= 0) continue;
+    lastByWorker.set(worker_id, { worker_id, status: item.status });
+  }
+  const payload = Array.from(lastByWorker.values());
   if (payload.length === 0) return;
 
   const roundNo = Math.max(1, Math.min(Number(roundNoRaw) || 1, 9));
@@ -114,7 +115,7 @@ export async function submitAttendanceByWorkersEngine({
   }
   if (touched < payload.length) {
     throw new Error(
-      `حُفظ ${touched} من ${payload.length} فقط. الباقي غير مؤهل (موقع فارغ أو موقع خارج نطاق صلاحياتك).`,
+      `حُفظ ${touched} من ${payload.length} عاملًا مميّزًا فقط. الباقي لا يمرّ فلتر قاعدة البيانات (موقع العامل فارغ، أو غير ضمن مواقعك بعد دمج allowed_site_ids و app_user_sites، أو عامل موقوف/محذوف). حدّث الصفحة وتحقق من شاشة «العمال».`,
     );
   }
 
