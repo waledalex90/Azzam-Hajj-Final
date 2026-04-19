@@ -5,7 +5,9 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { env } from "@/lib/env";
 import { PERMISSION_CATALOG } from "@/lib/permissions/keys";
+import { SiteIdsMultiSelect } from "@/components/users/site-ids-multi-select";
 import {
   bulkImportUsersAction,
   createAppUserAction,
@@ -102,12 +104,21 @@ export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
                 <Input name="fullName" required className="mt-1" />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-600">البريد (تسجيل الدخول)</label>
-                <Input name="loginEmail" type="email" required className="mt-1" placeholder="name@company.com" />
+                <label className="text-xs font-bold text-slate-600">اسم الدخول أو الكود (أساسي)</label>
+                <Input name="username" required className="mt-1" placeholder="يُستخدم للدخول مع كلمة المرور" />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-600">اسم الدخول (عرض)</label>
-                <Input name="username" required className="mt-1" />
+                <label className="text-xs font-bold text-slate-600">البريد (اختياري)</label>
+                <Input
+                  name="loginEmail"
+                  type="text"
+                  className="mt-1"
+                  placeholder="اتركه فارغاً ليُبنى تلقائياً: اسم_الدخول@النطاق"
+                />
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                  إن لم تُدخل بريداً، يُحفظ في النظام كـ{" "}
+                  <span className="font-mono font-semibold">username@{env.authEmailDomain}</span>.
+                </p>
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-600">كلمة المرور</label>
@@ -129,9 +140,13 @@ export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="text-xs font-bold text-slate-600">معرفات المواقع (اختياري، مفصولة بفواصل)</label>
-                <Input name="allowedSiteIds" className="mt-1" placeholder="مثال: 1,2,3 — فارغ = كل المواقع" />
+              <div className="sm:col-span-2 lg:col-span-3">
+                <SiteIdsMultiSelect
+                  sites={sites}
+                  initialSelectedIds={[]}
+                  label="المواقع المسموح بها (اختياري)"
+                  hint="بدون اختيار = صلاحية على جميع المواقع. أضف موقعاً أو أكثر من القائمة؛ يمكن إزالة أي موقع بالضغط على (×)."
+                />
               </div>
               <div className="sm:col-span-2 lg:col-span-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
                 <p className="text-xs font-bold text-slate-600">صلاحيات الدور المختار (للاطلاع فقط)</p>
@@ -151,11 +166,12 @@ export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
             <h3 className="text-base font-extrabold text-slate-900">استيراد من Excel</h3>
             <p className="mt-1 text-xs text-slate-600">
               صف العناوين: <code className="rounded bg-slate-100 px-1">full_name</code>،{" "}
-              <code className="rounded bg-slate-100 px-1">login_email</code>،{" "}
               <code className="rounded bg-slate-100 px-1">username</code>،{" "}
               <code className="rounded bg-slate-100 px-1">password</code>،{" "}
               <code className="rounded bg-slate-100 px-1">role</code>،{" "}
-              <code className="rounded bg-slate-100 px-1">site_ids</code> (اختياري)
+              <code className="rounded bg-slate-100 px-1">login_email</code> (اختياري — إن تُرك يُشتق من اسم الدخول)،{" "}
+              <code className="rounded bg-slate-100 px-1">site_ids</code> (اختياري — عدة أرقام في خلية واحدة مفصولة بفاصلة أو مسافة أو؛ مثل{" "}
+              <span className="font-mono">1,2,3</span>)
             </p>
             <form className="mt-3 flex flex-wrap items-end gap-3" action={submitBulkImport}>
               <Input type="file" name="file" accept=".xlsx,.xls" required className="max-w-xs" />
@@ -277,13 +293,13 @@ function UserRowEditor({
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="text-xs font-bold">معرفات المواقع (فارغ = كل المواقع)</label>
-                <Input
-                  name="allowedSiteIds"
-                  defaultValue={(u.allowed_site_ids ?? []).join(",")}
-                  className="mt-1"
-                  placeholder="1,2,3"
+              <div className="sm:col-span-2 lg:col-span-4">
+                <SiteIdsMultiSelect
+                  key={`sites-${u.id}-${(u.allowed_site_ids ?? []).join("_")}`}
+                  sites={sites}
+                  initialSelectedIds={u.allowed_site_ids}
+                  label="المواقع المسموح بها"
+                  hint="بدون وسوم = جميع المواقع."
                 />
               </div>
               <div className="sm:col-span-2 lg:col-span-4">

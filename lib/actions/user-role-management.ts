@@ -6,10 +6,37 @@ import { getSessionContext } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { resolveStoredLoginEmail } from "@/lib/auth/resolve-login-email";
+import { env } from "@/lib/env";
 import { PERM, PERMISSION_CATALOG } from "@/lib/permissions/keys";
 import * as XLSX from "xlsx";
 
 const LEGACY_SLUGS = new Set(["admin", "hr", "technical_observer", "field_observer"]);
+
+/** عدة حقول مخفية `allowedSiteIds` أو نص قديم مفصول بفواصل → مصفوفة معرفات فريدة */
+function parseSiteIdsFromFormData(formData: FormData): number[] {
+  const all = formData.getAll("allowedSiteIds");
+  const out: number[] = [];
+  for (const raw of all) {
+    const s = String(raw ?? "").trim();
+    if (!s) continue;
+    const parts = s.split(/[,;\s؛،]+/).filter(Boolean);
+    for (const p of parts) {
+      const n = Number(p.trim());
+      if (Number.isFinite(n) && n > 0) out.push(n);
+    }
+  }
+  return [...new Set(out)].sort((a, b) => a - b);
+}
+
+/** خلية Excel: أرقام مفصولة بفواصل/مسافات/عربية */
+function parseSiteIdsFromExcelCell(raw: unknown): number[] {
+  const s = String(raw ?? "").trim();
+  if (!s) return [];
+  const parts = s.split(/[,;\s؛،]+/).map((x) => x.trim()).filter(Boolean);
+  const nums = parts.map(Number).filter((n) => Number.isFinite(n) && n > 0);
+  return [...new Set(nums)].sort((a, b) => a - b);
+}
 
 function slugify(raw: string): string {
   return raw
@@ -52,20 +79,16 @@ export async function createAppUserAction(formData: FormData) {
 
   const fullName = String(formData.get("fullName") || "").trim();
   const username = String(formData.get("username") || "").trim();
-  const loginEmail = String(formData.get("loginEmail") || "").trim().toLowerCase();
+  const loginEmailRaw = String(formData.get("loginEmail") || "").trim();
   const password = String(formData.get("password") || "");
   const role = String(formData.get("role") || "").trim();
-  const siteRaw = String(formData.get("allowedSiteIds") || "").trim();
-  const siteIds = siteRaw
-    ? siteRaw
-        .split(/[,\s]+/)
-        .map((s) => Number(s))
-        .filter((n) => Number.isFinite(n) && n > 0)
-    : [];
+  const siteIds = parseSiteIdsFromFormData(formData);
 
-  if (!fullName || !username || !loginEmail || !password || password.length < 6 || !role) {
+  if (!fullName || !username || !password || password.length < 6 || !role) {
     return { ok: false as const, error: "البيانات ناقصة أو كلمة المرور أقل من 6 أحرف." };
   }
+
+  const loginEmail = resolveStoredLoginEmail(username, loginEmailRaw, env.authEmailDomain);
 
   const allowed = await allowedRoleSlugs();
   if (!allowed.has(role)) {
@@ -112,13 +135,7 @@ export async function updateAppUserAction(formData: FormData) {
   const fullName = String(formData.get("fullName") || "").trim();
   const username = String(formData.get("username") || "").trim();
   const role = String(formData.get("role") || "").trim();
-  const siteRaw = String(formData.get("allowedSiteIds") || "").trim();
-  const siteIds = siteRaw
-    ? siteRaw
-        .split(/[,\s]+/)
-        .map((s) => Number(s))
-        .filter((n) => Number.isFinite(n) && n > 0)
-    : [];
+  const siteIds = parseSiteIdsFromFormData(formData);
 
   if (!id || !fullName || !username || !role) {
     return { ok: false as const, error: "بيانات ناقصة." };
@@ -234,7 +251,7 @@ export async function createRoleFormAction(formData: FormData): Promise<void> {
   void (await createRoleAction(formData));
 }
 
-/** استيراد من Excel: أعمدة — full_name, login_email, username, password, role, site_ids (اختياري، مفصولة بفواصل) */
+/** استيراد من Excel: أعمدة — full_name, login_email, username, password, role, site_ids (اختياري، عدة معرفات في خلية واحدة) */
 export async function bulkImportUsersAction(formData: FormData) {
   if (isDemoModeEnabled()) return { ok: false as const, error: "وضع التجربة: الاستيراد معطّل." };
   try {
@@ -265,19 +282,15 @@ export async function bulkImportUsersAction(formData: FormData) {
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const fullName = String(r["full_name"] ?? r["الاسم"] ?? "").trim();
-    const loginEmail = String(r["login_email"] ?? r["البريد"] ?? r["email"] ?? "").trim().toLowerCase();
+    const loginEmailRaw = String(r["login_email"] ?? r["البريد"] ?? r["email"] ?? "").trim();
     const username = String(r["username"] ?? r["اسم_الدخول"] ?? "").trim();
     const password = String(r["password"] ?? r["كلمة_السر"] ?? "");
     const role = String(r["role"] ?? r["الدور"] ?? "").trim();
-    const sitesCell = String(r["site_ids"] ?? r["المواقع"] ?? "").trim();
-    const siteIds = sitesCell
-      ? sitesCell
-          .split(/[,\s]+/)
-          .map((s) => Number(s))
-          .filter((n) => Number.isFinite(n) && n > 0)
-      : [];
+    const siteIds = parseSiteIdsFromExcelCell(r["site_ids"] ?? r["المواقع"] ?? r["allowed_site_ids"] ?? "");
 
-    if (!fullName || !loginEmail || !username || password.length < 6 || !role || !allowed.has(role)) {
+    const loginEmail = resolveStoredLoginEmail(username, loginEmailRaw, env.authEmailDomain);
+
+    if (!fullName || !username || password.length < 6 || !role || !allowed.has(role)) {
       failed++;
       errors.push(`صف ${i + 2}: بيانات ناقصة أو دور غير صالح.`);
       continue;
