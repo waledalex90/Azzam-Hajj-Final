@@ -67,7 +67,10 @@ export function AttendancePrepWorkzone({
 
   const scopeIds = useMemo(() => workers.map((w) => w.id), [workers]);
 
-  /** بعد التحضير: الانتقال لتبويب المراجعة (push + تأجيل خفيف يتجنب تعارض revalidate من الـ server action) */
+  /**
+   * بعد نجاح التحضير: فتح تبويب المراجعة بتحميل كامل للصفحة.
+   * (أضمن من router.push لكل الأدوار — يتجاوز تعارض revalidate/server action مع الـ RSC)
+   */
   const goToReviewTab = useCallback(() => {
     const qs = new URLSearchParams();
     qs.set("tab", "review");
@@ -77,9 +80,9 @@ export function AttendancePrepWorkzone({
     if (contractorId) qs.set("contractorId", contractorId);
     const href = `/attendance?${qs.toString()}`;
     queueMicrotask(() => {
-      router.push(href);
+      window.location.assign(href);
     });
-  }, [router, workDate, roundNo, siteId, contractorId]);
+  }, [workDate, roundNo, siteId, contractorId]);
 
   const onPrepDone = useCallback(
     (ids: number[], status: AttendanceStatus) => {
