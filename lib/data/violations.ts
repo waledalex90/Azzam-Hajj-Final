@@ -20,6 +20,8 @@ type ViolationsPageParams = {
   dateTo?: string;
   /** 1 صباحي، 2 مسائي */
   shiftRound?: number;
+  /** بحث بالاسم أو رقم الهوية (يتطلب دالة get_violations_report_page المحدّثة) */
+  workerSearch?: string;
 };
 
 /** أنواع مذكورة في إشعار مخالفة المقاول فقط — تُزامَن في جدول violation_types بالـ code ولا تُعرَض كقائمة عامل عامة */
@@ -43,6 +45,7 @@ export async function getViolationsPage({
   dateFrom,
   dateTo,
   shiftRound,
+  workerSearch,
 }: ViolationsPageParams): Promise<{ rows: ViolationRow[]; meta: PaginationMeta }> {
   const supabase = createSupabaseAdminClient();
 
@@ -52,6 +55,7 @@ export async function getViolationsPage({
     p_site_id: siteId && Number.isFinite(siteId) ? siteId : null,
     p_status: status ?? null,
     p_shift_round: shiftRound === 1 || shiftRound === 2 ? shiftRound : null,
+    p_worker_search: workerSearch?.trim() || null,
     p_page: page,
     p_page_size: pageSize,
   });

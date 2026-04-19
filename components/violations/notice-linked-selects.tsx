@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { Input } from "@/components/ui/input";
 import type { ContractorOption, WorkerRow } from "@/lib/types/db";
 
 type Props = {
@@ -78,6 +79,27 @@ export function NoticeLinkedSelects({
     return map;
   }, [workers]);
 
+  const [workerFilter, setWorkerFilter] = useState("");
+
+  const filteredWorkers = useMemo(() => {
+    const s = workerFilter.trim().toLowerCase();
+    if (!s) return workers;
+    return workers.filter(
+      (w) => w.name.toLowerCase().includes(s) || (w.id_number && w.id_number.includes(s)),
+    );
+  }, [workers, workerFilter]);
+
+  const displayWorkers = useMemo(() => {
+    const list = filteredWorkers;
+    if (!workerId) return list;
+    const wid = Number(workerId);
+    const chosen = workerMap.get(wid);
+    if (chosen && !list.some((w) => w.id === chosen.id)) {
+      return [chosen, ...list];
+    }
+    return list;
+  }, [filteredWorkers, workerId, workerMap]);
+
   function handleWorkerChange(nextWorkerId: string) {
     setWorkerId(nextWorkerId);
     const numericWorkerId = Number(nextWorkerId);
@@ -92,7 +114,22 @@ export function NoticeLinkedSelects({
   }
 
   return (
-    <div className="paper-grid three">
+    <div className="notice-linked-block space-y-2">
+      <div className="no-print">
+        <label className="block text-xs font-bold text-slate-800">بحث فوري عن العامل</label>
+        <Input
+          type="search"
+          value={workerFilter}
+          onChange={(e) => setWorkerFilter(e.target.value)}
+          placeholder="اسم أو رقم هوية…"
+          className="mt-1 max-w-md border border-black"
+          autoComplete="off"
+        />
+        <p className="mt-0.5 text-xs text-slate-600">
+          يظهر {displayWorkers.length} من أصل {workers.length} — استخدم «تطبيق البحث» أعلى الصفحة لتحميل المزيد من الخادم
+        </p>
+      </div>
+      <div className="paper-grid three">
       <label>
         بيانات المقاول:
         <select
@@ -124,7 +161,7 @@ export function NoticeLinkedSelects({
           <option value="" disabled>
             اختر العامل
           </option>
-          {workers.map((worker) => (
+          {displayWorkers.map((worker) => (
             <option key={worker.id} value={worker.id}>
               {worker.name} - {worker.id_number}
             </option>
@@ -145,6 +182,7 @@ export function NoticeLinkedSelects({
           <option value="muzdalifah">مزدلفة</option>
         </select>
       </label>
+      </div>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ViolationsTable } from "@/components/violations/violations-table";
+import { ViolationFormWorkerSelect } from "@/components/violations/violation-form-worker-select";
 import { getViolationFormOptions, getViolationsPage } from "@/lib/data/violations";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getSessionContext } from "@/lib/auth/session";
@@ -20,6 +21,7 @@ type Props = {
     dateFrom?: string;
     dateTo?: string;
     shiftRound?: string;
+    workerSearch?: string;
   }>;
 };
 
@@ -76,6 +78,7 @@ export default async function ViolationsPage({ searchParams }: Props) {
   const dateTo = params.dateTo?.trim();
   const shiftRound =
     params.shiftRound === "1" ? 1 : params.shiftRound === "2" ? 2 : undefined;
+  const workerSearch = params.workerSearch?.trim();
 
   const [{ rows, meta }, formOptions] = await Promise.all([
     getViolationsPage({
@@ -86,6 +89,7 @@ export default async function ViolationsPage({ searchParams }: Props) {
       dateFrom,
       dateTo,
       shiftRound,
+      workerSearch,
     }),
     getViolationFormOptions(workerQ),
   ]);
@@ -100,9 +104,10 @@ export default async function ViolationsPage({ searchParams }: Props) {
           </Link>
         </div>
         <p className="mt-1 text-sm text-slate-600">
-          عرض المخالفات بشكل منظم مع خيارات فرز حسب الحالة والموقع.
+          عرض المخالفات بشكل منظم مع خيارات فرز حسب الحالة والموقع. المخالفات <strong>المعتمدة</strong> تُستخدم في
+          خصومات المقاول (المستخلصات) وفق قيمة الخصم المعرّفة لنوع المخالفة.
         </p>
-        <form className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6" method="get">
+        <form className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-7" method="get">
           <select
             name="status"
             defaultValue={status}
@@ -115,6 +120,12 @@ export default async function ViolationsPage({ searchParams }: Props) {
             <option value="rejected">مرفوض</option>
           </select>
           <Input name="siteId" defaultValue={params.siteId} placeholder="رقم الموقع (اختياري)" />
+          <Input
+            name="workerSearch"
+            defaultValue={workerSearch}
+            placeholder="بحث عامل (اسم / هوية)"
+            className="min-h-12"
+          />
           <Input name="dateFrom" type="date" defaultValue={dateFrom} />
           <Input name="dateTo" type="date" defaultValue={dateTo} />
           <select
@@ -140,21 +151,7 @@ export default async function ViolationsPage({ searchParams }: Props) {
         </form>
         <form action={createViolation} className="mt-3 grid gap-2 sm:grid-cols-2">
           <div className="sm:col-span-2 grid gap-2 sm:grid-cols-2">
-            <select
-              name="workerId"
-              className="min-h-12 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
-              required
-              defaultValue=""
-            >
-              <option value="" disabled>
-                اختر العامل
-              </option>
-              {formOptions.workers.map((worker) => (
-                <option key={worker.id} value={worker.id}>
-                  {worker.name} - {worker.id_number}
-                </option>
-              ))}
-            </select>
+            <ViolationFormWorkerSelect workers={formOptions.workers} required />
             <select
               name="violationTypeId"
               className="min-h-12 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
@@ -207,6 +204,7 @@ export default async function ViolationsPage({ searchParams }: Props) {
           status,
           siteId: params.siteId,
           workerQ,
+          workerSearch,
           dateFrom,
           dateTo,
           shiftRound: params.shiftRound,

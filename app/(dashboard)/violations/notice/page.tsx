@@ -9,6 +9,7 @@ import { BrandLogo } from "@/components/branding/brand-logo";
 import { PrintButton } from "@/components/violations/print-button";
 import { NoticeLinkedSelects } from "@/components/violations/notice-linked-selects";
 import { NoticeAttachments } from "@/components/violations/notice-attachments";
+import { NoticeViolationTypeDropdown } from "@/components/violations/notice-violation-type-dropdown";
 import { getSessionContext } from "@/lib/auth/session";
 import {
   getInfractionNoticeOptions,
@@ -185,6 +186,46 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
         </div>
       </div>
 
+      <Card className="no-print border-teal-200 bg-teal-50/80">
+        <p className="font-extrabold text-slate-900">اختر الوضع</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Link href="/violations/notice">
+            <Button variant={!viewBundle ? "primary" : "secondary"} type="button" className="min-h-10 px-4 py-2 text-sm">
+              إشعار مخالفة جديد
+            </Button>
+          </Link>
+          <span className="text-slate-500">|</span>
+          <a
+            href="#recent-contractor-notices"
+            className={
+              viewBundle
+                ? "inline-flex min-h-10 items-center rounded-xl bg-[#166534] px-4 py-2 text-sm font-extrabold text-white shadow-sm hover:bg-[#14532d]"
+                : "inline-flex min-h-10 items-center rounded-xl bg-[#f5efda] px-4 py-2 text-sm font-extrabold text-[#14532d] shadow-sm hover:bg-[#eee2be]"
+            }
+          >
+            عرض إشعار مقاول سابق
+          </a>
+        </div>
+        <p className="mt-2 text-sm text-slate-700">
+          للعرض فقط: انتقل للقائمة أدناه واضغط «عرض» بجانب الإشعار المطلوب، ثم اطبع إن لزم.
+        </p>
+      </Card>
+
+      {!viewBundle ? (
+        <Card className="no-print">
+          <p className="mb-2 font-bold text-slate-900">بحث عامل (تحميل قائمة أوسع من الخادم)</p>
+          <form method="get" className="flex flex-wrap items-end gap-2">
+            <div className="min-w-[220px] flex-1">
+              <label className="text-xs font-bold text-slate-600">الاسم أو رقم الهوية</label>
+              <Input name="workerQ" defaultValue={workerQ ?? ""} placeholder="مثال: 1010 أو جزء من الاسم" className="mt-1" />
+            </div>
+            <Button type="submit" variant="secondary">
+              تطبيق البحث
+            </Button>
+          </form>
+        </Card>
+      ) : null}
+
       {params.saved === "1" && (
         <Card className="no-print border-emerald-300 bg-emerald-50 text-emerald-800">
           تم حفظ إشعار المخالفة بنجاح.
@@ -210,21 +251,23 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
       ) : null}
 
       {!viewBundle && recentNotices.length > 0 ? (
-        <Card className="no-print border border-slate-200 p-4">
-          <p className="mb-2 font-bold text-slate-900">إشعارات مقاول حديثة (عرض / طباعة)</p>
-          <ul className="max-h-48 space-y-1 overflow-y-auto text-sm">
-            {recentNotices.map((n) => (
-              <li key={`${n.workerId}-${n.occurredAt}-${n.id}`} className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 py-1">
-                <span>
-                  إشعار رقم <strong>{n.noticeNo}</strong> — {n.workerName} — {n.contractorName}
-                </span>
-                <Link className="shrink-0 font-semibold text-blue-700 underline" href={`/violations/notice?viewId=${n.id}`}>
-                  عرض
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Card>
+        <div id="recent-contractor-notices" className="scroll-mt-20">
+          <Card className="no-print border border-slate-200 p-4">
+            <p className="mb-2 font-bold text-slate-900">إشعارات مقاول حديثة (عرض / طباعة)</p>
+            <ul className="max-h-48 space-y-1 overflow-y-auto text-sm">
+              {recentNotices.map((n) => (
+                <li key={`${n.workerId}-${n.occurredAt}-${n.id}`} className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 py-1">
+                  <span>
+                    إشعار رقم <strong>{n.noticeNo}</strong> — {n.workerName} — {n.contractorName}
+                  </span>
+                  <Link className="shrink-0 font-semibold text-blue-700 underline" href={`/violations/notice?viewId=${n.id}`}>
+                    عرض
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
       ) : null}
 
       <Card className="paper-card overflow-hidden border border-black bg-white p-0">
@@ -247,6 +290,9 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           max-width: 900px;
           margin: 0 auto;
         }
+        .only-print {
+          display: none !important;
+        }
         .paper-form {
           padding: 18px;
           color: #111;
@@ -254,6 +300,60 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           line-height: 1.5;
           border: 1px solid #111;
           background: #fff;
+        }
+        .violation-details {
+          border: 1px solid #111;
+          background: #fff;
+        }
+        .violation-details-summary {
+          cursor: pointer;
+          list-style: none;
+          padding: 10px 12px;
+          font-weight: 700;
+          direction: rtl;
+        }
+        .violation-details-summary::-webkit-details-marker {
+          display: none;
+        }
+        .violation-details-panel {
+          max-height: 220px;
+          overflow-y: auto;
+          border-top: 1px solid #111;
+          padding: 10px 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .violation-details-row {
+          display: flex;
+          gap: 10px;
+          align-items: flex-start;
+          font-weight: 600;
+          line-height: 1.35;
+        }
+        .violation-print-box {
+          border: 1px solid #111;
+          padding: 10px 12px;
+          background: #fafafa;
+        }
+        .violation-print-title {
+          margin: 0 0 6px;
+          font-weight: 800;
+          font-size: 14px;
+        }
+        .violation-print-list {
+          margin: 0;
+          padding: 0 18px 0 0;
+          list-style: disc;
+        }
+        .violation-print-li {
+          margin: 4px 0;
+          font-weight: 600;
+        }
+        .violation-print-empty {
+          margin: 0;
+          font-weight: 600;
+          color: #555;
         }
         .paper-header {
           display: grid;
@@ -439,6 +539,9 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           header {
             display: none !important;
           }
+          .only-print {
+            display: block !important;
+          }
           main {
             padding: 0 !important;
             margin: 0 !important;
@@ -448,15 +551,32 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
             max-width: 100% !important;
             border: 0 !important;
             box-shadow: none !important;
+            margin: 0 !important;
           }
           .paper-form {
-            width: 190mm;
-            max-width: 190mm;
+            width: 100% !important;
+            max-width: 100% !important;
             min-height: auto;
-            margin: 0 auto;
+            margin: 0 !important;
             box-sizing: border-box;
             border: 1px solid #111;
-            padding: 10mm !important;
+            padding: 5mm 4mm !important;
+            font-size: 11.5pt;
+            line-height: 1.45;
+          }
+          .paper-title h2 {
+            font-size: 22pt !important;
+            line-height: 1.15 !important;
+          }
+          .paper-title p {
+            font-size: 12pt !important;
+          }
+          .paper-logo :is(img, svg) {
+            max-width: 130px !important;
+            height: auto !important;
+          }
+          .section-title {
+            font-size: 16pt !important;
           }
           .section-title,
           .paper-title h2 {
@@ -464,7 +584,8 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
             page-break-after: avoid;
           }
           .signatures,
-          .violation-checkboxes {
+          .violation-checkboxes,
+          .violation-type-block {
             break-inside: avoid;
             page-break-inside: avoid;
           }
@@ -473,11 +594,11 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
             page-break-inside: avoid;
           }
           .notice-media-item {
-            max-height: 70mm;
+            max-height: 65mm;
           }
           @page {
             size: A4 portrait;
-            margin: 10mm;
+            margin: 8mm;
           }
         }
       `}</style>
@@ -531,15 +652,7 @@ function EditNoticeBody({
       />
 
       <div className="section-title">تفاصيل المخالفة</div>
-      <div className="violation-checkboxes">
-        <span className="mb-1 block font-extrabold">اختر نوع/أنواع المخالفة:</span>
-        {options.violationTypes.map((item) => (
-          <label key={item.id} className="violation-check-row">
-            <input type="checkbox" name="violationTypeIds" value={item.id} />
-            <span>{item.name_ar}</span>
-          </label>
-        ))}
-      </div>
+      <NoticeViolationTypeDropdown types={options.violationTypes} />
 
       <label>
         ملاحظات إضافية:
@@ -620,20 +733,11 @@ function ViewNoticeBody({
       />
 
       <div className="section-title">تفاصيل المخالفة</div>
-      <div className="violation-checkboxes">
-        <span className="mb-1 block font-extrabold">نوع/أنواع المخالفة:</span>
-        {options.violationTypes.map((item) => {
-          const on = viewBundle.violationTypeIds.includes(item.id);
-          return (
-            <div key={item.id} className="violation-check-row">
-              <span className="violation-check-glyph" aria-hidden>
-                {on ? "☑" : "☐"}
-              </span>
-              <span>{item.name_ar}</span>
-            </div>
-          );
-        })}
-      </div>
+      <NoticeViolationTypeDropdown
+        types={options.violationTypes}
+        viewMode
+        viewSelectedIds={viewBundle.violationTypeIds}
+      />
 
       <label>
         ملاحظات إضافية:
