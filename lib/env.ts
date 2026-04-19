@@ -15,4 +15,8 @@ export const env = {
   supabaseAnonKey,
   /** في التطوير فقط: إن لم يُضبط service role يُستخدم anon (قد يقيّد بعض العمليات). */
   supabaseServiceRoleKey: supabaseServiceRoleKey ?? supabaseAnonKey,
+  /**
+   * نطاق البريد الاصطناعي لاسم الدخول (username@domain). يُعرَّف للعميل عبر NEXT_PUBLIC_AUTH_EMAIL_DOMAIN.
+   */
+  authEmailDomain: process.env.NEXT_PUBLIC_AUTH_EMAIL_DOMAIN ?? process.env.AUTH_EMAIL_DOMAIN ?? "azzam.com",
 };
