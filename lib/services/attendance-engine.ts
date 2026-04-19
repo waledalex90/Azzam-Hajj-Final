@@ -30,15 +30,18 @@ const APPROVAL_BATCH_RPC = "approve_attendance_checks_batch";
 
 function parseBulkAttendanceRpcRows(data: unknown): { inserted: number; updated: number } {
   if (data == null) return { inserted: 0, updated: 0 };
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row || typeof row !== "object") return { inserted: 0, updated: 0 };
-  const o = row as Record<string, unknown>;
-  const inserted = Number(o.inserted_count ?? 0);
-  const updated = Number(o.updated_count ?? 0);
-  return {
-    inserted: Number.isFinite(inserted) ? inserted : 0,
-    updated: Number.isFinite(updated) ? updated : 0,
-  };
+  const rows = Array.isArray(data) ? data : [data];
+  let inserted = 0;
+  let updated = 0;
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const o = row as Record<string, unknown>;
+    const i = Number(o.inserted_count ?? 0);
+    const u = Number(o.updated_count ?? 0);
+    if (Number.isFinite(i)) inserted += i;
+    if (Number.isFinite(u)) updated += u;
+  }
+  return { inserted, updated };
 }
 
 async function hasProcessedIdempotencyKey(idempotencyKey: string) {
@@ -106,7 +109,7 @@ export async function submitAttendanceByWorkersEngine({
   const touched = inserted + updated;
   if (touched === 0 && payload.length > 0) {
     throw new Error(
-      "لم يُحفظ أي سجل. الأسباب الشائعة: (1) العامل بلا «موقع حالي» في شاشة العمال. (2) المراقب الميداني: موقع العامل غير مضاف لك في إعدادات المستخدم/المواقع. (3) أدمن/موارد: تحقق من بيانات العامل في قاعدة البيانات.",
+      "لم يُحفظ أي سجل في الحضور. إن كان الموقع وصلاحيات حسابك صحيحة في الواجهة: غالباً جلسة Supabase (JWT) لا تطابق صلاحيات can_access_* في قاعدة البيانات — جرّب تسجيل الخروج والدخول. إن استمر الأمر راجع دوال app.can_access_worker و app.can_access_site.",
     );
   }
   if (touched < payload.length) {

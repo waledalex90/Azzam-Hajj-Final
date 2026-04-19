@@ -5,6 +5,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { getSessionContext } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
+import { assertWorkerIdsEligibleForPrep } from "@/lib/services/attendance-prep-guard";
 import { submitAttendanceByWorkersEngine } from "@/lib/services/attendance-engine";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 import { formatPostgrestLikeError } from "@/lib/utils/postgrest-error";
@@ -45,6 +46,10 @@ export async function submitAttendancePrepBulk(
   if (ids.length === 0) return { ok: false, error: "لم يُحدد أي عامل." };
   if (ids.length > CHUNK) {
     return { ok: false, error: `الحد الأقصى ${CHUNK} عاملًا لكل طلب — يُجمع من الواجهة.` };
+  }
+  const prepGuard = await assertWorkerIdsEligibleForPrep(appUser, ids);
+  if (!prepGuard.ok) {
+    return { ok: false, error: prepGuard.error };
   }
   try {
     await submitAttendanceByWorkersEngine({

@@ -2,7 +2,9 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 
+import { getSessionContext } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { assertWorkerIdsEligibleForPrep } from "@/lib/services/attendance-prep-guard";
 import { submitAttendanceByWorkersEngine } from "@/lib/services/attendance-engine";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 
@@ -29,6 +31,13 @@ export async function reviewAttendanceCheck(formData: FormData) {
   const workDate = round?.work_date ?? null;
   const roundNo = round?.round_no ?? 1;
   if (!workDate) return;
+
+  const { appUser } = await getSessionContext();
+  if (!appUser) return;
+  const prepGuard = await assertWorkerIdsEligibleForPrep(appUser, [check.worker_id]);
+  if (!prepGuard.ok) {
+    throw new Error(prepGuard.error);
+  }
 
   await submitAttendanceByWorkersEngine({
     items: [{ worker_id: check.worker_id, status: "present" }],

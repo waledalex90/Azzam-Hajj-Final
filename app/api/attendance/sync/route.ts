@@ -1,6 +1,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
+import { assertWorkerIdsEligibleForPrep } from "@/lib/services/attendance-prep-guard";
 import { applyApprovalDecisionsEngine, submitAttendanceByWorkersEngine } from "@/lib/services/attendance-engine";
 import { loadAppUserWithRole } from "@/lib/auth/resolve-app-user";
 import { hasPermission } from "@/lib/auth/permissions";
@@ -68,6 +69,11 @@ export async function POST(request: Request) {
       const status = body.status;
       const workDate = body.workDate;
       const roundNo = Math.max(1, Math.min(Number(body.roundNo) || 1, 9));
+
+      const prepGuard = await assertWorkerIdsEligibleForPrep(appUser, workerIds);
+      if (!prepGuard.ok) {
+        return NextResponse.json({ error: prepGuard.error, code: "400" }, { status: 400 });
+      }
 
       await submitAttendanceByWorkersEngine({
         items: workerIds.map((workerId) => ({ worker_id: workerId, status })),
