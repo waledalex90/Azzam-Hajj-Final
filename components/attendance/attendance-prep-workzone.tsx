@@ -177,7 +177,8 @@ export function AttendancePrepWorkzone({
           </button>
         </div>
         <p className="mt-1 text-xs text-slate-500">
-          يظهر {filteredRows.length} من أصل {workers.length} معلّق
+          يظهر {filteredRows.length} من أصل {workers.length} معلّق. كل من تُحضّره يختفي من هنا ويظهر في «مراجعة تحضير
+          اليوم»؛ عندما لا يبقى معلّق في هذا النطاق يُفتح التبويب الثاني تلقائياً (أو افتحه يدوياً متى شئت).
         </p>
       </div>
 
@@ -190,7 +191,6 @@ export function AttendancePrepWorkzone({
         filteredTotalRows={scopeIds.length}
         skipServerRefresh
         onAttendanceChunkSaved={onPrepDone}
-        onPrepSuccessNavigate={goToReviewTab}
       />
     </>
   );
