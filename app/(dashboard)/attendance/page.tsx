@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import { Card } from "@/components/ui/card";
@@ -52,7 +51,6 @@ export const maxDuration = 120;
 
 export default async function AttendancePage({ searchParams }: Props) {
   noStore();
-  const prepMountKey = randomUUID();
   const appUser = await requireScreen(PERM.PREP);
   const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
   const canCorrection = Boolean(appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST));
@@ -223,7 +221,7 @@ export default async function AttendancePage({ searchParams }: Props) {
 
       {activeTab === "workers" ? (
         <AttendancePrepWorkzone
-          key={`prep-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${prepMountKey}`}
+          key={`prep-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}`}
           initialDayStats={dayStats}
           initialWorkers={prepWorkers?.rows ?? []}
           initialStatusMap={initialStatusMap}

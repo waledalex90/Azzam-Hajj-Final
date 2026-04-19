@@ -67,13 +67,38 @@ export function AttendancePrepWorkzone({
 
   const scopeIds = useMemo(() => workers.map((w) => w.id), [workers]);
 
-  const onPrepDone = useCallback((ids: number[], status: AttendanceStatus) => {
-    const set = new Set(ids);
-    flushSync(() => {
-      setWorkers((prev) => prev.filter((w) => !set.has(w.id)));
-      setDayStats((prev) => applyPrepToStats(prev, ids.length, status));
+  /** بعد التحضير: الانتقال لتبويب المراجعة (push + تأجيل خفيف يتجنب تعارض revalidate من الـ server action) */
+  const goToReviewTab = useCallback(() => {
+    const qs = new URLSearchParams();
+    qs.set("tab", "review");
+    qs.set("date", workDate);
+    qs.set("shift", String(roundNo));
+    if (siteId) qs.set("siteId", siteId);
+    if (contractorId) qs.set("contractorId", contractorId);
+    const href = `/attendance?${qs.toString()}`;
+    queueMicrotask(() => {
+      router.push(href);
     });
-  }, []);
+  }, [router, workDate, roundNo, siteId, contractorId]);
+
+  const onPrepDone = useCallback(
+    (ids: number[], status: AttendanceStatus) => {
+      const set = new Set(ids);
+      let becameEmpty = false;
+      flushSync(() => {
+        setWorkers((prev) => {
+          const next = prev.filter((w) => !set.has(w.id));
+          if (next.length === 0) becameEmpty = true;
+          return next;
+        });
+        setDayStats((prev) => applyPrepToStats(prev, ids.length, status));
+      });
+      if (becameEmpty) {
+        queueMicrotask(() => goToReviewTab());
+      }
+    },
+    [goToReviewTab],
+  );
 
   const onResetAll = useCallback(() => {
     setSearch("");
@@ -84,17 +109,6 @@ export function AttendancePrepWorkzone({
     await revalidateAttendancePageCache();
     router.refresh();
   }, [router]);
-
-  /** بعد حفظ التحضير: الانتقال لتبويب المراجعة لرؤية السجلات المعلّقة للاعتماد */
-  const goToReviewTab = useCallback(() => {
-    const qs = new URLSearchParams();
-    qs.set("tab", "review");
-    qs.set("date", workDate);
-    qs.set("shift", String(roundNo));
-    if (siteId) qs.set("siteId", siteId);
-    if (contractorId) qs.set("contractorId", contractorId);
-    router.replace(`/attendance?${qs.toString()}`);
-  }, [router, workDate, roundNo, siteId, contractorId]);
 
   const allDone = workers.length === 0;
 
