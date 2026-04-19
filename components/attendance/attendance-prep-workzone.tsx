@@ -20,11 +20,6 @@ type Props = {
   roundNo: number;
   siteId?: string;
   contractorId?: string;
-  /**
-   * إن كان false (مراقب ميداني بدون صلاحية اعتماد): لا ننتقل لتبويب المراجعة بعد التحضير —
-   * الاعتماد من دور آخر.
-   */
-  offerReviewNavigation?: boolean;
 };
 
 function applyPrepToStats(
@@ -49,7 +44,6 @@ export function AttendancePrepWorkzone({
   roundNo,
   siteId,
   contractorId,
-  offerReviewNavigation = true,
 }: Props) {
   const router = useRouter();
   const [dayStats, setDayStats] = useState(initialDayStats);
@@ -73,7 +67,7 @@ export function AttendancePrepWorkzone({
 
   const scopeIds = useMemo(() => workers.map((w) => w.id), [workers]);
 
-  /** بعد نجاح التحضير: للمراقب الفني ينتقل لتبويب المراجعة؛ الميداني يبقى هنا. */
+  /** بعد التحضير: الانتقال لتبويب المراجعة لرؤية من نُقِل للطابور (ميداني = اطلاع، فني = اعتماد). */
   const goToReviewTab = useCallback(() => {
     const qs = new URLSearchParams();
     qs.set("tab", "review");
@@ -97,13 +91,10 @@ export function AttendancePrepWorkzone({
         setDayStats((prev) => applyPrepToStats(prev, ids.length, status));
       });
       if (becameEmpty) {
-        queueMicrotask(() => {
-          if (offerReviewNavigation) goToReviewTab();
-          else router.refresh();
-        });
+        queueMicrotask(() => goToReviewTab());
       }
     },
-    [goToReviewTab, offerReviewNavigation, router],
+    [goToReviewTab],
   );
 
   const onResetAll = useCallback(() => {
@@ -146,9 +137,7 @@ export function AttendancePrepWorkzone({
         <Card className="border border-dashed border-emerald-300 bg-emerald-50 px-6 py-10 text-center">
           <p className="text-lg font-bold text-emerald-900">لا يوجد معلّقون للتحضير</p>
           <p className="mt-2 text-sm text-emerald-800">
-            {offerReviewNavigation
-              ? "كل العمال ضمن الفلتر لديهم سجل لهذا اليوم."
-              : "كل العمال ضمن الفلتر لديهم سجل لهذا اليوم. التحضير الميداني أُرسل لمراجعة المراقب الفني للاعتماد."}
+            كل العمال ضمن الفلتر لديهم سجل لهذا اليوم. يمكنك فتح «مراجعة تحضير اليوم» لرؤية من ورد في الطابور.
           </p>
         </Card>
       </>
@@ -201,7 +190,7 @@ export function AttendancePrepWorkzone({
         filteredTotalRows={scopeIds.length}
         skipServerRefresh
         onAttendanceChunkSaved={onPrepDone}
-        onPrepSuccessNavigate={offerReviewNavigation ? goToReviewTab : undefined}
+        onPrepSuccessNavigate={goToReviewTab}
       />
     </>
   );

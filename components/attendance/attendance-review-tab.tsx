@@ -9,6 +9,8 @@ import type { AttendanceCheckRow } from "@/lib/types/db";
 type Props = {
   initialRows: AttendanceCheckRow[];
   canCorrection: boolean;
+  /** مراقب ميداني: يرى من نُقِل للطابور للاطلاع فقط؛ الاعتماد لدى المراقب الفني */
+  readOnlyReview?: boolean;
   shiftLabel?: string;
 };
 
@@ -27,7 +29,12 @@ function reviewLabel(status: "pending" | "confirmed" | "rejected") {
 const TABLE_H = "min(65vh,880px)";
 const MOBILE_H = "min(50vh,520px)";
 
-export function AttendanceReviewTab({ initialRows, canCorrection, shiftLabel }: Props) {
+export function AttendanceReviewTab({
+  initialRows,
+  canCorrection,
+  readOnlyReview = false,
+  shiftLabel,
+}: Props) {
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState(initialRows);
 
@@ -48,12 +55,20 @@ export function AttendanceReviewTab({ initialRows, canCorrection, shiftLabel }: 
   return (
     <>
       <div className="rounded border border-slate-200 bg-white p-3">
+        {readOnlyReview ? (
+          <p className="mb-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-900">
+            عرض فقط: هذه القائمة تُظهر من تم تحضيره وانتقل للطابور. تحضيرك الميداني مكتمل من جهتك؛ الاعتماد أو الرفض من
+            المراقب الفني. يمكنك الرجوع إليها عند أي استفسار أو مشكلة.
+          </p>
+        ) : null}
         {shiftLabel ? (
           <p className="mb-2 text-xs font-bold text-emerald-800">
             الوردية المعروضة: <span className="text-slate-900">{shiftLabel}</span>
-            {canCorrection
-              ? " — طلب التعديل (للمراقب الفني) يُرسل للإدارة مع السبب والحالة المطلوبة."
-              : " — نفس تاريخ التحضير والفلاتر؛ الاعتماد وطلب التعديل من المراقب الفني."}
+            {readOnlyReview
+              ? " — نفس تاريخ التحضير والفلاتر."
+              : canCorrection
+                ? " — طلب التعديل (للمراقب الفني) يُرسل للإدارة مع السبب والحالة المطلوبة."
+                : " — نفس تاريخ التحضير والفلاتر؛ الاعتماد وطلب التعديل من المراقب الفني."}
           </p>
         ) : null}
         <label className="block text-xs font-bold text-slate-700">بحث فوري</label>

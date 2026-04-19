@@ -55,11 +55,11 @@ export default async function AttendancePage({ searchParams }: Props) {
   const appUser = await requireScreen(PERM.PREP);
   const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
   const canCorrection = Boolean(appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST));
-  /** طابور المراجعة والاعتماد: للمراقب الفني (ومن لديهم صلاحية الاعتماد) فقط — لا للمراقب الميداني. */
-  const canAccessReviewQueue = hasPermission(appUser, PERM.APPROVAL);
+  /** اعتماد/طابور إداري: المراقب الفني؛ الميداني يرى نفس القائمة للاطلاع فقط (من نُقِل بعد تحضيره). */
+  const canManageReviewQueue = hasPermission(appUser, PERM.APPROVAL);
 
   const params = await searchParams;
-  const activeTab = params.tab === "review" && canAccessReviewQueue ? "review" : "workers";
+  const activeTab = params.tab === "review" ? "review" : "workers";
   let siteId = params.siteId ? Number(params.siteId) : undefined;
   if (allowedSiteIds !== undefined) {
     if (allowedSiteIds.length === 0) {
@@ -162,19 +162,17 @@ export default async function AttendancePage({ searchParams }: Props) {
     <section className="space-y-4">
       <AttendanceSyncBridge />
       <Card>
-        <h1 className="text-lg font-extrabold text-slate-900">
-          {canAccessReviewQueue ? "تسجيل الحضور والمراجعة" : "تسجيل الحضور (التحضير الميداني)"}
-        </h1>
+        <h1 className="text-lg font-extrabold text-slate-900">تسجيل الحضور والمراجعة</h1>
         <p className="mt-1 text-sm text-slate-600">
-          {canAccessReviewQueue ? (
+          {canManageReviewQueue ? (
             <>
-              تبويب «الموظفون والتحضير» للتسجيل فقط (حاضر / غائب / نصف يوم). تبويب «مراجعة تحضير اليوم» لمراجعة
-              السجلات وطلب التعديل أو إعادة التحضير للعامل.
+              «الموظفون والتحضير» للتسجيل. «مراجعة تحضير اليوم» لاعتماد أو رفض السجلات وطلب التعديل عند الحاجة.
             </>
           ) : (
             <>
-              تحضيرك هنا <span className="font-extrabold text-slate-800">أوليّ للميدان</span> ويُرسل لطابور المراقب
-              الفني للاعتماد أو الرفض؛ لا يُعتبر اعتماداً نهائياً من جهتك.
+              <span className="font-extrabold text-slate-800">تحضيرك في التبويب الأول نهائي من ناحية عملك الميداني.</span>{" "}
+              السجل يُنقل تلقائياً إلى «مراجعة تحضير اليوم» لترى من تم تحضيره (للاطلاع عند أي استفسار)؛{" "}
+              <span className="font-extrabold text-slate-800">الاعتماد الإداري</span> من المراقب الفني وليس منك.
             </>
           )}
         </p>
@@ -190,24 +188,24 @@ export default async function AttendancePage({ searchParams }: Props) {
           >
             الموظفون والتحضير
           </Link>
-          {canAccessReviewQueue ? (
-            <Link
-              href={`/attendance?tab=review&date=${workDate}&shift=${roundNo}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
-              className={`rounded-t-xl px-3 py-2 font-extrabold ${
-                activeTab === "review"
-                  ? "bg-emerald-50 text-emerald-700"
-                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-              }`}
-            >
-              مراجعة تحضير اليوم
-            </Link>
-          ) : null}
+          <Link
+            href={`/attendance?tab=review&date=${workDate}&shift=${roundNo}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
+            className={`rounded-t-xl px-3 py-2 font-extrabold ${
+              activeTab === "review"
+                ? "bg-emerald-50 text-emerald-700"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            }`}
+          >
+            مراجعة تحضير اليوم
+          </Link>
         </div>
 
         <p className="mt-2 text-xs text-slate-600">
           {activeTab === "workers"
             ? "الوردية: صباحي/مسائي — جولة منفصلة لكل وردية. المسائي لا يعرض من حُضِّر صباحاً. بحث فوري تحت الجدول."
-            : "نفس الوردية المختارة لعرض سجلات المراجعة والاعتماد المعلّق لهذه الجولة فقط."}
+            : canManageReviewQueue
+              ? "نفس الوردية المختارة لعرض سجلات المراجعة والاعتماد المعلّق لهذه الجولة."
+              : "عرض السجلات المُرحَّلة لهذا اليوم والوردية — للاطلاع على من تم تحضيره؛ الاعتماد من المراقب الفني."}
         </p>
         {activeTab === "workers" ? (
           <AttendanceFilterToolbar
@@ -246,7 +244,6 @@ export default async function AttendancePage({ searchParams }: Props) {
           roundNo={roundNo}
           siteId={params.siteId}
           contractorId={params.contractorId}
-          offerReviewNavigation={canAccessReviewQueue}
         />
       ) : (
         <>
@@ -285,6 +282,7 @@ export default async function AttendancePage({ searchParams }: Props) {
             key={`rev-${workDate}-${roundNo}-${params.siteId ?? ""}`}
             initialRows={reviewedRows}
             canCorrection={canCorrection}
+            readOnlyReview={!canManageReviewQueue}
             shiftLabel={roundNo === 2 ? "مسائي" : "صباحي"}
           />
         </>
