@@ -248,7 +248,12 @@ export async function getPendingApprovalCheckIds(params: {
   contractorId?: number;
   search?: string;
   roundNo?: number;
+  /** تقييد مراقب ميداني/فني لمواقعه — يطابق getAttendanceChecksPage */
+  allowedSiteIds?: number[];
 }): Promise<number[]> {
+  if (params.allowedSiteIds !== undefined && params.allowedSiteIds.length === 0) {
+    return [];
+  }
   const supabase = createSupabaseAdminClient();
   const cid = params.contractorId && Number.isFinite(params.contractorId) ? params.contractorId : undefined;
   const workerSelect = cid
@@ -262,6 +267,8 @@ export async function getPendingApprovalCheckIds(params: {
 
   if (params.siteId) {
     query = query.eq("attendance_rounds.site_id", params.siteId);
+  } else if (params.allowedSiteIds && params.allowedSiteIds.length > 0) {
+    query = query.in("attendance_rounds.site_id", params.allowedSiteIds);
   }
   if (cid) {
     query = query.eq("workers.contractor_id", cid);
@@ -286,7 +293,11 @@ export async function getApprovalFilterCounts(params: {
   siteId?: number;
   contractorId?: number;
   roundNo: number;
+  allowedSiteIds?: number[];
 }): Promise<{ pending: number; confirmed: number; total: number }> {
+  if (params.allowedSiteIds !== undefined && params.allowedSiteIds.length === 0) {
+    return { pending: 0, confirmed: 0, total: 0 };
+  }
   const supabase = createSupabaseAdminClient();
   const r = normalizeShiftRound(params.roundNo);
   const sid = params.siteId && Number.isFinite(params.siteId) ? params.siteId : undefined;
@@ -304,6 +315,9 @@ export async function getApprovalFilterCounts(params: {
       .eq("attendance_rounds.work_date", params.workDate)
       .eq("attendance_rounds.round_no", r);
     if (sid) q = q.eq("attendance_rounds.site_id", sid);
+    else if (params.allowedSiteIds && params.allowedSiteIds.length > 0) {
+      q = q.in("attendance_rounds.site_id", params.allowedSiteIds);
+    }
     if (cid) q = q.eq("workers.contractor_id", cid);
     if (confirmationStatus) q = q.eq("confirmation_status", confirmationStatus);
     const { count, error } = await q;

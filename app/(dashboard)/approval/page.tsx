@@ -8,6 +8,7 @@ import { AttendanceFilterToolbar } from "@/components/attendance/attendance-filt
 import { Card } from "@/components/ui/card";
 import { requireScreen } from "@/lib/auth/require-screen";
 import { hasPermission } from "@/lib/auth/permissions";
+import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
 import { PERM } from "@/lib/permissions/keys";
 import {
   getApprovalFilterCounts,
@@ -56,6 +57,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
   noStore();
   const mountKey = randomUUID();
   const appUser = await requireScreen(PERM.APPROVAL);
+  const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
   const canCorrection = Boolean(appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST));
   const canResetAttendance = Boolean(
     appUser && (hasPermission(appUser, PERM.PREP) || hasPermission(appUser, PERM.APPROVAL)),
@@ -63,7 +65,14 @@ export default async function ApprovalPage({ searchParams }: Props) {
 
   const params = await searchParams;
   const activeTab = params.tab === "history" ? "history" : "pending";
-  const siteId = params.siteId ? Number(params.siteId) : undefined;
+  let siteId = params.siteId ? Number(params.siteId) : undefined;
+  if (allowedSiteIds !== undefined) {
+    if (allowedSiteIds.length === 0) {
+      siteId = undefined;
+    } else if (!Number.isFinite(siteId) || (siteId !== undefined && !allowedSiteIds.includes(siteId))) {
+      siteId = undefined;
+    }
+  }
   const contractorId = params.contractorId ? Number(params.contractorId) : undefined;
   const workDate =
     params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)
@@ -91,6 +100,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
         siteId: sid,
         contractorId: cid,
         roundNo,
+        allowedSiteIds,
       }),
     ]);
 
@@ -101,6 +111,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
             pageSize: FULL_LOAD,
             workDate,
             siteId: sid,
+            allowedSiteIds,
             contractorId: cid,
             search: undefined,
             confirmationStatus: "pending",
@@ -113,6 +124,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
             pageSize: FULL_LOAD,
             workDate,
             siteId: sid,
+            allowedSiteIds,
             contractorId: cid,
             search: undefined,
             confirmationStatus: "confirmed",
@@ -126,6 +138,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
             contractorId: cid,
             search: undefined,
             roundNo,
+            allowedSiteIds,
           }).then((ids) => ids.length)
         : Promise.resolve(0),
     ]);
@@ -142,6 +155,10 @@ export default async function ApprovalPage({ searchParams }: Props) {
         : null;
     pendingFilteredTotal = 0;
     approvalStats = { pending: 0, confirmed: 0, total: 0 };
+  }
+
+  if (allowedSiteIds !== undefined) {
+    sites = allowedSiteIds.length > 0 ? sites.filter((s) => allowedSiteIds.includes(s.id)) : [];
   }
 
   const pendingRows = pendingBlock?.rows ?? [];
@@ -209,6 +226,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
           siteId={params.siteId}
           contractorId={params.contractorId}
           roundNo={roundNo}
+          canCorrection={canCorrection}
         />
       ) : (
         <ApprovalHistoryShell

@@ -19,6 +19,7 @@ type Props = {
   siteId?: string;
   contractorId?: string;
   roundNo: number;
+  canCorrection: boolean;
 };
 
 export function ApprovalPendingShell({
@@ -29,6 +30,7 @@ export function ApprovalPendingShell({
   siteId,
   contractorId,
   roundNo,
+  canCorrection,
 }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -113,6 +115,7 @@ export function ApprovalPendingShell({
         siteId={siteId}
         contractorId={contractorId}
         roundNo={roundNo}
+        canCorrection={canCorrection}
         onChunkApproved={onChunkApproved}
       />
     </div>

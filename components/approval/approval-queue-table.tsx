@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { TableVirtuoso } from "react-virtuoso";
 
 import { approveApprovalChunk, fetchPendingApprovalIds } from "@/app/(dashboard)/approval/actions";
+import { CorrectionRequestDialog } from "@/components/attendance/correction-request-dialog";
 import type { AttendanceCheckRow } from "@/lib/types/db";
 
 type Decision = "confirm" | "reject";
@@ -18,6 +19,7 @@ type Props = {
   siteId?: string;
   contractorId?: string;
   roundNo: number;
+  canCorrection: boolean;
   onChunkApproved: (checkIds: number[]) => void;
 };
 
@@ -39,6 +41,7 @@ export function ApprovalQueueTable({
   siteId,
   contractorId,
   roundNo,
+  canCorrection,
   onChunkApproved,
 }: Props) {
   const router = useRouter();
@@ -311,24 +314,27 @@ export function ApprovalQueueTable({
                 <td className="border border-slate-300 px-3 py-1">
                   {row.status === "present" ? "حاضر" : row.status === "absent" ? "غائب" : "نصف يوم"}
                 </td>
-                <td className="border border-slate-300 px-3 py-1">
-                  <div className="flex flex-wrap gap-1">
-                    <button
-                      type="button"
-                      onClick={() => void onDecision(row.id, "confirm")}
-                      className="rounded border border-emerald-800 bg-emerald-700 px-2 py-0.5 text-xs font-bold text-white disabled:opacity-40"
-                      disabled={isPending || isSaving}
-                    >
-                      اعتماد
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void onDecision(row.id, "reject")}
-                      className="rounded border border-red-800 bg-red-700 px-2 py-0.5 text-xs font-bold text-white disabled:opacity-40"
-                      disabled={isPending || isSaving}
-                    >
-                      رفض
-                    </button>
+                <td className="border border-slate-300 px-3 py-1 align-top">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-start">
+                    <div className="flex flex-wrap gap-1">
+                      <button
+                        type="button"
+                        onClick={() => void onDecision(row.id, "confirm")}
+                        className="rounded border border-emerald-800 bg-emerald-700 px-2 py-0.5 text-xs font-bold text-white disabled:opacity-40"
+                        disabled={isPending || isSaving}
+                      >
+                        اعتماد
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void onDecision(row.id, "reject")}
+                        className="rounded border border-red-800 bg-red-700 px-2 py-0.5 text-xs font-bold text-white disabled:opacity-40"
+                        disabled={isPending || isSaving}
+                      >
+                        رفض
+                      </button>
+                    </div>
+                    <CorrectionRequestDialog checkId={row.id} disabled={!canCorrection} />
                   </div>
                 </td>
               </>
