@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { BrandLogo } from "@/components/branding/brand-logo";
-import { PrintButton } from "@/components/violations/print-button";
+import { NoticePrintActions } from "@/components/violations/notice-print-actions";
 import { NoticeLinkedSelects } from "@/components/violations/notice-linked-selects";
 import { NoticeAttachments } from "@/components/violations/notice-attachments";
 import { NoticeViolationTypeDropdown } from "@/components/violations/notice-violation-type-dropdown";
@@ -174,7 +174,7 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
       <div className="no-print flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-extrabold text-slate-900">إشعار مخالفة — مقاول (نسخة 1447هـ)</h1>
         <div className="flex flex-wrap gap-2">
-          <PrintButton />
+          <NoticePrintActions />
           {viewBundle ? (
             <Link href="/violations/notice">
               <Button variant="primary">إشعار مخالفة جديد</Button>
@@ -229,7 +229,12 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
             contractorNameForView={contractorNameForView ?? "—"}
           />
         ) : (
-          <form action={saveNotice} className="paper-form" encType="multipart/form-data">
+          <form
+            id="notice-contractor-print"
+            action={saveNotice}
+            className="paper-form"
+            encType="multipart/form-data"
+          >
             <EditNoticeBody options={options} workersForSelect={workersForSelect} now={now} />
           </form>
         )}
@@ -251,35 +256,104 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           border: 1px solid #111;
           background: #fff;
         }
-        .violation-details {
+        .violation-picker-wrap {
+          position: relative;
+        }
+        .violation-picker-line {
+          display: flex;
+          width: 100%;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          min-height: 40px;
+          padding: 8px 12px;
           border: 1px solid #111;
           background: #fff;
-        }
-        .violation-details-summary {
           cursor: pointer;
-          list-style: none;
-          padding: 10px 12px;
           font-weight: 700;
           direction: rtl;
+          text-align: right;
         }
-        .violation-details-summary::-webkit-details-marker {
-          display: none;
+        .violation-picker-line-text {
+          flex: 1;
+          color: #111;
         }
-        .violation-details-panel {
+        .violation-picker-chevron {
+          flex-shrink: 0;
+          font-size: 14px;
+          opacity: 0.85;
+        }
+        .violation-picker-float {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: calc(100% + 2px);
+          z-index: 60;
+          border: 1px solid #111;
+          background: #fff;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        }
+        .violation-picker-float-inner {
           max-height: 220px;
           overflow-y: auto;
-          border-top: 1px solid #111;
-          padding: 10px 12px;
+          padding: 8px 10px;
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 6px;
         }
-        .violation-details-row {
+        .violation-picker-row {
           display: flex;
           gap: 10px;
           align-items: flex-start;
           font-weight: 600;
           line-height: 1.35;
+          cursor: pointer;
+        }
+        .violation-selected-below {
+          margin-top: 10px;
+          padding: 8px 10px;
+          border: 1px dashed #333;
+          background: #fafafa;
+        }
+        .violation-selected-title {
+          display: block;
+          font-size: 12px;
+          font-weight: 800;
+          margin-bottom: 6px;
+          color: #333;
+        }
+        .violation-selected-ul {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+        }
+        .violation-selected-li {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 4px 0;
+          border-bottom: 1px solid #e5e5e5;
+          font-weight: 600;
+          font-size: 13px;
+        }
+        .violation-selected-li:last-child {
+          border-bottom: 0;
+        }
+        .violation-selected-name {
+          flex: 1;
+          text-align: right;
+        }
+        .violation-selected-remove {
+          flex-shrink: 0;
+          width: 26px;
+          height: 26px;
+          border: 1px solid #999;
+          background: #fff;
+          cursor: pointer;
+          font-size: 18px;
+          line-height: 1;
+          border-radius: 4px;
         }
         .violation-print-box {
           border: 1px solid #111;
@@ -506,27 +580,44 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           .paper-form {
             width: 100% !important;
             max-width: 100% !important;
-            min-height: auto;
+            min-height: auto !important;
             margin: 0 !important;
             box-sizing: border-box;
             border: 1px solid #111;
-            padding: 5mm 4mm !important;
-            font-size: 11.5pt;
-            line-height: 1.45;
+            padding: 3mm 3mm !important;
+            font-size: 10pt !important;
+            line-height: 1.35 !important;
+          }
+          .paper-header {
+            margin-bottom: 6px !important;
+            padding-bottom: 6px !important;
           }
           .paper-title h2 {
-            font-size: 22pt !important;
-            line-height: 1.15 !important;
+            font-size: 17pt !important;
+            line-height: 1.1 !important;
           }
           .paper-title p {
-            font-size: 12pt !important;
+            font-size: 10pt !important;
           }
           .paper-logo :is(img, svg) {
-            max-width: 130px !important;
+            max-width: 100px !important;
             height: auto !important;
           }
           .section-title {
-            font-size: 16pt !important;
+            font-size: 13pt !important;
+            margin: 6px 0 !important;
+            padding: 4px 0 !important;
+          }
+          .paper-grid {
+            gap: 4px !important;
+            margin-bottom: 4px !important;
+          }
+          label {
+            gap: 2px !important;
+          }
+          textarea {
+            min-height: 52px !important;
+            font-size: 9.5pt !important;
           }
           .section-title,
           .paper-title h2 {
@@ -544,11 +635,25 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
             page-break-inside: avoid;
           }
           .notice-media-item {
-            max-height: 65mm;
+            max-height: 45mm !important;
+          }
+          .notes {
+            font-size: 8.5pt !important;
+            margin-top: 6px !important;
+            padding-top: 6px !important;
+          }
+          .notes p {
+            margin: 2px 0 !important;
+          }
+          .signatures {
+            margin-top: 8px !important;
+            padding-top: 8px !important;
+            gap: 10px !important;
+            font-size: 9pt !important;
           }
           @page {
             size: A4 portrait;
-            margin: 8mm;
+            margin: 5mm;
           }
         }
       `}</style>
@@ -640,7 +745,7 @@ function ViewNoticeBody({
 }) {
   const d = new Date(viewBundle.occurredAtIso);
   return (
-    <div className="paper-form">
+    <div id="notice-contractor-print" className="paper-form">
       <PaperHeader />
 
       <div className="paper-grid three">
