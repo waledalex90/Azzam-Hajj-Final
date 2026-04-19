@@ -3,8 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 
 import { getSessionContext } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
-import { PERM } from "@/lib/permissions/keys";
+import { canRequestAttendanceCorrection } from "@/lib/auth/permissions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 
@@ -17,7 +16,7 @@ export async function submitAttendanceCorrectionRequestFromReview(input: {
 }): Promise<ReviewCorrectionResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser: actor } = await getSessionContext();
-  if (!actor || !hasPermission(actor, PERM.CORRECTION_REQUEST)) {
+  if (!actor || !canRequestAttendanceCorrection(actor)) {
     return { ok: false, error: "لا توجد صلاحية لطلب التعديل." };
   }
 

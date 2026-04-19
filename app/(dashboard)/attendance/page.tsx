@@ -18,7 +18,7 @@ import { AttendanceReviewTab } from "@/components/attendance/attendance-review-t
 import { AttendanceRscRefreshLockProvider } from "@/components/attendance/attendance-rsc-refresh-lock";
 import { AttendanceSyncBridge } from "@/components/attendance/attendance-sync-bridge";
 import { requireScreen } from "@/lib/auth/require-screen";
-import { hasPermission } from "@/lib/auth/permissions";
+import { canRequestAttendanceCorrection, hasPermission } from "@/lib/auth/permissions";
 import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
 import { PERM } from "@/lib/permissions/keys";
 import type { AttendanceDayStats } from "@/lib/types/db";
@@ -55,7 +55,7 @@ export default async function AttendancePage({ searchParams }: Props) {
   noStore();
   const appUser = await requireScreen(PERM.PREP);
   const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
-  const canCorrection = Boolean(appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST));
+  const canCorrection = canRequestAttendanceCorrection(appUser);
   /** اعتماد/طابور إداري: المراقب الفني؛ الميداني يرى نفس القائمة للاطلاع فقط (من نُقِل بعد تحضيره). */
   const canManageReviewQueue = hasPermission(appUser, PERM.APPROVAL);
 

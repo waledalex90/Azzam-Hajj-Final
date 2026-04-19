@@ -7,7 +7,7 @@ import { ApprovalPendingShell } from "@/components/approval/approval-pending-she
 import { AttendanceFilterToolbar } from "@/components/attendance/attendance-filter-toolbar";
 import { Card } from "@/components/ui/card";
 import { requireScreen } from "@/lib/auth/require-screen";
-import { hasPermission } from "@/lib/auth/permissions";
+import { canRequestAttendanceCorrection, hasPermission } from "@/lib/auth/permissions";
 import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
 import { PERM } from "@/lib/permissions/keys";
 import {
@@ -58,7 +58,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
   const mountKey = randomUUID();
   const appUser = await requireScreen(PERM.APPROVAL);
   const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
-  const canCorrection = Boolean(appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST));
+  const canCorrection = canRequestAttendanceCorrection(appUser);
   const canResetAttendance = Boolean(
     appUser && (hasPermission(appUser, PERM.PREP) || hasPermission(appUser, PERM.APPROVAL)),
   );

@@ -44,6 +44,11 @@ export function ApprovalHistoryShell({ initialRows, stats, canRequestCorrection 
         <p className="mt-1 text-xs text-slate-500">
           {filtered.length} من {initialRows.length}
         </p>
+        {canRequestCorrection ? (
+          <p className="mt-2 text-xs font-bold text-amber-900">
+            للسجلات المعتمدة: زر «طلب تعديل» يفتح السبب والحالة المطلوبة (حاضر / غائب / نصف يوم) ويُرسل للإدارة.
+          </p>
+        ) : null}
       </div>
 
       <div className="h-[min(70vh,900px)] overflow-hidden rounded border border-slate-300 bg-white">

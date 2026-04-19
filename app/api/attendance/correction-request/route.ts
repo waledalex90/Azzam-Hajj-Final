@@ -3,8 +3,7 @@ import { NextResponse } from "next/server";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { loadAppUserWithRole } from "@/lib/auth/resolve-app-user";
-import { hasPermission } from "@/lib/auth/permissions";
-import { PERM } from "@/lib/permissions/keys";
+import { canRequestAttendanceCorrection } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 
@@ -24,7 +23,7 @@ export async function POST(request: Request) {
   const supabase = createSupabaseAdminClient();
   const appUser = await loadAppUserWithRole(user.id);
 
-  if (!appUser || !hasPermission(appUser, PERM.CORRECTION_REQUEST)) {
+  if (!appUser || !canRequestAttendanceCorrection(appUser)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
