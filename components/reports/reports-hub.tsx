@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   listReportsFilterOptionsAction,
@@ -167,7 +167,9 @@ export function ReportsHub() {
   const [exportPct, setExportPct] = useState<number | null>(null);
   const [exportLabel, setExportLabel] = useState<string | null>(null);
   const [payrollLocked, setPayrollLocked] = useState(false);
+  const [payrollSearchInput, setPayrollSearchInput] = useState("");
   const [payrollSearch, setPayrollSearch] = useState("");
+  const payrollSearchCommitted = useRef<string | null>(null);
 
   const filters = useMemo((): ReportFilters => {
     if (tab === "horizontal_report") {
@@ -223,6 +225,7 @@ export function ReportsHub() {
         violationStatus: tab === "violations" ? violationStatus : null,
         workerStatus: tab === "workers" ? workerStatus : undefined,
         workerQ: tab === "workers" ? workerQ : undefined,
+        payrollSearch: tab === "payroll" ? payrollSearch : undefined,
       });
       setRows(res.rows as Record<string, unknown>[]);
       setMeta(res.meta);
@@ -243,6 +246,7 @@ export function ReportsHub() {
     violationStatus,
     workerStatus,
     workerQ,
+    payrollSearch,
   ]);
 
   useEffect(() => {
@@ -266,20 +270,24 @@ export function ReportsHub() {
   }, [tab, filters]);
 
   useEffect(() => {
-    if (tab !== "payroll") setPayrollSearch("");
+    if (tab !== "payroll") {
+      setPayrollSearchInput("");
+      setPayrollSearch("");
+      payrollSearchCommitted.current = null;
+    }
   }, [tab]);
 
-  const payrollFilteredRows = useMemo(() => {
-    if (tab !== "payroll") return rows;
-    const q = payrollSearch.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => {
-      const name = String(r.worker_name ?? "").toLowerCase();
-      const iq = String(r.id_number ?? "").replace(/\s/g, "").toLowerCase();
-      const qt = q.replace(/\s/g, "");
-      return name.includes(q) || iq.includes(qt);
-    });
-  }, [tab, rows, payrollSearch]);
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      const q = payrollSearchInput.trim();
+      setPayrollSearch(q);
+      if (payrollSearchCommitted.current !== q) {
+        payrollSearchCommitted.current = q;
+        setPage(1);
+      }
+    }, 400);
+    return () => window.clearTimeout(id);
+  }, [payrollSearchInput]);
 
   const columns = useMemo(() => {
     if (!rows.length) return [] as { key: string; label: string }[];
@@ -431,8 +439,8 @@ export function ReportsHub() {
           فلاتر متعددة من الخادم؛ معاينة على دفعات (حتى 1000 صف لمسير الرواتب)، وتصدير CSV كامل من السيرفر.
           {tab === "payroll" && (
             <span className="mt-1 block text-emerald-900">
-              مسير الرواتب: الفترة من السنة والشهر المختارين؛ بحث فوري بالاسم أو الإقامة ضمن الصفحة المحمّلة؛
-              تصدير Excel منسّق من الخادم.
+              مسير الرواتب: الفترة من السنة والشهر؛ البحث يمر عبر السيرفر على كل الموظفين ضمن الفلاتر (اسم، إقامة، أو
+              معرف) مع ترقيم صفحات للمعاينة؛ تصدير Excel / PDF من الخادم.
             </span>
           )}
         </p>
@@ -751,9 +759,9 @@ export function ReportsHub() {
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2">
               <Input
                 type="search"
-                placeholder="بحث فوري: الاسم أو رقم الإقامة…"
-                value={payrollSearch}
-                onChange={(e) => setPayrollSearch(e.target.value)}
+                placeholder="بحث: الاسم أو الإقامة أو المعرف (كل السجلات)…"
+                value={payrollSearchInput}
+                onChange={(e) => setPayrollSearchInput(e.target.value)}
                 className="min-h-9 min-w-[12rem] max-w-xl flex-1"
                 autoComplete="off"
               />
@@ -766,14 +774,14 @@ export function ReportsHub() {
               </button>
               {payrollSearch.trim() ? (
                 <span className="text-[11px] text-slate-600">
-                  {payrollFilteredRows.length} مطابقة من {rows.length} صفاً في الصفحة الحالية
+                  {meta?.totalRows ?? rows.length} سجل مطابق للبحث (على السيرفر)
                 </span>
               ) : null}
             </div>
             {rows.length > 0 ? (
               <div className="max-h-[min(78vh,920px)] overflow-auto rounded-lg border border-slate-100">
                 <PayrollReportTable
-                  rows={payrollFilteredRows}
+                  rows={rows}
                   periodStart={monthDateBounds(year, month).dateFrom}
                   periodEnd={monthDateBounds(year, month).dateTo}
                   filter={{

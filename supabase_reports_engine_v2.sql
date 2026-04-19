@@ -363,6 +363,7 @@ $$;
 
 -- ============== Payroll v2 (multi filters) + يومية + خصومات مخالفات + خصومات يدوية ==============
 drop function if exists public.get_payroll_report_page_v2(date, date, bigint[], bigint[], bigint[], smallint, integer, integer);
+drop function if exists public.get_payroll_report_page_v2(date, date, bigint[], bigint[], bigint[], smallint, integer, integer, text);
 
 create or replace function public.get_payroll_report_page_v2(
   p_date_start date,
@@ -372,7 +373,8 @@ create or replace function public.get_payroll_report_page_v2(
   p_supervisor_ids bigint[],
   p_shift_round smallint,
   p_page integer default 1,
-  p_page_size integer default 50
+  p_page_size integer default 50,
+  p_search text default null
 )
 returns table(
   worker_id bigint,
@@ -488,6 +490,12 @@ as $$
       c.*,
       count(*) over ()::bigint as tc
     from calc c
+    where
+      p_search is null
+      or btrim(p_search) = ''
+      or c.wname ilike '%' || btrim(p_search) || '%'
+      or replace(coalesce(c.wid_number, ''), ' ', '') ilike '%' || replace(btrim(p_search), ' ', '') || '%'
+      or c.wid::text ilike '%' || btrim(p_search) || '%'
   )
   select
     counted.wid as worker_id,
@@ -1145,7 +1153,7 @@ $$;
 
 grant execute on function public.search_report_entities(text, text, integer) to service_role;
 grant execute on function public.get_attendance_log_report_page(date, date, bigint[], bigint[], bigint[], text, integer, integer) to service_role;
-grant execute on function public.get_payroll_report_page_v2(date, date, bigint[], bigint[], bigint[], smallint, integer, integer) to service_role;
+grant execute on function public.get_payroll_report_page_v2(date, date, bigint[], bigint[], bigint[], smallint, integer, integer, text) to service_role;
 grant execute on function public.get_worker_period_payroll_map(date, date, bigint[], bigint[], bigint[], smallint) to service_role;
 grant execute on function public.get_contractor_invoice_summary_page(date, date, bigint[], bigint[], bigint[], smallint, integer, integer) to service_role;
 grant execute on function public.get_violations_report_page_v2(date, date, bigint[], bigint[], bigint[], text, smallint, integer, integer) to service_role;

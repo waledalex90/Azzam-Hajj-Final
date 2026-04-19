@@ -89,6 +89,8 @@ export async function buildPayrollExcelBuffer(opts: {
   dateTo: string;
   year: number;
   month: number;
+  /** مساحة توقيع في آخر الملف — افتراضياً بدون */
+  includeSignature?: boolean;
 }): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.created = new Date();
@@ -195,23 +197,30 @@ export async function buildPayrollExcelBuffer(opts: {
   });
 
   r += 2;
-  sheet.mergeCells(`A${r}:E${r}`);
-  const s1 = sheet.getCell(`A${r}`);
-  s1.value = "مسؤول الموارد البشرية: ________________________________";
-  s1.font = { size: 10 };
-  s1.alignment = { horizontal: "right" };
-  sheet.mergeCells(`F${r}:${L}${r}`);
-  const s2 = sheet.getCell(`F${r}`);
-  s2.value = "المشرف المالي / التوقيع: ________________________________";
-  s2.font = { size: 10 };
-  s2.alignment = { horizontal: "right" };
-
-  r += 1;
-  sheet.mergeCells(`A${r}:${L}${r}`);
-  const foot = sheet.getCell(`A${r}`);
-  foot.value = "تم إنشاء هذا الملف آلياً من نظام عزم — يُعتمد بعد المراجعة والتوقيع.";
-  foot.font = { italic: true, size: 9, color: { argb: "FF64748B" } };
-  foot.alignment = { horizontal: "center" };
+  if (opts.includeSignature) {
+    sheet.mergeCells(`A${r}:E${r}`);
+    const s1 = sheet.getCell(`A${r}`);
+    s1.value = "مسؤول الموارد البشرية: ________________________________";
+    s1.font = { size: 10 };
+    s1.alignment = { horizontal: "right" };
+    sheet.mergeCells(`F${r}:${L}${r}`);
+    const s2 = sheet.getCell(`F${r}`);
+    s2.value = "المشرف المالي / التوقيع: ________________________________";
+    s2.font = { size: 10 };
+    s2.alignment = { horizontal: "right" };
+    r += 1;
+    sheet.mergeCells(`A${r}:${L}${r}`);
+    const foot = sheet.getCell(`A${r}`);
+    foot.value = "تم إنشاء هذا الملف آلياً من نظام عزم — يُعتمد بعد المراجعة والتوقيع.";
+    foot.font = { italic: true, size: 9, color: { argb: "FF64748B" } };
+    foot.alignment = { horizontal: "center" };
+  } else {
+    sheet.mergeCells(`A${r}:${L}${r}`);
+    const foot = sheet.getCell(`A${r}`);
+    foot.value = "تم الإنشاء آلياً من نظام عزم — مسير الرواتب.";
+    foot.font = { italic: true, size: 9, color: { argb: "FF64748B" } };
+    foot.alignment = { horizontal: "center" };
+  }
 
   const buf = await workbook.xlsx.writeBuffer();
   return Buffer.from(buf);

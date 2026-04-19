@@ -52,6 +52,8 @@ export function PayrollReportToolbar({
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  /** إدراج مساحة التوقيع في ملفات Excel / PDF عند التصدير */
+  const [includeExportSignature, setIncludeExportSignature] = useState(false);
   const { dateFrom, dateTo } = monthDateBounds(year, month);
   const filterPick = {
     siteIds: filters.siteIds,
@@ -69,6 +71,7 @@ export function PayrollReportToolbar({
     if (filters.contractorIds?.length) p.set("contractors", filters.contractorIds.join(","));
     if (filters.supervisorIds?.length) p.set("supervisors", filters.supervisorIds.join(","));
     if (filters.shiftRound) p.set("shiftRound", String(filters.shiftRound));
+    if (includeExportSignature) p.set("sign", "1");
     return p.toString();
   };
 
@@ -120,6 +123,15 @@ export function PayrollReportToolbar({
           مسير معتمد (مقفل) — تعديل الخصومات يتطلب إلغاء القفل (اعتماد/إدارة).
         </p>
       )}
+      <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-bold text-slate-700">
+        <input
+          type="checkbox"
+          checked={includeExportSignature}
+          onChange={(e) => setIncludeExportSignature(e.target.checked)}
+          className="h-3.5 w-3.5 rounded border-slate-400"
+        />
+        إدراج مساحة التوقيع في التصدير (Excel / PDF)
+      </label>
       <div className="flex flex-wrap items-center gap-1.5">
         <input
           ref={fileRef}

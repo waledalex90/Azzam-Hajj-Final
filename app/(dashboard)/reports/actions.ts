@@ -47,6 +47,8 @@ export async function runReportsPreviewAction(payload: {
   violationStatus?: string | null;
   workerStatus?: string;
   workerQ?: string;
+  /** بحث مسير الرواتب (اسم / إقامة / معرف) — يُطبَّق على السيرفر على كل السجلات */
+  payrollSearch?: string | null;
 }) {
   const { appUser } = await getSessionContext();
   if (!appUser) {
@@ -65,7 +67,7 @@ export async function runReportsPreviewAction(payload: {
       return previewMatrix(y, m, filters, page);
     }
     case "payroll":
-      return previewPayroll(filters, page);
+      return previewPayroll(filters, page, payload.payrollSearch ?? null);
     case "contractors":
       return previewContractors(filters, page);
     case "violations":

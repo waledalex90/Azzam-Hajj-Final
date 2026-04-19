@@ -175,6 +175,7 @@ export async function GET(req: NextRequest) {
                 p_shift_round: f.shiftRound,
                 p_page: page,
                 p_page_size: EXPORT_CHUNK,
+                p_search: null,
               });
               if (error) throw new Error(error.message);
               rows = (data ?? []) as Record<string, unknown>[];

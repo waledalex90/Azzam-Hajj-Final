@@ -166,8 +166,9 @@ export async function unlockPayrollPeriodRpc(f: ReportFilters) {
   if (error) throw new Error(error.message);
 }
 
-export async function previewPayroll(f: ReportFilters, page: number) {
+export async function previewPayroll(f: ReportFilters, page: number, search: string | null = null) {
   const supabase = createSupabaseAdminClient();
+  const trimmed = search?.trim();
   const { data, error } = await supabase.rpc("get_payroll_report_page_v2", {
     p_date_start: f.dateFrom,
     p_date_end: f.dateTo,
@@ -177,6 +178,7 @@ export async function previewPayroll(f: ReportFilters, page: number) {
     p_shift_round: f.shiftRound,
     p_page: page,
     p_page_size: PREVIEW_PAYROLL_SIZE,
+    p_search: trimmed ? trimmed : null,
   });
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as Record<string, unknown>[];
@@ -297,6 +299,7 @@ export async function estimateExportTotal(
         p_shift_round: f.shiftRound,
         p_page: 1,
         p_page_size: 1,
+        p_search: null,
       });
       if (error) throw new Error(error.message);
       const r = (data ?? []) as { total_count?: number }[];

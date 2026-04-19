@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 
 import { getSessionContext } from "@/lib/auth/session";
 import { buildPayrollExcelBuffer } from "@/lib/reports/build-payroll-excel";
+import { buildPayrollPdfBuffer } from "@/lib/reports/build-payroll-pdf";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { parseIdList } from "@/lib/reports/filters";
 import { EXPORT_CHUNK, REPORT_RPC_PAGE_CAP, type ReportFilters } from "@/lib/reports/queries";
@@ -24,20 +23,6 @@ function filtersFromUrl(url: URL): ReportFilters {
   };
 }
 
-const COLS: { key: string; ar: string }[] = [
-  { key: "worker_id", ar: "معرف" },
-  { key: "worker_name", ar: "الاسم" },
-  { key: "id_number", ar: "رقم الإقامة" },
-  { key: "site_name", ar: "الموقع" },
-  { key: "contractor_name", ar: "المقاول" },
-  { key: "work_daily_rate_sar", ar: "يومية العمل" },
-  { key: "paid_day_equivalent", ar: "أيام الحضور" },
-  { key: "gross_sar", ar: "الاستحقاق" },
-  { key: "violation_deductions_sar", ar: "خصومات مخالفات" },
-  { key: "manual_deductions_sar", ar: "خصومات يدوية" },
-  { key: "net_sar", ar: "الصافي" },
-];
-
 export async function GET(req: NextRequest) {
   const { appUser } = await getSessionContext();
   if (!appUser) {
@@ -57,6 +42,8 @@ export async function GET(req: NextRequest) {
 
   const yq = url.searchParams.get("year");
   const mq = url.searchParams.get("month");
+  const signRaw = (url.searchParams.get("sign") || "").toLowerCase();
+  const includeSign = signRaw === "1" || signRaw === "true" || signRaw === "yes";
   const d0 = new Date(f.dateFrom);
   const year = yq ? Number(yq) : d0.getFullYear();
   const month = mq ? Number(mq) : d0.getMonth() + 1;
@@ -76,6 +63,7 @@ export async function GET(req: NextRequest) {
       p_shift_round: f.shiftRound,
       p_page: page,
       p_page_size: batchCeil,
+      p_search: null,
     });
     if (error) {
       return new NextResponse(error.message, { status: 500 });
@@ -90,9 +78,6 @@ export async function GET(req: NextRequest) {
     page += 1;
   }
 
-  const headPdf = ["ID", "Name", "Iqama", "Site", "Contractor", "Daily rate", "Days", "Gross", "Viol.ded.", "Manual", "Net"];
-  const body = all.map((r) => COLS.map((c) => (r[c.key] === null || r[c.key] === undefined ? "" : String(r[c.key]))));
-
   const fname = `payroll_${f.dateFrom}_${f.dateTo}.${format === "pdf" ? "pdf" : "xlsx"}`;
 
   if (format === "xlsx") {
@@ -102,6 +87,7 @@ export async function GET(req: NextRequest) {
       dateTo: f.dateTo,
       year: Number.isFinite(year) ? year : d0.getFullYear(),
       month: Number.isFinite(month) ? month : d0.getMonth() + 1,
+      includeSignature: includeSign,
     });
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
@@ -111,15 +97,14 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-  autoTable(doc, {
-    head: [headPdf],
-    body,
-    styles: { font: "helvetica", fontSize: 7 },
-    headStyles: { fillColor: [15, 23, 42] },
-    margin: { top: 12, left: 8, right: 8 },
+  const out = await buildPayrollPdfBuffer({
+    rows: all,
+    dateFrom: f.dateFrom,
+    dateTo: f.dateTo,
+    year: Number.isFinite(year) ? year : d0.getFullYear(),
+    month: Number.isFinite(month) ? month : d0.getMonth() + 1,
+    includeSignature: includeSign,
   });
-  const out = doc.output("arraybuffer");
   return new NextResponse(out, {
     headers: {
       "Content-Type": "application/pdf",
