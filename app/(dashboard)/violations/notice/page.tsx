@@ -5,12 +5,19 @@ import { revalidatePath } from "next/cache";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { BrandLogo } from "@/components/branding/brand-logo";
 import { NoticePrintActions } from "@/components/violations/notice-print-actions";
-import { NoticeLinkedSelects } from "@/components/violations/notice-linked-selects";
 import { NoticeAttachments } from "@/components/violations/notice-attachments";
-import { NoticeViolationTypeDropdown } from "@/components/violations/notice-violation-type-dropdown";
 import { NoticeModeBar } from "@/components/violations/notice-mode-bar";
+import { NoticeOfficialPaperFields } from "@/components/violations/notice-official-paper-fields";
+import {
+  NoticeOfficialContractorBlock,
+  NoticeOfficialHeader,
+  NoticeOfficialMetaRow,
+  NoticeOfficialNotesBlock,
+  NoticeOfficialSignatures,
+  NoticeOfficialSiteRow,
+  NoticeOfficialViolationList,
+} from "@/components/violations/notice-official-paper";
 import { getSessionContext } from "@/lib/auth/session";
 import {
   getInfractionNoticeOptions,
@@ -18,7 +25,6 @@ import {
   getRecentContractorNotices,
   uploadContractorNoticeMediaFiles,
   type NoticeBundleView,
-  type NoticeSiteKey,
 } from "@/lib/data/violations";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
@@ -33,19 +39,6 @@ function toDateValue(date: Date) {
 
 function toTimeValue(date: Date) {
   return date.toTimeString().slice(0, 5);
-}
-
-function siteLabelAr(key: NoticeSiteKey) {
-  switch (key) {
-    case "mina":
-      return "منى";
-    case "arafat":
-      return "عرفات";
-    case "muzdalifah":
-      return "مزدلفة";
-    default:
-      return key;
-  }
 }
 
 export default async function InfractionNoticePage({ searchParams }: Props) {
@@ -224,7 +217,6 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
         {viewBundle ? (
           <ViewNoticeBody
             options={options}
-            workersForSelect={workersForSelect}
             viewBundle={viewBundle}
             contractorNameForView={contractorNameForView ?? "—"}
           />
@@ -232,8 +224,9 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           <form
             id="notice-contractor-print"
             action={saveNotice}
-            className="paper-form"
+            className="paper-form np-paper"
             encType="multipart/form-data"
+            dir="rtl"
           >
             <EditNoticeBody options={options} workersForSelect={workersForSelect} now={now} />
           </form>
@@ -255,6 +248,306 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           line-height: 1.5;
           border: 1px solid #111;
           background: #fff;
+        }
+        /* ——— نموذج الورقة الرسمية (إشعار مخالفة) ——— */
+        .np-paper {
+          box-sizing: border-box;
+        }
+        .np-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+          padding-bottom: 10px;
+          margin-bottom: 10px;
+          border-bottom: 2px solid #111;
+        }
+        .np-logo {
+          flex-shrink: 0;
+        }
+        .np-logo-img {
+          width: 140px;
+          height: auto;
+          max-width: 38vw;
+        }
+        .np-titles {
+          flex: 1;
+          min-width: 0;
+          text-align: center;
+        }
+        .np-main-title {
+          margin: 0;
+          font-size: clamp(22px, 4.2vw, 32px);
+          font-weight: 800;
+          line-height: 1.15;
+        }
+        .np-sub-title {
+          margin: 6px 0 0;
+          font-size: clamp(13px, 2.4vw, 17px);
+          font-weight: 700;
+        }
+        .np-table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+          margin: 0 0 8px;
+          border: 1px solid #111;
+          background: #fff;
+        }
+        .np-td {
+          border: 1px solid #111;
+          padding: 6px 8px;
+          vertical-align: middle;
+        }
+        .np-td-inline {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+        }
+        .np-td-inline .np-inline-label {
+          flex-shrink: 0;
+        }
+        .np-meta .np-td {
+          width: 25%;
+        }
+        .np-inline-label {
+          font-weight: 800;
+          white-space: nowrap;
+        }
+        .np-inline-label + .np-field,
+        .np-inline-label + input {
+          margin-inline-start: 6px;
+        }
+        .np-block-label {
+          font-weight: 800;
+          margin-bottom: 4px;
+          font-size: 13px;
+        }
+        .np-field,
+        .np-paper .np-field {
+          display: inline-block;
+          min-height: 34px;
+          min-width: 0;
+          box-sizing: border-box;
+          border: 1px solid #111 !important;
+          border-radius: 0 !important;
+          padding: 4px 8px !important;
+          font-size: 14px !important;
+          background: #fff !important;
+        }
+        .np-field-plain {
+          display: inline-block;
+          min-width: 72px;
+          min-height: 34px;
+          line-height: 26px;
+          padding: 4px 8px;
+          border: 1px solid #111;
+          box-sizing: border-box;
+          font-weight: 600;
+        }
+        .np-field-grow {
+          flex: 1;
+          width: auto;
+          min-width: 140px;
+        }
+        .np-td .np-inline-label {
+          display: inline-flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        .np-site-cell {
+          vertical-align: top;
+        }
+        .np-site-heading {
+          display: inline-block;
+          margin-inline-end: 8px;
+        }
+        .np-site-radios {
+          display: inline-flex;
+          flex-wrap: wrap;
+          gap: 10px 14px;
+          align-items: center;
+          margin: 4px 0;
+        }
+        .np-radio-label {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .np-paper-radio {
+          width: 16px;
+          height: 16px;
+          accent-color: #111;
+          flex-shrink: 0;
+        }
+        .np-complex-wrap {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
+          margin-inline-start: 8px;
+        }
+        .np-complex-input {
+          width: 120px;
+          max-width: 40vw;
+        }
+        .np-site-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 2px 10px;
+          border: 1px solid #111;
+          background: #fff;
+          font: inherit;
+          font-weight: 700;
+          cursor: pointer;
+          border-radius: 0;
+        }
+        .np-site-pill-on {
+          background: #f3f4f6;
+        }
+        .np-paper-sq {
+          display: inline-flex;
+          width: 16px;
+          height: 16px;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid #111;
+          font-size: 11px;
+          line-height: 1;
+          flex-shrink: 0;
+        }
+        .np-person-half {
+          width: 50%;
+          vertical-align: top;
+        }
+        .np-dashed-line {
+          min-height: 28px;
+          padding: 4px 2px;
+          border-bottom: 1px dashed #111;
+          font-weight: 600;
+        }
+        .np-violation-sheet {
+          border: 1px solid #111;
+          padding: 10px 12px 12px;
+          margin: 0 0 8px;
+          background: #fff;
+        }
+        .np-section-title {
+          text-align: center;
+          font-weight: 800;
+          font-size: 17px;
+          margin: 0 0 10px;
+          text-decoration: underline;
+          text-underline-offset: 3px;
+        }
+        .np-violation-list {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .np-viol-row {
+          display: flex;
+          flex-direction: row;
+          align-items: flex-start;
+          justify-content: flex-start;
+          gap: 10px;
+          direction: rtl;
+          font-weight: 600;
+          line-height: 1.35;
+        }
+        .np-paper-cb {
+          width: 18px;
+          height: 18px;
+          min-width: 18px;
+          min-height: 18px;
+          margin-top: 2px;
+          flex-shrink: 0;
+          accent-color: #111;
+        }
+        .np-paper-cb-static {
+          box-sizing: border-box;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid #111;
+          background: #fff;
+          font-size: 12px;
+          line-height: 1;
+        }
+        .np-viol-text {
+          flex: 1;
+          text-align: right;
+          min-width: 0;
+        }
+        .np-violation-extra-lines {
+          margin-top: 12px;
+          min-height: 20px;
+          border-bottom: 1px dashed #111;
+        }
+        .np-violation-extra-lines::after {
+          content: "";
+          display: block;
+          margin-top: 14px;
+          border-bottom: 1px dashed #111;
+        }
+        .np-textarea {
+          width: 100%;
+          box-sizing: border-box;
+          border: 1px solid #111;
+          border-radius: 0;
+          padding: 6px 8px;
+          min-height: 72px;
+          font: inherit;
+          font-weight: 600;
+          resize: vertical;
+          background: #fff;
+        }
+        .np-legal-notes {
+          border: 1px solid #111;
+          padding: 8px 10px;
+          margin: 0 0 8px;
+          font-size: 12.5px;
+          line-height: 1.45;
+          font-weight: 600;
+        }
+        .np-legal-title {
+          margin: 0 0 6px;
+          font-weight: 800;
+          font-size: 14px;
+        }
+        .np-legal-notes p {
+          margin: 4px 0;
+        }
+        .np-sign-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+          margin-top: 12px;
+          padding-top: 10px;
+          border-top: 1px solid #111;
+          font-weight: 700;
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+        .np-sign-col {
+          min-width: 0;
+        }
+        .np-sign-h {
+          margin: 0 0 6px;
+          font-weight: 800;
+        }
+        .np-sign-line {
+          margin: 4px 0;
+          font-size: 13px;
+        }
+        .np-select {
+          width: 100%;
+          font-weight: 600;
         }
         .violation-picker-wrap {
           position: relative;
@@ -602,6 +895,37 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
             font-size: 10pt !important;
             line-height: 1.35 !important;
           }
+          .np-header {
+            margin-bottom: 4px !important;
+            padding-bottom: 4px !important;
+          }
+          .np-main-title {
+            font-size: 16pt !important;
+          }
+          .np-sub-title {
+            font-size: 9pt !important;
+          }
+          .np-logo-img {
+            max-width: 88px !important;
+          }
+          .np-table {
+            font-size: 9.5pt !important;
+          }
+          .np-section-title {
+            font-size: 11pt !important;
+          }
+          .np-legal-notes {
+            font-size: 8.5pt !important;
+          }
+          .np-textarea {
+            min-height: 40px !important;
+            font-size: 9pt !important;
+          }
+          .np-violation-sheet,
+          .np-sign-grid {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
           .paper-header {
             margin-bottom: 6px !important;
             padding-bottom: 6px !important;
@@ -686,58 +1010,50 @@ function EditNoticeBody({
 }) {
   return (
     <>
-      <PaperHeader />
+      <NoticeOfficialHeader />
 
-      <div className="paper-grid three">
-        <label>
-          التاريخ:
-          <Input name="date" type="date" defaultValue={toDateValue(now)} />
-        </label>
-        <label>
-          الوقت:
-          <Input name="time" type="time" defaultValue={toTimeValue(now)} />
-        </label>
-        <label>
-          رقم الإشعار:
-          <Input name="noticeNo" defaultValue={String(options.noticeNo)} readOnly />
-        </label>
-      </div>
+      <NoticeOfficialMetaRow
+        dateDefault={toDateValue(now)}
+        timeDefault={toTimeValue(now)}
+        noticeNo={String(options.noticeNo)}
+      />
 
-      <div className="paper-grid two">
-        <label>
-          رقم مجمع:
-          <Input name="complexNo" />
-        </label>
-        <label>
-          اسم مشرف المقاول:
-          <Input name="supervisorName" />
-        </label>
-      </div>
-
-      <NoticeLinkedSelects
+      <NoticeOfficialPaperFields
         workers={workersForSelect}
         contractors={options.contractors}
         siteMapping={options.siteMapping}
+        defaultSiteKey="mina"
       />
 
-      <div className="section-title">تفاصيل المخالفة</div>
-      <NoticeViolationTypeDropdown types={options.violationTypes} />
+      <NoticeOfficialViolationList types={options.violationTypes} />
 
-      <label>
-        ملاحظات إضافية:
-        <textarea name="extraNotes" rows={4} />
-      </label>
+      <table className="np-table">
+        <tbody>
+          <tr>
+            <td className="np-td">
+              <div className="np-block-label">بيان إضافي (اختياري):</div>
+              <textarea name="extraNotes" className="np-textarea" rows={3} />
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
-      <label>
-        اسم المندوب:
-        <Input name="delegateName" />
-      </label>
+      <NoticeOfficialNotesBlock />
+
+      <table className="np-table">
+        <tbody>
+          <tr>
+            <td className="np-td np-td-inline">
+              <span className="np-inline-label">اسم المندوب:</span>
+              <Input name="delegateName" className="np-field np-field-grow" />
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
       <NoticeAttachments />
 
-      <NotesBlock />
-
-      <SignaturesBlock />
+      <NoticeOfficialSignatures />
 
       <div className="no-print save-wrap">
         <Button type="submit">حفظ إشعار المخالفة</Button>
@@ -748,123 +1064,73 @@ function EditNoticeBody({
 
 function ViewNoticeBody({
   options,
-  workersForSelect,
   viewBundle,
   contractorNameForView,
 }: {
   options: Awaited<ReturnType<typeof getInfractionNoticeOptions>>;
-  workersForSelect: Awaited<ReturnType<typeof getInfractionNoticeOptions>>["workers"];
   viewBundle: NoticeBundleView;
   contractorNameForView: string;
 }) {
   const d = new Date(viewBundle.occurredAtIso);
   return (
-    <div id="notice-contractor-print" className="paper-form">
-      <PaperHeader />
+    <div id="notice-contractor-print" className="paper-form np-paper" dir="rtl">
+      <NoticeOfficialHeader />
 
-      <div className="paper-grid three">
-        <label>
-          التاريخ:
-          <Input name="date" type="date" readOnly value={toDateValue(d)} />
-        </label>
-        <label>
-          الوقت:
-          <Input name="time" type="time" readOnly value={toTimeValue(d)} />
-        </label>
-        <label>
-          رقم الإشعار:
-          <Input name="noticeNo" readOnly value={viewBundle.parsed.noticeNo} />
-        </label>
-      </div>
-
-      <div className="paper-grid two">
-        <label>
-          رقم مجمع:
-          <Input readOnly value={viewBundle.parsed.complexNo || "—"} />
-        </label>
-        <label>
-          اسم مشرف المقاول:
-          <Input readOnly value={viewBundle.parsed.supervisorName || "—"} />
-        </label>
-      </div>
-
-      <NoticeLinkedSelects
-        key={`view-${viewBundle.primaryViolationId}`}
-        mode="view"
-        workers={workersForSelect}
-        contractors={options.contractors}
-        siteMapping={options.siteMapping}
-        viewLabels={{
-          contractorName: contractorNameForView,
-          workerLabel: `${viewBundle.worker.name} - ${viewBundle.worker.id_number}`,
-          siteLabel: siteLabelAr(viewBundle.siteKey),
-        }}
+      <NoticeOfficialMetaRow
+        readOnly
+        dateDefault={toDateValue(d)}
+        timeDefault={toTimeValue(d)}
+        noticeNo={viewBundle.parsed.noticeNo}
       />
 
-      <div className="section-title">تفاصيل المخالفة</div>
-      <NoticeViolationTypeDropdown
+      <NoticeOfficialSiteRow
+        readOnly
+        defaultSiteKey={viewBundle.siteKey}
+        complexDefault={viewBundle.parsed.complexNo?.trim() || "—"}
+      />
+
+      <NoticeOfficialContractorBlock
+        readOnly
+        viewContractorName={contractorNameForView}
+        viewWorkerLabel={`${viewBundle.worker.name} — ${viewBundle.worker.id_number}`}
+        supervisorDefault={viewBundle.parsed.supervisorName}
+      />
+
+      <NoticeOfficialViolationList
+        key={`view-vt-${viewBundle.primaryViolationId}-${viewBundle.violationTypeIds.join(",")}`}
+        readOnly
         types={options.violationTypes}
-        viewMode
-        viewSelectedIds={viewBundle.violationTypeIds}
+        selectedIds={viewBundle.violationTypeIds}
       />
 
-      <label>
-        ملاحظات إضافية:
-        <textarea readOnly rows={4} value={viewBundle.parsed.extraNotes || "—"} />
-      </label>
+      <table className="np-table">
+        <tbody>
+          <tr>
+            <td className="np-td">
+              <div className="np-block-label">بيان إضافي (اختياري):</div>
+              <textarea readOnly className="np-textarea" rows={3} value={viewBundle.parsed.extraNotes || "—"} />
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
-      <label>
-        اسم المندوب:
-        <Input readOnly value={viewBundle.parsed.delegateName || "—"} />
-      </label>
+      <NoticeOfficialNotesBlock />
+
+      <table className="np-table">
+        <tbody>
+          <tr>
+            <td className="np-td np-td-inline">
+              <span className="np-inline-label">اسم المندوب:</span>
+              <Input readOnly className="np-field np-field-grow" value={viewBundle.parsed.delegateName || "—"} />
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
       <NoticeAttachments readOnly initialUrls={viewBundle.attachmentUrls} />
 
-      <NotesBlock />
-
-      <SignaturesBlock />
+      <NoticeOfficialSignatures />
     </div>
   );
 }
 
-function PaperHeader() {
-  return (
-    <div className="paper-header">
-      <div className="paper-logo">
-        <BrandLogo priority className="w-[160px]" />
-      </div>
-      <div className="paper-title">
-        <h2>إشعار مخالفة</h2>
-        <p>مشاريع دورات المياه موسم حج 1447هـ</p>
-      </div>
-    </div>
-  );
-}
-
-function NotesBlock() {
-  return (
-    <div className="notes">
-      <p>1- وفقاً لجدول الغرامات المرفق بالعقد سيتم توقيع الغرامات الواردة بالعقد.</p>
-      <p>2- الإشعار من أصل يرسل للحسابات والصورة لمندوب المقاول ويوقع بالاستلام.</p>
-      <p>3- في حال عدم حضور أو رفض مندوب المقاول التوقيع يتم إثبات الرفض على الإشعار.</p>
-      <p>4- يتم إرسال صورة الإشعار على الجروب المخصص للأعمال.</p>
-    </div>
-  );
-}
-
-function SignaturesBlock() {
-  return (
-    <div className="signatures">
-      <div>
-        <p className="sig-title">المشرف:</p>
-        <p>الاسم: ..............................................</p>
-        <p>التوقيع: ............................................</p>
-      </div>
-      <div>
-        <p className="sig-title">المندوب:</p>
-        <p>الاسم: ..............................................</p>
-        <p>التوقيع: ............................................</p>
-      </div>
-    </div>
-  );
-}
