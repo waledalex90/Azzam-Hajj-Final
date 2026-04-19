@@ -167,6 +167,7 @@ export function ReportsHub() {
   const [exportPct, setExportPct] = useState<number | null>(null);
   const [exportLabel, setExportLabel] = useState<string | null>(null);
   const [payrollLocked, setPayrollLocked] = useState(false);
+  const [payrollSearch, setPayrollSearch] = useState("");
 
   const filters = useMemo((): ReportFilters => {
     if (tab === "horizontal_report") {
@@ -263,6 +264,22 @@ export function ReportsHub() {
       cancelled = true;
     };
   }, [tab, filters]);
+
+  useEffect(() => {
+    if (tab !== "payroll") setPayrollSearch("");
+  }, [tab]);
+
+  const payrollFilteredRows = useMemo(() => {
+    if (tab !== "payroll") return rows;
+    const q = payrollSearch.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => {
+      const name = String(r.worker_name ?? "").toLowerCase();
+      const iq = String(r.id_number ?? "").replace(/\s/g, "").toLowerCase();
+      const qt = q.replace(/\s/g, "");
+      return name.includes(q) || iq.includes(qt);
+    });
+  }, [tab, rows, payrollSearch]);
 
   const columns = useMemo(() => {
     if (!rows.length) return [] as { key: string; label: string }[];
@@ -411,11 +428,11 @@ export function ReportsHub() {
       <Card className="space-y-3 p-4">
         <h1 className="text-lg font-extrabold text-slate-900">محرك التقارير</h1>
         <p className="text-sm text-slate-600">
-          فلاتر متعددة من الخادم، معاينة ≤50 سطر، تصدير CSV كامل مباشر من السيرفر مع شريط تقدم.
+          فلاتر متعددة من الخادم؛ معاينة على دفعات (حتى 1000 صف لمسير الرواتب)، وتصدير CSV كامل من السيرفر.
           {tab === "payroll" && (
             <span className="mt-1 block text-emerald-900">
-              مسير الرواتب: يُحسب نطاق الفترة تلقائياً من السنة والشهر المختارين (من أول الشهر إلى آخره)، مع
-              نفس فلاتر الموقع والمقاول والوردية كما في تقارير الحضور.
+              مسير الرواتب: الفترة من السنة والشهر المختارين؛ بحث فوري بالاسم أو الإقامة ضمن الصفحة المحمّلة؛
+              تصدير Excel منسّق من الخادم.
             </span>
           )}
         </p>
@@ -714,7 +731,7 @@ export function ReportsHub() {
           </div>
         )}
         {!loading && tab === "payroll" && (
-          <div className="space-y-2 p-3">
+          <div className="space-y-2 p-2 sm:p-3">
             <PayrollReportToolbar
               filters={filters}
               year={year}
@@ -731,19 +748,43 @@ export function ReportsHub() {
                 })();
               }}
             />
-            {rows.length > 0 ? (
-              <PayrollReportTable
-                rows={rows}
-                periodStart={monthDateBounds(year, month).dateFrom}
-                periodEnd={monthDateBounds(year, month).dateTo}
-                filter={{
-                  siteIds: filters.siteIds,
-                  contractorIds: filters.contractorIds,
-                  supervisorIds: filters.supervisorIds,
-                }}
-                locked={payrollLocked}
-                onSaved={() => void refresh()}
+            <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2">
+              <Input
+                type="search"
+                placeholder="بحث فوري: الاسم أو رقم الإقامة…"
+                value={payrollSearch}
+                onChange={(e) => setPayrollSearch(e.target.value)}
+                className="min-h-9 min-w-[12rem] max-w-xl flex-1"
+                autoComplete="off"
               />
+              <button
+                type="button"
+                className="shrink-0 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-bold text-white"
+                onClick={() => void refresh()}
+              >
+                تحديث الجدول
+              </button>
+              {payrollSearch.trim() ? (
+                <span className="text-[11px] text-slate-600">
+                  {payrollFilteredRows.length} مطابقة من {rows.length} صفاً في الصفحة الحالية
+                </span>
+              ) : null}
+            </div>
+            {rows.length > 0 ? (
+              <div className="max-h-[min(78vh,920px)] overflow-auto rounded-lg border border-slate-100">
+                <PayrollReportTable
+                  rows={payrollFilteredRows}
+                  periodStart={monthDateBounds(year, month).dateFrom}
+                  periodEnd={monthDateBounds(year, month).dateTo}
+                  filter={{
+                    siteIds: filters.siteIds,
+                    contractorIds: filters.contractorIds,
+                    supervisorIds: filters.supervisorIds,
+                  }}
+                  locked={payrollLocked}
+                  onSaved={() => void refresh()}
+                />
+              </div>
             ) : (
               <p className="text-center text-sm text-slate-500">لا بيانات للمعاينة.</p>
             )}

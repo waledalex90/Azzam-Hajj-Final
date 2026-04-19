@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 import { getSessionContext } from "@/lib/auth/session";
+import { buildPayrollExcelBuffer } from "@/lib/reports/build-payroll-excel";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { parseIdList } from "@/lib/reports/filters";
 import { EXPORT_CHUNK, REPORT_RPC_PAGE_CAP, type ReportFilters } from "@/lib/reports/queries";
@@ -55,6 +55,12 @@ export async function GET(req: NextRequest) {
     return new NextResponse("dateFrom/dateTo required", { status: 400 });
   }
 
+  const yq = url.searchParams.get("year");
+  const mq = url.searchParams.get("month");
+  const d0 = new Date(f.dateFrom);
+  const year = yq ? Number(yq) : d0.getFullYear();
+  const month = mq ? Number(mq) : d0.getMonth() + 1;
+
   const supabase = createSupabaseAdminClient();
   const batchCeil = Math.min(EXPORT_CHUNK, REPORT_RPC_PAGE_CAP);
   const all: Record<string, unknown>[] = [];
@@ -84,18 +90,20 @@ export async function GET(req: NextRequest) {
     page += 1;
   }
 
-  const headAr = COLS.map((c) => c.ar);
   const headPdf = ["ID", "Name", "Iqama", "Site", "Contractor", "Daily rate", "Days", "Gross", "Viol.ded.", "Manual", "Net"];
   const body = all.map((r) => COLS.map((c) => (r[c.key] === null || r[c.key] === undefined ? "" : String(r[c.key]))));
 
   const fname = `payroll_${f.dateFrom}_${f.dateTo}.${format === "pdf" ? "pdf" : "xlsx"}`;
 
   if (format === "xlsx") {
-    const sheet = XLSX.utils.aoa_to_sheet([headAr, ...body]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, sheet, "مسير");
-    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" }) as Uint8Array;
-    return new NextResponse(Buffer.from(buf), {
+    const buffer = await buildPayrollExcelBuffer({
+      rows: all,
+      dateFrom: f.dateFrom,
+      dateTo: f.dateTo,
+      year: Number.isFinite(year) ? year : d0.getFullYear(),
+      month: Number.isFinite(month) ? month : d0.getMonth() + 1,
+    });
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": `attachment; filename="${fname}"`,

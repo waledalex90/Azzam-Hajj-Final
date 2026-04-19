@@ -14,6 +14,8 @@ export type ReportFilters = {
 };
 
 const PREVIEW_SIZE = 50;
+/** معاينة مسير الرواتب: صفوف أكثر لتسهيل البحث المحلي عن الموظف */
+const PREVIEW_PAYROLL_SIZE = 1000;
 /**
  * عدد الصفوف في **طلب RPC واحد** (دفعة). التصدير الكامل يكرر الطلبات page=1,2,3… حتى تنفد البيانات —
  * لا يوجد حد أصلي 1000 على إجمالي الملف (قد يصل لملايين الصفوف ما دامت الحلقة تعمل).
@@ -174,12 +176,12 @@ export async function previewPayroll(f: ReportFilters, page: number) {
     p_supervisor_ids: f.supervisorIds,
     p_shift_round: f.shiftRound,
     p_page: page,
-    p_page_size: PREVIEW_SIZE,
+    p_page_size: PREVIEW_PAYROLL_SIZE,
   });
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as Record<string, unknown>[];
   const total = rows[0] ? Number(rows[0].total_count) : 0;
-  return { rows, meta: buildPaginationMeta(total, page, PREVIEW_SIZE) };
+  return { rows, meta: buildPaginationMeta(total, page, PREVIEW_PAYROLL_SIZE) };
 }
 
 export async function previewContractors(f: ReportFilters, page: number) {

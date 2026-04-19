@@ -89,7 +89,7 @@ export function PayrollReportTable({
         اليومية المعروضة هي المستخدمة في الحساب (يومي = الراتب الأساسي، شهري = الأساس ÷ 30). الصافي يُحدَّث فور
         تغيير الخصم أو عند الحفظ. عند اعتماد المسير يُقفل التعديل.
       </p>
-      <div className="overflow-auto">
+      <div>
         <table className="min-w-full text-xs">
           <thead className="sticky top-0 bg-slate-100">
             <tr>

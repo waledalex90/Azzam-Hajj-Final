@@ -63,6 +63,8 @@ export function PayrollReportToolbar({
     const p = new URLSearchParams();
     p.set("dateFrom", dateFrom);
     p.set("dateTo", dateTo);
+    p.set("year", String(year));
+    p.set("month", String(month));
     if (filters.siteIds?.length) p.set("sites", filters.siteIds.join(","));
     if (filters.contractorIds?.length) p.set("contractors", filters.contractorIds.join(","));
     if (filters.supervisorIds?.length) p.set("supervisors", filters.supervisorIds.join(","));
@@ -107,19 +109,18 @@ export function PayrollReportToolbar({
   }
 
   return (
-    <div className="mb-3 space-y-2">
+    <div className="mb-2 space-y-1.5">
       {msg && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
+        <p className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-900">
           {msg}
         </p>
       )}
       {locked && (
-        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-900">
-          مسير معتمد (مقفل) لهذه الفترة والفلاتر الحالية — لا يمكن تعديل الخصومات إلا بعد إلغاء القفل بصلاحية
-          الاعتماد/الإدارة.
+        <p className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-900">
+          مسير معتمد (مقفل) — تعديل الخصومات يتطلب إلغاء القفل (اعتماد/إدارة).
         </p>
       )}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         <input
           ref={fileRef}
           type="file"
@@ -130,15 +131,15 @@ export function PayrollReportToolbar({
         <button
           type="button"
           disabled={!!busy || locked}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 disabled:opacity-40"
+          className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-800 disabled:opacity-40"
           onClick={() => fileRef.current?.click()}
         >
-          {busy === "import" ? "…" : "استيراد مسير (CSV / Excel)"}
+          {busy === "import" ? "…" : "استيراد"}
         </button>
         <button
           type="button"
           disabled={!!busy || locked}
-          className="rounded-lg bg-indigo-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
+          className="rounded-md bg-indigo-700 px-2 py-1.5 text-[11px] font-bold text-white disabled:opacity-40"
           onClick={() =>
             void run("approve", async () => {
               await approvePayrollPeriodAction(filters);
@@ -146,12 +147,12 @@ export function PayrollReportToolbar({
             })
           }
         >
-          {busy === "approve" ? "…" : "اعتماد المسير"}
+          {busy === "approve" ? "…" : "اعتماد"}
         </button>
         <button
           type="button"
           disabled={!!busy || !locked}
-          className="rounded-lg border border-amber-600 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950 disabled:opacity-40"
+          className="rounded-md border border-amber-600 bg-amber-50 px-2 py-1.5 text-[11px] font-bold text-amber-950 disabled:opacity-40"
           onClick={() =>
             void run("unlock", async () => {
               await unlockPayrollPeriodAction(filters);
@@ -159,25 +160,21 @@ export function PayrollReportToolbar({
             })
           }
         >
-          {busy === "unlock" ? "…" : "إلغاء القفل"}
+          {busy === "unlock" ? "…" : "إلغاء قفل"}
         </button>
         <a
           href={`/api/payroll/export?${exportQuery()}&format=xlsx`}
-          className="rounded-lg border border-emerald-700 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900"
+          className="rounded-md border border-emerald-700 bg-emerald-50 px-2 py-1.5 text-[11px] font-bold text-emerald-900"
         >
-          تصدير Excel
+          Excel
         </a>
         <a
           href={`/api/payroll/export?${exportQuery()}&format=pdf`}
-          className="rounded-lg border border-emerald-700 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900"
+          className="rounded-md border border-emerald-700 bg-emerald-50 px-2 py-1.5 text-[11px] font-bold text-emerald-900"
         >
-          تصدير PDF
+          PDF
         </a>
       </div>
-      <p className="text-[10px] text-slate-500">
-        استيراد: أعمدة مثل worker_id و manual_deductions_sar. التصدير يجمع كل صفوف المسير من الخادم للفترة
-        والفلاتر الحالية.
-      </p>
     </div>
   );
 }
