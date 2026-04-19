@@ -13,10 +13,42 @@ type Props = {
 };
 
 export default async function DashboardLayout({ children }: Props) {
-  const { authUser, appUser } = await getSessionContext();
+  const { authUser, appUser, sessionError } = await getSessionContext();
   const demoMode = isDemoModeEnabled();
+
   if (!authUser) {
+    if (sessionError) {
+      return (
+        <main className="container-mobile py-6">
+          <Card className="space-y-2 border-red-200 bg-red-50 p-4 text-sm text-red-900">
+            <p className="font-extrabold">فشل تهيئة الجلسة (قبل تسجيل الدخول)</p>
+            <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap break-words font-mono text-xs">{sessionError}</pre>
+            <p className="text-xs opacity-90">
+              تحقق من سجلات Vercel. المصادقة تستخدم <code className="rounded bg-white px-1">anon key</code>؛ تحميل{" "}
+              <code className="rounded bg-white px-1">app_users</code> يستخدم <code className="rounded bg-white px-1">service role</code>{" "}
+              ويتجاوز RLS.
+            </p>
+          </Card>
+        </main>
+      );
+    }
     redirect("/login");
+  }
+
+  if (sessionError && authUser) {
+    return (
+      <main className="container-mobile py-6">
+        <Card className="space-y-2 border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          <p className="font-extrabold">فشل تحميل ملف المستخدم (app_users / user_roles)</p>
+          <pre className="max-h-[400px] overflow-auto whitespace-pre-wrap break-words font-mono text-xs">{sessionError}</pre>
+          <p className="text-xs opacity-90">
+            استعلامات <code className="rounded bg-white px-1">loadAppUserWithRole</code> تمر عبر{" "}
+            <code className="rounded bg-white px-1">createSupabaseAdminClient()</code> (مفتاح الخدمة — يتجاوز RLS). إن رأيت
+            permission denied فغالباً المفتاح أو الـ URL خاطئ، أو الجدول غير موجود.
+          </p>
+        </Card>
+      </main>
+    );
   }
 
   if (!appUser) {

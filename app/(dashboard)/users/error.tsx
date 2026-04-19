@@ -7,6 +7,6 @@ type Props = {
   reset: () => void;
 };
 
-export default function DashboardError({ error, reset }: Props) {
-  return <RouteErrorDisplay error={error} reset={reset} boundaryLabel="dashboard" />;
+export default function UsersSegmentError({ error, reset }: Props) {
+  return <RouteErrorDisplay error={error} reset={reset} boundaryLabel="users" />;
 }

@@ -15,78 +15,80 @@ type Props = {
 };
 
 export default async function UsersManagementPage({ searchParams }: Props) {
-  const { appUser } = await getSessionContext();
-  const params = await searchParams;
-  const tab = params.tab === "roles" ? "roles" : "users";
-
-  const canUsers = Boolean(appUser && hasPermission(appUser, PERM.USERS_MANAGE));
-  const canRoles = Boolean(appUser && hasPermission(appUser, PERM.ROLES_MANAGE));
-
-  if (!canUsers && !canRoles) {
-    return (
-      <section className="space-y-4">
-        <Card className="border-amber-200 bg-amber-50 p-4 text-amber-900">
-          <p className="font-extrabold">لا تملك صلاحية الوصول لإدارة المستخدمين أو الأدوار.</p>
-          <Link href="/dashboard" className="mt-2 inline-block text-sm font-bold underline">
-            العودة للرئيسية
-          </Link>
-        </Card>
-      </section>
-    );
-  }
-
-  const effectiveTab = tab === "roles" && canRoles ? "roles" : canUsers ? "users" : "roles";
-
-  const supabase = createSupabaseAdminClient();
-
-  let userPayload: Awaited<ReturnType<typeof fetchAppUsersForManagement>>;
   try {
-    userPayload = await fetchAppUsersForManagement(supabase);
-  } catch (e) {
-    console.error("[users-page] fetchAppUsersForManagement threw:", e);
-    userPayload = {
-      rows: [],
-      error: { message: e instanceof Error ? e.message : String(e) },
-      usedFallbackColumns: false,
-    };
-  }
+    const { appUser } = await getSessionContext();
+    const params = await searchParams;
+    const tab = params.tab === "roles" ? "roles" : "users";
 
-  const { data: roleRows, error: rolesErr } = await supabase
-    .from("user_roles")
-    .select("slug, name_ar, permissions, created_at")
-    .order("name_ar");
+    const canUsers = Boolean(appUser && hasPermission(appUser, PERM.USERS_MANAGE));
+    const canRoles = Boolean(appUser && hasPermission(appUser, PERM.ROLES_MANAGE));
 
-  const { data: siteRows, error: sitesErr } = await supabase.from("sites").select("id, name").order("name");
+    if (!canUsers && !canRoles) {
+      return (
+        <section className="space-y-4">
+          <Card className="border-amber-200 bg-amber-50 p-4 text-amber-900">
+            <p className="font-extrabold">لا تملك صلاحية الوصول لإدارة المستخدمين أو الأدوار.</p>
+            <Link href="/dashboard" className="mt-2 inline-block text-sm font-bold underline">
+              العودة للرئيسية
+            </Link>
+          </Card>
+        </section>
+      );
+    }
 
-  if (rolesErr) console.error("[users-page] user_roles query failed:", rolesErr.message, rolesErr.code, rolesErr);
-  if (sitesErr) console.error("[users-page] sites query failed:", sitesErr.message, sitesErr.code, sitesErr);
+    const effectiveTab = tab === "roles" && canRoles ? "roles" : canUsers ? "users" : "roles";
 
-  const usersErr = userPayload.error;
+    const supabase = createSupabaseAdminClient();
 
-  const users = userPayload.rows.map((u) => ({
-    id: u.id as number,
-    auth_user_id: (u.auth_user_id as string | null) ?? null,
-    full_name: u.full_name as string,
-    username: u.username as string,
-    role: u.role as string,
-    login_email: u.login_email ?? null,
-    allowed_site_ids: Array.isArray(u.allowed_site_ids) ? u.allowed_site_ids : [],
-  }));
+    let userPayload: Awaited<ReturnType<typeof fetchAppUsersForManagement>>;
+    try {
+      userPayload = await fetchAppUsersForManagement(supabase);
+    } catch (e) {
+      console.error("[users-page] fetchAppUsersForManagement threw:", e);
+      userPayload = {
+        rows: [],
+        error: { message: e instanceof Error ? e.message : String(e) },
+        usedFallbackColumns: false,
+      };
+    }
 
-  const roles =
-    roleRows?.map((r) => ({
-      slug: r.slug as string,
-      name_ar: r.name_ar as string,
-      permissions: r.permissions,
-    })) ?? [];
+    console.log("[users-page] SQL user_roles + sites (admin client / service role)");
+    const { data: roleRows, error: rolesErr } = await supabase
+      .from("user_roles")
+      .select("slug, name_ar, permissions, created_at")
+      .order("name_ar");
 
-  const sites =
-    siteRows?.map((s) => ({
-      id: s.id as number,
-      name: s.name as string,
-    })) ?? [];
+    const { data: siteRows, error: sitesErr } = await supabase.from("sites").select("id, name").order("name");
 
-  return (
+    if (rolesErr) console.error("[users-page] user_roles query failed:", rolesErr.message, rolesErr.code, rolesErr);
+    if (sitesErr) console.error("[users-page] sites query failed:", sitesErr.message, sitesErr.code, sitesErr);
+
+    const usersErr = userPayload.error;
+
+    const users = userPayload.rows.map((u) => ({
+      id: u.id as number,
+      auth_user_id: (u.auth_user_id as string | null) ?? null,
+      full_name: u.full_name as string,
+      username: u.username as string,
+      role: u.role as string,
+      login_email: u.login_email ?? null,
+      allowed_site_ids: Array.isArray(u.allowed_site_ids) ? u.allowed_site_ids : [],
+    }));
+
+    const roles =
+      roleRows?.map((r) => ({
+        slug: r.slug as string,
+        name_ar: r.name_ar as string,
+        permissions: r.permissions,
+      })) ?? [];
+
+    const sites =
+      siteRows?.map((s) => ({
+        id: s.id as number,
+        name: s.name as string,
+      })) ?? [];
+
+    return (
     <section className="space-y-4">
       <Card className="p-4">
         <h1 className="text-xl font-extrabold text-slate-900">إدارة المستخدمين والأدوار</h1>
@@ -173,5 +175,24 @@ export default async function UsersManagementPage({ searchParams }: Props) {
 
       {effectiveTab === "roles" && canRoles && <RolesManagementPanel roles={roleRows ?? []} />}
     </section>
-  );
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const stack = e instanceof Error ? e.stack : "";
+    console.error("[users-page] uncaught render/data error:", e);
+    return (
+      <section className="space-y-4">
+        <Card className="border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          <p className="font-extrabold">خطأ أثناء تحميل صفحة المستخدمين والأدوار</p>
+          <pre className="mt-2 max-h-[360px] overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
+            {msg}
+            {stack ? `\n${stack}` : ""}
+          </pre>
+          <p className="mt-2 text-xs opacity-90">
+            يظهر هذا النص من السيرفر مباشرة (ليس رسالة Next.js المخفية). راجع أيضاً سجلات Vercel.
+          </p>
+        </Card>
+      </section>
+    );
+  }
 }
