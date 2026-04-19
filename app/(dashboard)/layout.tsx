@@ -34,11 +34,11 @@ export default async function DashboardLayout({ children }: Props) {
       <AdminSidebar user={appUser} />
       <main className="flex-1 p-4 lg:p-6">
         <div className="mx-auto w-full max-w-[1200px] space-y-4">
-          <div className="flex items-center justify-end">
+          <div className="no-print flex items-center justify-end">
             <LogoutButton />
           </div>
           {demoMode && (
-            <Card className="border-amber-300 bg-amber-50 text-amber-900">
+            <Card className="no-print border-amber-300 bg-amber-50 text-amber-900">
               وضع التجربة المحلي مفعل: التعديلات هنا للعرض فقط.
             </Card>
           )}

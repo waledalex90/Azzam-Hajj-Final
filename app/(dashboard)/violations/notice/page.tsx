@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { NoticePrintActions } from "@/components/violations/notice-print-actions";
+import { NoticePrintToolbar } from "@/components/violations/notice-print-toolbar";
 import { NoticeAttachments } from "@/components/violations/notice-attachments";
 import { NoticeModeBar } from "@/components/violations/notice-mode-bar";
 import { NoticeOfficialPaperFields } from "@/components/violations/notice-official-paper-fields";
@@ -167,7 +167,32 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
       <div className="no-print flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-extrabold text-slate-900">إشعار مخالفة — مقاول (نسخة 1447هـ)</h1>
         <div className="flex flex-wrap gap-2">
-          <NoticePrintActions />
+          <NoticePrintToolbar
+            violationTypes={options.violationTypes}
+            contractors={options.contractors.map((c) => ({ id: c.id, name: c.name }))}
+            workers={workersForSelect.map((w) => ({
+              id: w.id,
+              name: w.name,
+              id_number: w.id_number,
+            }))}
+            viewPrintData={
+              viewBundle
+                ? {
+                    date: toDateValue(new Date(viewBundle.occurredAtIso)),
+                    time: toTimeValue(new Date(viewBundle.occurredAtIso)),
+                    noticeNo: viewBundle.parsed.noticeNo,
+                    siteKey: viewBundle.siteKey,
+                    complexNo: viewBundle.parsed.complexNo?.trim() ?? "",
+                    contractorName: contractorNameForView ?? "—",
+                    supervisorName: viewBundle.parsed.supervisorName ?? "",
+                    workerLabel: `${viewBundle.worker.name} — ${viewBundle.worker.id_number}`,
+                    delegateName: viewBundle.parsed.delegateName ?? "",
+                    extraNotes: viewBundle.parsed.extraNotes ?? "",
+                    violationTypeIds: viewBundle.violationTypeIds,
+                  }
+                : null
+            }
+          />
           {viewBundle ? (
             <Link href="/violations/notice">
               <Button variant="primary">إشعار مخالفة جديد</Button>
@@ -213,7 +238,7 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
         </Card>
       ) : null}
 
-      <Card className="paper-card overflow-hidden border border-black bg-white p-0">
+      <Card className="no-print paper-card overflow-hidden border border-black bg-white p-0">
         {viewBundle ? (
           <ViewNoticeBody
             options={options}
@@ -549,6 +574,40 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           width: 100%;
           font-weight: 600;
         }
+        /* نموذج الطباعة النصي (NoticePrintDocument) */
+        .np-print-value {
+          display: inline-block;
+          font-weight: 700;
+          padding: 2px 4px;
+          min-height: 22px;
+        }
+        .np-print-site-item {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          margin-inline-end: 12px;
+          font-weight: 700;
+        }
+        .np-complex-print {
+          min-width: 48px;
+          margin-inline-start: 6px;
+        }
+        .np-print-notes {
+          white-space: pre-wrap;
+          word-break: break-word;
+          font-weight: 600;
+          line-height: 1.45;
+        }
+        .np-print-sig-name {
+          font-weight: 800;
+        }
+        .notice-print-a4 {
+          max-width: 190mm;
+          margin: 0 auto;
+          box-sizing: border-box;
+          background: #fff;
+          color: #111;
+        }
         .violation-picker-wrap {
           position: relative;
         }
@@ -873,6 +932,24 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           .only-print {
             display: block !important;
           }
+          /* طباعة النموذج الرسمي فقط (بوابة body) — نصوص وليست لقطة شاشة */
+          body * {
+            visibility: hidden !important;
+          }
+          body > .only-print.notice-print-portal,
+          body > .only-print.notice-print-portal * {
+            visibility: visible !important;
+          }
+          body > .only-print.notice-print-portal {
+            display: block !important;
+            position: relative;
+            width: 100%;
+            max-width: 190mm !important;
+            margin: 0 auto !important;
+            padding: 8mm 12mm !important;
+            box-sizing: border-box !important;
+            background: #fff !important;
+          }
           main {
             padding: 0 !important;
             margin: 0 !important;
@@ -991,7 +1068,7 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           }
           @page {
             size: A4 portrait;
-            margin: 5mm;
+            margin: 10mm 12mm;
           }
         }
       `}</style>
