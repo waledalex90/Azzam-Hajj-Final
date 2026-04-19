@@ -229,6 +229,11 @@ export async function createRoleAction(formData: FormData) {
   return { ok: true as const };
 }
 
+/** لـ `<form action>` — React 19 يتوقع Promise<void> بينما createRoleAction يعيد نتيجة */
+export async function createRoleFormAction(formData: FormData): Promise<void> {
+  void (await createRoleAction(formData));
+}
+
 /** استيراد من Excel: أعمدة — full_name, login_email, username, password, role, site_ids (اختياري، مفصولة بفواصل) */
 export async function bulkImportUsersAction(formData: FormData) {
   if (isDemoModeEnabled()) return { ok: false as const, error: "وضع التجربة: الاستيراد معطّل." };

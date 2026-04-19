@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PERMISSION_CATALOG } from "@/lib/permissions/keys";
-import { createRoleAction } from "@/lib/actions/user-role-management";
+import { createRoleFormAction } from "@/lib/actions/user-role-management";
 
 type RoleRow = { slug: string; name_ar: string; permissions: unknown; created_at?: string };
 
@@ -15,12 +15,7 @@ export function RolesManagementPanel({ roles }: { roles: RoleRow[] | null }) {
           أي دور جديد يظهر فوراً في قوائم تعيين المستخدمين. تعديل صلاحيات الدور يؤثر على جميع من يحملون هذا الدور عند
           تسجيل الدخول التالي.
         </p>
-        <form
-          action={async (fd) => {
-            await createRoleAction(fd);
-          }}
-          className="mt-4 space-y-4"
-        >
+        <form action={createRoleFormAction} className="mt-4 space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="text-xs font-bold text-slate-600">المعرّف (slug)</label>

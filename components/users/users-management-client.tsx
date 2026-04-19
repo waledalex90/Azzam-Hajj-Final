@@ -14,6 +14,23 @@ import {
   updateAppUserAction,
 } from "@/lib/actions/user-role-management";
 
+/** تحويل نتيجة Server Action إلى void ليتوافق مع نوع form action في React 19 */
+async function submitCreateAppUser(fd: FormData): Promise<void> {
+  void (await createAppUserAction(fd));
+}
+async function submitBulkImport(fd: FormData): Promise<void> {
+  void (await bulkImportUsersAction(fd));
+}
+async function submitDeleteAppUser(fd: FormData): Promise<void> {
+  void (await deleteAppUserAction(fd));
+}
+async function submitUpdateAppUser(fd: FormData): Promise<void> {
+  void (await updateAppUserAction(fd));
+}
+async function submitResetPassword(fd: FormData): Promise<void> {
+  void (await resetAppUserPasswordAction(fd));
+}
+
 export type UserRow = {
   id: number;
   auth_user_id: string | null;
@@ -44,7 +61,6 @@ function permLabelsForRole(roles: RoleOption[], slug: string): string[] {
 export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
   const [q, setQ] = useState("");
   const [roleSlug, setRoleSlug] = useState(roles[0]?.slug ?? "");
-  const [msg, setMsg] = useState<string | null>(null);
 
   const preview = useMemo(() => permLabelsForRole(roles, roleSlug), [roles, roleSlug]);
 
@@ -80,15 +96,7 @@ export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
         <>
           <Card className="p-4">
             <h3 className="text-base font-extrabold text-slate-900">إضافة مستخدم</h3>
-            <form
-              className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
-              action={async (fd) => {
-                setMsg(null);
-                const r = await createAppUserAction(fd);
-                if (r.ok) setMsg("تم إنشاء المستخدم.");
-                else setMsg("error" in r && r.error ? r.error : "فشل الإنشاء");
-              }}
-            >
+            <form className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" action={submitCreateAppUser}>
               <div>
                 <label className="text-xs font-bold text-slate-600">الاسم الكامل</label>
                 <Input name="fullName" required className="mt-1" />
@@ -137,7 +145,6 @@ export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
                 </Button>
               </div>
             </form>
-            {msg && <p className="mt-2 text-sm font-bold text-emerald-800">{msg}</p>}
           </Card>
 
           <Card className="p-4">
@@ -150,18 +157,7 @@ export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
               <code className="rounded bg-slate-100 px-1">role</code>،{" "}
               <code className="rounded bg-slate-100 px-1">site_ids</code> (اختياري)
             </p>
-            <form
-              className="mt-3 flex flex-wrap items-end gap-3"
-              action={async (fd) => {
-                setMsg(null);
-                const r = await bulkImportUsersAction(fd);
-                if (r.ok) {
-                  setMsg(`تم استيراد ${r.imported} صفاً، فشل ${r.failed}.`);
-                } else {
-                  setMsg("error" in r ? r.error : "فشل الاستيراد");
-                }
-              }}
-            >
+            <form className="mt-3 flex flex-wrap items-end gap-3" action={submitBulkImport}>
               <Input type="file" name="file" accept=".xlsx,.xls" required className="max-w-xs" />
               <Button type="submit" variant="secondary">
                 رفع واستيراد
@@ -245,11 +241,7 @@ function UserRowEditor({
             <Button type="button" variant="secondary" className="h-8 px-2 text-xs" onClick={() => setOpen((v) => !v)}>
               {open ? "إغلاق" : "تعديل"}
             </Button>
-            <form
-              action={async (fd) => {
-                await deleteAppUserAction(fd);
-              }}
-            >
+            <form action={submitDeleteAppUser}>
               <input type="hidden" name="userId" value={u.id} />
               <Button type="submit" variant="secondary" className="h-8 px-2 text-xs text-red-800">
                 حذف
@@ -261,13 +253,7 @@ function UserRowEditor({
       {open && (
         <tr className="border-t border-slate-100 bg-slate-50">
           <td colSpan={6} className="px-3 py-4">
-            <form
-              className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-              action={async (fd) => {
-                await updateAppUserAction(fd);
-                setOpen(false);
-              }}
-            >
+            <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" action={submitUpdateAppUser}>
               <input type="hidden" name="userId" value={u.id} />
               <div>
                 <label className="text-xs font-bold">الاسم</label>
@@ -308,9 +294,7 @@ function UserRowEditor({
             </form>
             <form
               className="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-200 pt-3"
-              action={async (fd) => {
-                await resetAppUserPasswordAction(fd);
-              }}
+              action={submitResetPassword}
             >
               <input type="hidden" name="userId" value={u.id} />
               <div>
