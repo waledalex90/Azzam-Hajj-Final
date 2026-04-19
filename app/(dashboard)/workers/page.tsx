@@ -66,7 +66,7 @@ export default async function WorkersPage({ searchParams }: Props) {
     if (!name || !idNumber) return;
     if (allowedSiteIds !== undefined) {
       if (allowedSiteIds.length === 0) return;
-      if (!siteId || !allowedSiteIds.includes(siteId)) return;
+      if (siteId == null || !allowedSiteIds.includes(siteId)) return;
     }
 
     const supabase = createSupabaseAdminClient();
@@ -122,8 +122,12 @@ export default async function WorkersPage({ searchParams }: Props) {
       .maybeSingle();
     if (allowedSiteIds !== undefined) {
       if (allowedSiteIds.length === 0) return;
-      const sid = existingRow?.current_site_id;
-      if (sid == null || !allowedSiteIds.includes(sid)) return;
+      const prevSid = existingRow?.current_site_id ?? null;
+      const wasInMySites = prevSid != null && allowedSiteIds.includes(prevSid);
+      const hadNoSite = prevSid == null;
+      /** عامل بلا موقع: نسمح بالتعديل إن اختير موقع ضمن صلاحياتي (تعيين أول موقع). */
+      if (!wasInMySites && !hadNoSite) return;
+      if (siteId == null || !allowedSiteIds.includes(siteId)) return;
     }
 
     const { data: exists } = await supabase
@@ -169,8 +173,8 @@ export default async function WorkersPage({ searchParams }: Props) {
     if (allowedSiteIds !== undefined) {
       if (allowedSiteIds.length === 0) return;
       const { data: row } = await supabase.from("workers").select("current_site_id").eq("id", workerId).maybeSingle();
-      const sid = row?.current_site_id;
-      if (sid == null || !allowedSiteIds.includes(sid)) return;
+      const sid = row?.current_site_id ?? null;
+      if (sid != null && !allowedSiteIds.includes(sid)) return;
     }
     await supabase.from("workers").update({ is_active: !isActive }).eq("id", workerId);
     revalidatePath("/workers");
@@ -191,8 +195,8 @@ export default async function WorkersPage({ searchParams }: Props) {
     if (allowedSiteIds !== undefined) {
       if (allowedSiteIds.length === 0) return;
       const { data: row } = await supabase.from("workers").select("current_site_id").eq("id", workerId).maybeSingle();
-      const sid = row?.current_site_id;
-      if (sid == null || !allowedSiteIds.includes(sid)) return;
+      const sid = row?.current_site_id ?? null;
+      if (sid != null && !allowedSiteIds.includes(sid)) return;
     }
     await supabase.from("workers").update({ is_deleted: true, is_active: false }).eq("id", workerId);
     revalidatePath("/workers");
@@ -213,8 +217,8 @@ export default async function WorkersPage({ searchParams }: Props) {
     if (allowedSiteIds !== undefined) {
       if (allowedSiteIds.length === 0) return;
       const { data: row } = await supabase.from("workers").select("current_site_id").eq("id", workerId).maybeSingle();
-      const sid = row?.current_site_id;
-      if (sid == null || !allowedSiteIds.includes(sid)) return;
+      const sid = row?.current_site_id ?? null;
+      if (sid != null && !allowedSiteIds.includes(sid)) return;
     }
     await supabase.from("workers").update({ is_deleted: false }).eq("id", workerId);
     revalidatePath("/workers");

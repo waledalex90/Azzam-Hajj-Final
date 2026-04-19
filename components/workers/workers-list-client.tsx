@@ -125,6 +125,11 @@ const WorkerListRowCard = memo(function WorkerListRowCard({
 
         {isEditing && (
           <form action={updateWorker} className="mt-3 grid gap-2 border-t border-slate-200 pt-3 sm:grid-cols-2">
+            {worker.current_site_id == null ? (
+              <p className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950">
+                لا يوجد موقع حالي لهذا الموظف — اختر «الموقع» من القائمة ثم احفظ (مطلوب لحفظ التعديل وللتحضير لاحقاً).
+              </p>
+            ) : null}
             <input type="hidden" name="workerId" value={worker.id} />
             <Input name="name" defaultValue={worker.name} required />
             <Input name="idNumber" defaultValue={worker.id_number} required />
