@@ -5,6 +5,7 @@ import type { User } from "@supabase/supabase-js";
 import { loadAppUserWithRole } from "@/lib/auth/resolve-app-user";
 import type { AppUser } from "@/lib/types/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isDynamicServerUsage } from "@/lib/utils/is-dynamic-server-usage";
 
 export type SessionContext = {
   authUser: User | null;
@@ -34,6 +35,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
       const appUser = await loadAppUserWithRole(user.id);
       return { authUser: user, appUser };
     } catch (e) {
+      if (isDynamicServerUsage(e)) throw e;
       const msg = e instanceof Error ? e.message : String(e);
       const stack = e instanceof Error ? e.stack : "";
       console.error("[getSessionContext] loadAppUserWithRole threw:", msg, stack, e);
@@ -44,6 +46,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
       };
     }
   } catch (e) {
+    if (isDynamicServerUsage(e)) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : "";
     console.error("[getSessionContext] fatal:", e);

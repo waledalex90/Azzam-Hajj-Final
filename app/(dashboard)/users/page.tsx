@@ -9,6 +9,9 @@ import { PERM } from "@/lib/permissions/keys";
 import { UsersManagementClient } from "@/components/users/users-management-client";
 import { RolesManagementPanel } from "@/components/users/roles-management-panel";
 import { fetchAppUsersForManagement } from "@/lib/data/app-users-queries";
+import { toClientJson } from "@/lib/utils/safe-client-json";
+import { isAppRedirectError } from "@/lib/utils/is-app-redirect-error";
+import { isDynamicServerUsage } from "@/lib/utils/is-dynamic-server-usage";
 
 type Props = {
   searchParams: Promise<{ tab?: string }>;
@@ -87,6 +90,32 @@ export default async function UsersManagementPage({ searchParams }: Props) {
         id: s.id as number,
         name: s.name as string,
       })) ?? [];
+
+    /** Flight يرفض قيماً غير قابلة للتسلسل؛ فشلها كان يحدث بعد return فلا يلتقطه try/catch */
+    let usersForClient: typeof users;
+    let rolesForClient: typeof roles;
+    let sitesForClient: typeof sites;
+    let roleRowsForPanel: NonNullable<typeof roleRows>;
+    try {
+      usersForClient = toClientJson(users);
+      rolesForClient = toClientJson(roles);
+      sitesForClient = toClientJson(sites);
+      roleRowsForPanel = toClientJson(roleRows ?? []);
+    } catch (serializeErr) {
+      const sm = serializeErr instanceof Error ? serializeErr.message : String(serializeErr);
+      console.error("[users-page] toClientJson (Flight props) failed:", serializeErr);
+      return (
+        <section className="space-y-4">
+          <Card className="border-red-200 bg-red-50 p-4 text-sm text-red-900">
+            <p className="font-extrabold">تعذّر تجهيز بيانات الواجهة (تسلسل JSON)</p>
+            <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs">{sm}</pre>
+            <p className="mt-2 text-xs opacity-90">
+              غالباً قيمة غير مدعومة (مثل BigInt أو مرجع دائري) في بيانات المستخدمين أو الأدوار القادمة من Supabase.
+            </p>
+          </Card>
+        </section>
+      );
+    }
 
     return (
     <section className="space-y-4">
@@ -170,13 +199,15 @@ export default async function UsersManagementPage({ searchParams }: Props) {
       )}
 
       {effectiveTab === "users" && canUsers && (
-        <UsersManagementClient users={users} roles={roles} sites={sites} canEdit />
+        <UsersManagementClient users={usersForClient} roles={rolesForClient} sites={sitesForClient} canEdit />
       )}
 
-      {effectiveTab === "roles" && canRoles && <RolesManagementPanel roles={roleRows ?? []} />}
+      {effectiveTab === "roles" && canRoles && <RolesManagementPanel roles={roleRowsForPanel} />}
     </section>
     );
   } catch (e) {
+    if (isDynamicServerUsage(e)) throw e;
+    if (isAppRedirectError(e)) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : "";
     console.error("[users-page] uncaught render/data error:", e);

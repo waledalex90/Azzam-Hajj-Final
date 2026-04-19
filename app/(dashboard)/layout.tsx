@@ -8,6 +8,9 @@ import { Card } from "@/components/ui/card";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 import { getSessionContext } from "@/lib/auth/session";
 
+/** جلسة + كوكيز — لا تصيير ثابت لهذه الشجرة */
+export const dynamic = "force-dynamic";
+
 type Props = {
   children: ReactNode;
 };

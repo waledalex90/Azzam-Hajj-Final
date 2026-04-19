@@ -53,7 +53,8 @@ export function RouteErrorDisplay({ error, reset, boundaryLabel = "Route" }: Pro
           </p>
         </div>
         <p className="text-xs text-red-800">
-          راجع أيضاً: Vercel → Project → Logs (أو <code className="rounded bg-white px-1">console.error</code> في المتصفح أعلاه).
+          في سجلات السيرفر ابحث عن <code className="rounded bg-white px-1">[onRequestError]</code> بنفس الـ digest — هناك تظهر الرسالة
+          الكاملة. ومن المتصفح: <code className="rounded bg-white px-1">console.error</code> أعلاه.
         </p>
         <div className="flex justify-center pt-2">
           <Button type="button" onClick={() => reset()}>
