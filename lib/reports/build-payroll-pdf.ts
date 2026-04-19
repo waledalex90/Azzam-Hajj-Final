@@ -7,6 +7,8 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { ArabicShaper } from "arabic-persian-reshaper";
 
+import { readCompanyLogoBuffer } from "@/lib/reports/export-branding";
+
 const FONT_VFS = "NotoNaskhArabic-Variable.ttf";
 const FONT_FAMILY = "NotoNaskh";
 
@@ -25,17 +27,18 @@ const AR_MONTHS = [
   "ديسمبر",
 ];
 
+/** يطابق عناوين أعمدة Excel */
 const COLS: { key: string; ar: string; num?: boolean }[] = [
-  { key: "worker_id", ar: "معرف" },
+  { key: "worker_id", ar: "معرف الموظف" },
   { key: "worker_name", ar: "الاسم" },
   { key: "id_number", ar: "رقم الإقامة" },
   { key: "site_name", ar: "الموقع" },
   { key: "contractor_name", ar: "المقاول" },
   { key: "work_daily_rate_sar", ar: "يومية العمل", num: true },
   { key: "paid_day_equivalent", ar: "أيام الحضور", num: true },
-  { key: "gross_sar", ar: "الاستحقاق", num: true },
-  { key: "violation_deductions_sar", ar: "خصومات مخالفات", num: true },
-  { key: "manual_deductions_sar", ar: "خصومات يدوية", num: true },
+  { key: "gross_sar", ar: "إجمالي الاستحقاق", num: true },
+  { key: "violation_deductions_sar", ar: "خصومات المخالفات", num: true },
+  { key: "manual_deductions_sar", ar: "الخصومات اليدوية", num: true },
   { key: "net_sar", ar: "الصافي", num: true },
 ];
 
@@ -90,20 +93,26 @@ export async function buildPayrollPdfBuffer(opts: {
   const margin = 10;
   let y = 12;
 
+  const logo = readCompanyLogoBuffer();
+  if (logo) {
+    try {
+      const fmt = logo.format;
+      const u8 = new Uint8Array(logo.buffer);
+      doc.addImage(u8, fmt, margin, margin, 52, 15);
+      y = 32;
+    } catch {
+      /* skip broken image */
+    }
+  }
+
+  const mo = AR_MONTHS[Math.max(0, Math.min(11, opts.month - 1))];
+  const titleLine = `مسير الرواتب — ${mo} ${opts.year}`;
+
   doc.setFontSize(13);
   doc.setTextColor(15, 23, 42);
-  doc.text(arPdf("مسير الرواتب — تقرير رسمي"), pageW / 2, y, { align: "center" });
-  y += 6;
-  doc.setFontSize(9);
-  doc.setTextColor(51, 65, 85);
-  const mo = AR_MONTHS[Math.max(0, Math.min(11, opts.month - 1))];
-  doc.text(
-    arPdf(`الفترة: من ${opts.dateFrom} إلى ${opts.dateTo} — السنة ${opts.year} — الشهر ${mo} (${opts.month})`),
-    pageW / 2,
-    y,
-    { align: "center" },
-  );
-  y += 6;
+  doc.setFont(arabicFontOk ? FONT_FAMILY : "helvetica", "normal");
+  doc.text(arPdf(titleLine), pageW / 2, y, { align: "center" });
+  y += 10;
 
   const head = [COLS.map((c) => arPdf(c.ar))];
   const body = opts.rows.map((row) =>
@@ -117,7 +126,7 @@ export async function buildPayrollPdfBuffer(opts: {
 
   const colStyles: Record<number, { halign?: "left" | "center" | "right" }> = {};
   COLS.forEach((c, i) => {
-    colStyles[i] = { halign: c.num ? "right" : "right" };
+    colStyles[i] = { halign: "right" };
   });
 
   autoTable(doc, {
@@ -130,18 +139,27 @@ export async function buildPayrollPdfBuffer(opts: {
       cellPadding: 1,
       lineColor: [148, 163, 184],
       lineWidth: 0.05,
+      fontStyle: "normal",
     },
+    /** لا نستخدم bold: الخط العربي المضاف بوزن normal فقط؛ Helvetica-Bold يفسد العناوين */
     headStyles: {
       fillColor: [30, 41, 59],
       textColor: 255,
-      fontStyle: "bold",
       font: arabicFontOk ? FONT_FAMILY : "helvetica",
+      fontStyle: "normal",
+      fontSize: 7,
     },
     alternateRowStyles: { fillColor: [241, 245, 249] },
     margin: { left: margin, right: margin },
     columnStyles: colStyles,
     tableLineColor: [148, 163, 184],
     tableLineWidth: 0.05,
+    didParseCell: (data) => {
+      if (data.section === "head" && arabicFontOk) {
+        data.cell.styles.font = FONT_FAMILY;
+        data.cell.styles.fontStyle = "normal";
+      }
+    },
   });
 
   const last = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable;

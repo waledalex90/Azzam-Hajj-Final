@@ -2,7 +2,8 @@ import "server-only";
 
 import ExcelJS from "exceljs";
 import fs from "node:fs";
-import path from "node:path";
+
+import { findCompanyLogoFile } from "@/lib/reports/export-branding";
 
 const AR_MONTHS = [
   "يناير",
@@ -44,8 +45,8 @@ const WHITE_FILL: ExcelJS.Fill = {
   fgColor: { argb: "FFFFFFFF" },
 };
 
-/** أعمدة المبالغ — تنسيق ريال */
-const SAR_FMT = '#,##0.00 "ر.س."';
+/** أرقام مالية بدون لاحقة نصية */
+const MONEY_FMT = "#,##0.00";
 const DAYS_FMT = '#,##0.00';
 
 type ColDef = {
@@ -115,15 +116,11 @@ export async function buildPayrollExcelBuffer(opts: {
 
   let r = 1;
 
-  const logoCandidates = [
-    path.join(process.cwd(), "public", "company-logo.png"),
-    path.join(process.cwd(), "public", "payroll-logo.png"),
-  ];
-  for (const logoPath of logoCandidates) {
-    if (!fs.existsSync(logoPath)) continue;
-    const ext = logoPath.toLowerCase().endsWith(".png") ? "png" : "jpeg";
+  const logoFile = findCompanyLogoFile();
+  if (logoFile) {
     try {
-      const buf = fs.readFileSync(logoPath);
+      const buf = fs.readFileSync(logoFile.absPath);
+      const ext = logoFile.format === "PNG" ? "png" : "jpeg";
       const imageId = workbook.addImage({
         buffer: buf as unknown as ExcelJS.Buffer,
         extension: ext,
@@ -133,25 +130,19 @@ export async function buildPayrollExcelBuffer(opts: {
         ext: { width: 160, height: 48 },
       });
       r = 4;
-      break;
     } catch {
       /* skip */
     }
   }
 
+  const mo = AR_MONTHS[Math.max(0, Math.min(11, opts.month - 1))];
+  const titleText = `مسير الرواتب — ${mo} ${opts.year}`;
+
   sheet.mergeCells(`A${r}:${L}${r}`);
   const title = sheet.getCell(`A${r}`);
-  title.value = "مسير الرواتب — تقرير رسمي";
+  title.value = titleText;
   title.font = { bold: true, size: 16, color: { argb: "FF0F172A" } };
   title.alignment = { horizontal: "center", vertical: "middle" };
-  r += 1;
-
-  const periodLabel = `الفترة: من ${opts.dateFrom} إلى ${opts.dateTo} — السنة ${opts.year} — الشهر ${AR_MONTHS[Math.max(0, Math.min(11, opts.month - 1))]} (${opts.month})`;
-  sheet.mergeCells(`A${r}:${L}${r}`);
-  const pcell = sheet.getCell(`A${r}`);
-  pcell.value = periodLabel;
-  pcell.font = { size: 11, color: { argb: "FF334155" } };
-  pcell.alignment = { horizontal: "center", vertical: "middle" };
   r += 2;
 
   const headerRowNum = r;
@@ -177,7 +168,7 @@ export async function buildPayrollExcelBuffer(opts: {
       } else if (c.money) {
         const n = numVal(raw);
         cell.value = n !== null ? n : 0;
-        cell.numFmt = SAR_FMT;
+        cell.numFmt = MONEY_FMT;
       } else if (c.days) {
         const n = numVal(raw);
         cell.value = n !== null ? n : 0;
