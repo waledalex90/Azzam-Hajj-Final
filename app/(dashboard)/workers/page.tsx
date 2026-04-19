@@ -9,6 +9,8 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getContractorOptions, getSiteOptions } from "@/lib/data/attendance";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 import { requireScreen } from "@/lib/auth/require-screen";
+import { getSessionContext } from "@/lib/auth/session";
+import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
 import { PERM } from "@/lib/permissions/keys";
 
 type Props = {
@@ -42,11 +44,16 @@ function normalizeText(value: unknown) {
 }
 
 export default async function WorkersPage({ searchParams }: Props) {
-  await requireScreen(PERM.WORKERS);
+  const appUser = await requireScreen(PERM.WORKERS);
+  const siteScope = await resolveAllowedSiteIdsForSession(appUser);
 
   async function createWorker(formData: FormData) {
     "use server";
     if (isDemoModeEnabled()) return;
+
+    const { appUser } = await getSessionContext();
+    if (!appUser) return;
+    const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
 
     const name = normalizeText(formData.get("name"));
     const idNumber = normalizeText(formData.get("idNumber"));
@@ -54,9 +61,13 @@ export default async function WorkersPage({ searchParams }: Props) {
     const paymentType = normalizeText(formData.get("paymentType")) === "daily" ? "daily" : "salary";
     const basicSalary = Number(formData.get("basicSalary"));
     const iqamaExpiryRaw = normalizeText(formData.get("iqamaExpiry"));
-    const siteId = Number(formData.get("siteId")) || null;
+    let siteId = Number(formData.get("siteId")) || null;
     const contractorId = Number(formData.get("contractorId")) || null;
     if (!name || !idNumber) return;
+    if (allowedSiteIds !== undefined) {
+      if (allowedSiteIds.length === 0) return;
+      if (!siteId || !allowedSiteIds.includes(siteId)) return;
+    }
 
     const supabase = createSupabaseAdminClient();
     const { data: exists } = await supabase.from("workers").select("id").eq("id_number", idNumber).maybeSingle();
@@ -82,6 +93,10 @@ export default async function WorkersPage({ searchParams }: Props) {
   async function updateWorker(formData: FormData) {
     "use server";
     if (isDemoModeEnabled()) return;
+    const { appUser } = await getSessionContext();
+    if (!appUser) return;
+    const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
+
     const workerId = Number(formData.get("workerId"));
     const name = normalizeText(formData.get("name"));
     const idNumber = normalizeText(formData.get("idNumber"));
@@ -89,13 +104,28 @@ export default async function WorkersPage({ searchParams }: Props) {
     const paymentType = normalizeText(formData.get("paymentType")) === "daily" ? "daily" : "salary";
     const basicSalary = Number(formData.get("basicSalary"));
     const iqamaExpiryRaw = normalizeText(formData.get("iqamaExpiry"));
-    const siteId = Number(formData.get("siteId")) || null;
+    let siteId = Number(formData.get("siteId")) || null;
     const contractorId = Number(formData.get("contractorId")) || null;
     const shiftRaw = normalizeText(formData.get("shiftRound"));
     const shift_round = shiftRaw === "1" ? 1 : shiftRaw === "2" ? 2 : null;
     if (!workerId || !name || !idNumber) return;
+    if (allowedSiteIds !== undefined) {
+      if (allowedSiteIds.length === 0) return;
+      if (!siteId || !allowedSiteIds.includes(siteId)) return;
+    }
 
     const supabase = createSupabaseAdminClient();
+    const { data: existingRow } = await supabase
+      .from("workers")
+      .select("current_site_id")
+      .eq("id", workerId)
+      .maybeSingle();
+    if (allowedSiteIds !== undefined) {
+      if (allowedSiteIds.length === 0) return;
+      const sid = existingRow?.current_site_id;
+      if (sid == null || !allowedSiteIds.includes(sid)) return;
+    }
+
     const { data: exists } = await supabase
       .from("workers")
       .select("id")
@@ -127,11 +157,21 @@ export default async function WorkersPage({ searchParams }: Props) {
   async function toggleActive(formData: FormData) {
     "use server";
     if (isDemoModeEnabled()) return;
+    const { appUser } = await getSessionContext();
+    if (!appUser) return;
+    const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
+
     const workerId = Number(formData.get("workerId"));
     const isActive = String(formData.get("isActive")) === "true";
     if (!workerId) return;
 
     const supabase = createSupabaseAdminClient();
+    if (allowedSiteIds !== undefined) {
+      if (allowedSiteIds.length === 0) return;
+      const { data: row } = await supabase.from("workers").select("current_site_id").eq("id", workerId).maybeSingle();
+      const sid = row?.current_site_id;
+      if (sid == null || !allowedSiteIds.includes(sid)) return;
+    }
     await supabase.from("workers").update({ is_active: !isActive }).eq("id", workerId);
     revalidatePath("/workers");
     revalidatePath("/attendance");
@@ -141,9 +181,19 @@ export default async function WorkersPage({ searchParams }: Props) {
   async function softDeleteWorker(formData: FormData) {
     "use server";
     if (isDemoModeEnabled()) return;
+    const { appUser } = await getSessionContext();
+    if (!appUser) return;
+    const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
+
     const workerId = Number(formData.get("workerId"));
     if (!workerId) return;
     const supabase = createSupabaseAdminClient();
+    if (allowedSiteIds !== undefined) {
+      if (allowedSiteIds.length === 0) return;
+      const { data: row } = await supabase.from("workers").select("current_site_id").eq("id", workerId).maybeSingle();
+      const sid = row?.current_site_id;
+      if (sid == null || !allowedSiteIds.includes(sid)) return;
+    }
     await supabase.from("workers").update({ is_deleted: true, is_active: false }).eq("id", workerId);
     revalidatePath("/workers");
     revalidatePath("/attendance");
@@ -153,9 +203,19 @@ export default async function WorkersPage({ searchParams }: Props) {
   async function restoreWorker(formData: FormData) {
     "use server";
     if (isDemoModeEnabled()) return;
+    const { appUser } = await getSessionContext();
+    if (!appUser) return;
+    const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
+
     const workerId = Number(formData.get("workerId"));
     if (!workerId) return;
     const supabase = createSupabaseAdminClient();
+    if (allowedSiteIds !== undefined) {
+      if (allowedSiteIds.length === 0) return;
+      const { data: row } = await supabase.from("workers").select("current_site_id").eq("id", workerId).maybeSingle();
+      const sid = row?.current_site_id;
+      if (sid == null || !allowedSiteIds.includes(sid)) return;
+    }
     await supabase.from("workers").update({ is_deleted: false }).eq("id", workerId);
     revalidatePath("/workers");
     revalidatePath("/attendance");
@@ -165,7 +225,14 @@ export default async function WorkersPage({ searchParams }: Props) {
   const params = await searchParams;
   const tab = params.tab === "create" ? "create" : "list";
   const editId = Number(params.editId) || null;
-  const siteId = params.siteId ? Number(params.siteId) : undefined;
+  let siteId = params.siteId ? Number(params.siteId) : undefined;
+  if (siteScope !== undefined) {
+    if (siteScope.length === 0) {
+      siteId = undefined;
+    } else if (!Number.isFinite(siteId) || (siteId !== undefined && !siteScope.includes(siteId))) {
+      siteId = undefined;
+    }
+  }
   const contractorId = params.contractorId ? Number(params.contractorId) : undefined;
   const shiftRoundRaw = params.shiftRound?.trim();
   const shiftRoundFilter: 1 | 2 | undefined =
@@ -176,6 +243,9 @@ export default async function WorkersPage({ searchParams }: Props) {
   const supabase = createSupabaseAdminClient();
 
   async function fetchWorkersListAll(): Promise<WorkersListRow[]> {
+    if (siteScope !== undefined && siteScope.length === 0) {
+      return [];
+    }
     const CHUNK = 1000;
     const out: WorkersListRow[] = [];
     let from = 0;
@@ -193,7 +263,15 @@ export default async function WorkersPage({ searchParams }: Props) {
         q = q.eq("is_deleted", false);
         if (showStopped) q = q.eq("is_active", false);
       }
-      if (Number.isFinite(siteId)) q = q.eq("current_site_id", siteId);
+      if (siteScope !== undefined && siteScope.length > 0) {
+        if (Number.isFinite(siteId) && siteId !== undefined && siteScope.includes(siteId)) {
+          q = q.eq("current_site_id", siteId);
+        } else {
+          q = q.in("current_site_id", siteScope);
+        }
+      } else if (Number.isFinite(siteId)) {
+        q = q.eq("current_site_id", siteId);
+      }
       if (Number.isFinite(contractorId)) q = q.eq("contractor_id", contractorId);
       if (shiftRoundFilter !== undefined) {
         q = q.or(`shift_round.is.null,shift_round.eq.${shiftRoundFilter}`);
@@ -213,19 +291,58 @@ export default async function WorkersPage({ searchParams }: Props) {
     return out;
   }
 
-  const [workers, sites, contractors, totalRes, activeRes, stoppedRes, deletedRes] = await Promise.all([
+  const [workers, sitesRaw, contractors, totalRes, activeRes, stoppedRes, deletedRes] = await Promise.all([
     fetchWorkersListAll(),
     getSiteOptions(),
     getContractorOptions(),
-    supabase.from("workers").select("*", { count: "exact", head: true }).eq("is_deleted", false),
-    supabase.from("workers").select("*", { count: "exact", head: true }).eq("is_deleted", false).eq("is_active", true),
-    supabase
-      .from("workers")
-      .select("*", { count: "exact", head: true })
-      .eq("is_deleted", false)
-      .eq("is_active", false),
-    supabase.from("workers").select("*", { count: "exact", head: true }).eq("is_deleted", true),
+    (async () => {
+      if (siteScope !== undefined && siteScope.length === 0) {
+        return { count: 0 };
+      }
+      let q = supabase.from("workers").select("*", { count: "exact", head: true }).eq("is_deleted", false);
+      if (siteScope !== undefined && siteScope.length > 0) q = q.in("current_site_id", siteScope);
+      return await q;
+    })(),
+    (async () => {
+      if (siteScope !== undefined && siteScope.length === 0) {
+        return { count: 0 };
+      }
+      let q = supabase
+        .from("workers")
+        .select("*", { count: "exact", head: true })
+        .eq("is_deleted", false)
+        .eq("is_active", true);
+      if (siteScope !== undefined && siteScope.length > 0) q = q.in("current_site_id", siteScope);
+      return await q;
+    })(),
+    (async () => {
+      if (siteScope !== undefined && siteScope.length === 0) {
+        return { count: 0 };
+      }
+      let q = supabase
+        .from("workers")
+        .select("*", { count: "exact", head: true })
+        .eq("is_deleted", false)
+        .eq("is_active", false);
+      if (siteScope !== undefined && siteScope.length > 0) q = q.in("current_site_id", siteScope);
+      return await q;
+    })(),
+    (async () => {
+      if (siteScope !== undefined && siteScope.length === 0) {
+        return { count: 0 };
+      }
+      let q = supabase.from("workers").select("*", { count: "exact", head: true }).eq("is_deleted", true);
+      if (siteScope !== undefined && siteScope.length > 0) q = q.in("current_site_id", siteScope);
+      return await q;
+    })(),
   ]);
+
+  const sites =
+    siteScope === undefined
+      ? sitesRaw
+      : siteScope.length > 0
+        ? sitesRaw.filter((s) => siteScope.includes(s.id))
+        : [];
 
   const queryBase = {
     tab: "list",

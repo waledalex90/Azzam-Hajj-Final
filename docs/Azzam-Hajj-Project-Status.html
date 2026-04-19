@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>نظام عزام للحج — وثيقة حالة المشروع</title>
+  <style>
+    :root {
+      --fg: #0f172a;
+      --muted: #475569;
+      --bd: #e2e8f0;
+      --bg: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", "Tajawal", "Arabic UI Text", Tahoma, sans-serif;
+      color: var(--fg);
+      background: var(--bg);
+      line-height: 1.65;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 3rem;
+    }
+    h1 { font-size: 1.65rem; margin-bottom: 0.25rem; }
+    h2 { font-size: 1.2rem; margin-top: 1.75rem; color: #1e293b; border-bottom: 1px solid var(--bd); padding-bottom: 0.35rem; }
+    h3 { font-size: 1rem; margin-top: 1.25rem; }
+    p, li { font-size: 0.95rem; color: var(--fg); }
+    .muted { color: var(--muted); font-size: 0.88rem; }
+    .print-hint {
+      background: #f8fafc;
+      border: 1px solid var(--bd);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 1.5rem;
+      font-size: 0.9rem;
+    }
+    table { border-collapse: collapse; width: 100%; margin: 0.75rem 0 1rem; font-size: 0.92rem; }
+    th, td { border: 1px solid var(--bd); padding: 8px 10px; text-align: right; }
+    th { background: #f1f5f9; }
+    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.88em; }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 12px 14px;
+      border-radius: 8px;
+      overflow-x: auto;
+      direction: ltr;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+    blockquote {
+      margin: 1rem 0;
+      padding: 10px 14px;
+      border-right: 4px solid #94a3b8;
+      background: #f8fafc;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    footer { margin-top: 2rem; font-size: 0.85rem; color: var(--muted); }
+    @media print {
+      body { padding: 0; max-width: 100%; }
+      .print-hint { display: none; }
+      a[href^="http"] { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-hint" dir="rtl">
+    <strong>لإنشاء ملف PDF:</strong> استخدم المتصفح — <kbd>Ctrl</kbd>+<kbd>P</kbd> → اختر <strong>Microsoft Print to PDF</strong> أو <strong>Save as PDF</strong>.
+  </div>
+
+  <h1>نظام عزام للحج (Azzam Hajj System)</h1>
+  <p class="muted">وثيقة الحالة — آخر مرحلة معتمدة في الكود</p>
+
+  <p>
+    <strong>تاريخ الوثيقة:</strong> 18 أبريل 2026<br />
+    <strong>المستودع:</strong> <a href="https://github.com/waledalex90/Azzam-Hajj-Final">github.com/waledalex90/Azzam-Hajj-Final</a><br />
+    <strong>الفرع:</strong> <code>main</code><br />
+    <strong>آخر كومِت (HEAD):</strong> <code>c50b16c</code> — <em>fix(reports): EXPORT_CHUNK 1000 for PostgREST max_rows (on 131c9ca baseline)</em>
+  </p>
+
+  <h2>1. ملخص المرحلة الحالية</h2>
+  <table>
+    <thead><tr><th>البند</th><th>القيمة</th></tr></thead>
+    <tbody>
+      <tr><td>إطار الواجهة</td><td><strong>Next.js 16.2.3</strong> (App Router، build بـ webpack)</td></tr>
+      <tr><td>React</td><td><strong>19.2.4</strong></td></tr>
+      <tr><td>قاعدة البيانات والـ Auth</td><td><strong>Supabase</strong> (<code>@supabase/ssr</code> + <code>@supabase/supabase-js</code>)</td></tr>
+      <tr><td>PWA</td><td><strong>next-pwa</strong> (Service Worker في الإنتاج؛ معطّل في التطوير)</td></tr>
+      <tr><td>الاستضافة</td><td><strong>Vercel</strong> — متغيرات البيئة كما في إعداد المشروع</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    <strong>خط أساس التقارير:</strong> الكومِت <code>131c9ca</code> — محرك تقارير + Hub + تصدير CSV —
+    مع تعديل واحد: <code>EXPORT_CHUNK = 1000</code> في <code>lib/reports/queries.ts</code> ليتوافق مع حد PostgREST الافتراضي (<code>max_rows</code> ≈ 1000).
+  </p>
+  <blockquote>
+    تم تجربة إصدارات لاحقة ثم التراجع إلى خط <strong>131c9ca</strong> كأساس؛ هذه الوثيقة تعكس ما على فرع <code>main</code> حاليًا.
+  </blockquote>
+
+  <h2>2. الوحدات الرئيسية</h2>
+  <ul>
+    <li><strong>لوحة:</strong> <code>/dashboard</code></li>
+    <li><strong>تحضير:</strong> attendance — فوري، مراجعة، فلاتر، ورديات</li>
+    <li><strong>موافقات، عمال، مواقع، مقاولون، مستخدمون، أدوار</strong></li>
+    <li><strong>مخالفات، تصحيحات، نقل</strong></li>
+    <li><strong>تقارير:</strong> RPCs في Supabase، معاينة محدودة، تصدير CSV عبر API</li>
+    <li><strong>دخول / offline</strong></li>
+  </ul>
+
+  <h2>3. طبقة التقارير</h2>
+  <ul>
+    <li><code>components/reports/</code> — <code>app/(dashboard)/reports/page.tsx</code></li>
+    <li><code>lib/reports/queries.ts</code> — معاينة <code>PREVIEW_SIZE = 50</code>، تصدير <code>EXPORT_CHUNK = 1000</code></li>
+    <li>API: <code>GET /api/reports/estimate</code> ، <code>GET /api/reports/export</code></li>
+    <li>ملفات SQL مرجعية في الجذر (مثل <code>supabase_reports_engine_v2.sql</code>، <code>supabase_reports_views_rpc.sql</code>، …) — تنفيذ يدوي حسب ترتيبكم على Supabase</li>
+  </ul>
+
+  <h2>4. متغيرات البيئة</h2>
+  <table>
+    <thead><tr><th>المتغير</th><th>الاستخدام</th></tr></thead>
+    <tbody>
+      <tr><td><code>NEXT_PUBLIC_SUPABASE_URL</code></td><td>رابط المشروع</td></tr>
+      <tr><td><code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td><td>مفتاح anon</td></tr>
+      <tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>السيرفر فقط (لا يُعرض في المتصفح)</td></tr>
+    </tbody>
+  </table>
+  <p>تحقق محلي: <code>npm run verify:supabase</code></p>
+
+  <h2>5. البناء والتشغيل</h2>
+  <pre>npm install
+npm run dev
+npm run build
+npm start</pre>
+
+  <h2>6. مرجع إضافي</h2>
+  <p>راجع <code>README.md</code> في جذر المشروع (Excel، ورديات، Vercel، إلخ).</p>
+
+  <footer>نهاية الوثيقة — محاذاة مع كومِت <code>c50b16c</code>.</footer>
+</body>
+</html>

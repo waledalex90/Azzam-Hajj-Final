@@ -1,11 +1,15 @@
+import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Bell, Building2, Compass, MapPin, ShieldAlert, TrendingUp, Truck, UserCheck2, UserMinus2, Users2 } from "lucide-react";
 import Link from "next/link";
 import { DashboardDateFilter } from "@/components/dashboard/dashboard-date-filter";
-import { canRespondAsHr, getAppUserSiteIds } from "@/lib/auth/transfer-access";
+import { getDefaultLandingPath } from "@/lib/auth/default-landing";
+import { hasPermission } from "@/lib/auth/permissions";
+import { canRespondAsHr, resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
 import { getSessionContext } from "@/lib/auth/session";
 import { getAdminDashboardData, getDashboardStats } from "@/lib/data/dashboard";
 import { getTransferAlertCounts } from "@/lib/data/transfer-requests";
+import { PERM } from "@/lib/permissions/keys";
 
 type Props = { searchParams: Promise<{ date?: string }> };
 
@@ -17,14 +21,20 @@ export default async function DashboardHomePage({ searchParams }: Props) {
       : new Date().toISOString().slice(0, 10);
 
   const { appUser } = await getSessionContext();
+  if (appUser && !hasPermission(appUser, PERM.DASHBOARD)) {
+    redirect(getDefaultLandingPath(appUser));
+  }
+
+  const siteScope = appUser ? await resolveAllowedSiteIdsForSession(appUser) : undefined;
+
   const [attendanceStats, dashboardData] = await Promise.all([
-    getDashboardStats(filterDate),
-    getAdminDashboardData(filterDate),
+    getDashboardStats(filterDate, siteScope),
+    getAdminDashboardData(filterDate, siteScope),
   ]);
 
   const transferAlerts = appUser
     ? await getTransferAlertCounts({
-        destinationSiteIds: await getAppUserSiteIds(appUser.id),
+        destinationSiteIds: siteScope === undefined ? null : siteScope,
         isHr: canRespondAsHr(appUser),
       })
     : { destinationPending: 0, hrPending: 0 };

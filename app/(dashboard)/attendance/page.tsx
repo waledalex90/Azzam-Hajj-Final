@@ -19,6 +19,7 @@ import { AttendancePrepWorkzone } from "@/components/attendance/attendance-prep-
 import { AttendanceReviewTab } from "@/components/attendance/attendance-review-tab";
 import { requireScreen } from "@/lib/auth/require-screen";
 import { hasPermission } from "@/lib/auth/permissions";
+import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
 import { PERM } from "@/lib/permissions/keys";
 import type { AttendanceDayStats } from "@/lib/types/db";
 import { buildPaginationMeta } from "@/lib/utils/pagination";
@@ -54,6 +55,7 @@ export default async function AttendancePage({ searchParams }: Props) {
   noStore();
   const prepMountKey = randomUUID();
   const appUser = await requireScreen(PERM.PREP);
+  const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
   const canCorrection = Boolean(appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST));
   const canResetAttendance = Boolean(
     appUser && (hasPermission(appUser, PERM.PREP) || hasPermission(appUser, PERM.APPROVAL)),
@@ -61,7 +63,14 @@ export default async function AttendancePage({ searchParams }: Props) {
 
   const params = await searchParams;
   const activeTab = params.tab === "review" ? "review" : "workers";
-  const siteId = params.siteId ? Number(params.siteId) : undefined;
+  let siteId = params.siteId ? Number(params.siteId) : undefined;
+  if (allowedSiteIds !== undefined) {
+    if (allowedSiteIds.length === 0) {
+      siteId = undefined;
+    } else if (!Number.isFinite(siteId) || (siteId !== undefined && !allowedSiteIds.includes(siteId))) {
+      siteId = undefined;
+    }
+  }
   const contractorId = params.contractorId ? Number(params.contractorId) : undefined;
   const workDate =
     params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)
@@ -89,12 +98,14 @@ export default async function AttendancePage({ searchParams }: Props) {
             Number.isFinite(contractorId) ? contractorId : undefined,
             undefined,
             roundNo,
+            allowedSiteIds,
           )
         : getAttendanceDayStats(
             workDate,
             Number.isFinite(siteId) ? siteId : undefined,
             Number.isFinite(contractorId) ? contractorId : undefined,
             undefined,
+            allowedSiteIds,
           ),
     ]);
 
@@ -102,6 +113,7 @@ export default async function AttendancePage({ searchParams }: Props) {
       activeTab === "workers"
         ? await getAllPendingPrepWorkers({
             siteId: Number.isFinite(siteId) ? siteId : undefined,
+            allowedSiteIds,
             contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
             search: undefined,
             workDate,
@@ -125,6 +137,7 @@ export default async function AttendancePage({ searchParams }: Props) {
             pageSize: FULL_LOAD,
             workDate,
             siteId: Number.isFinite(siteId) ? siteId : undefined,
+            allowedSiteIds,
             search: undefined,
             roundNo,
           })
@@ -142,6 +155,10 @@ export default async function AttendancePage({ searchParams }: Props) {
     initialStatusMap = {};
     reviewedRows = [];
     reviewRoundStats = activeTab === "review" ? summarizeAttendanceChecksForRound([]) : null;
+  }
+
+  if (allowedSiteIds !== undefined) {
+    sites = allowedSiteIds.length > 0 ? sites.filter((s) => allowedSiteIds.includes(s.id)) : [];
   }
 
   return (

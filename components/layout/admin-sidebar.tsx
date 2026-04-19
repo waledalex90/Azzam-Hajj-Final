@@ -31,8 +31,7 @@ type Props = {
 };
 
 const menuItems = [
-  /** الرئيسية متاحة لأي مستخدم مسجّل — تجنب قفل الحسابات قبل تحديث مصفوفة الصلاحيات */
-  { href: "/dashboard", label: "الرئيسية", icon: Home, always: true as boolean },
+  { href: "/dashboard", label: "الرئيسية", icon: Home, perm: PERM.DASHBOARD },
   { href: "/workers", label: "الموظفين", icon: Users, perm: PERM.WORKERS },
   { href: "/sites", label: "المواقع", icon: MapPin, perm: PERM.SITES },
   { href: "/contractors", label: "المقاولين", icon: Building2, perm: PERM.CONTRACTORS },

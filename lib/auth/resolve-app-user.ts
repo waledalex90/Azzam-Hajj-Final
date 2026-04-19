@@ -32,7 +32,6 @@ const LEGACY_PERMISSIONS: Record<string, string[]> = {
   hr: [...SCREEN_PERMS, ...OPS_PERMS, PERM.USERS_MANAGE],
   technical_observer: [PERM.DASHBOARD, PERM.PREP, PERM.WORKERS, PERM.SITES, PERM.REPORTS],
   field_observer: [
-    PERM.DASHBOARD,
     PERM.PREP,
     PERM.APPROVAL,
     PERM.CORRECTION_REQUEST,
@@ -47,6 +46,27 @@ const LEGACY_PERMISSIONS: Record<string, string[]> = {
 function parsePermissionsFromRow(raw: unknown): string[] {
   if (raw == null) return [];
   if (Array.isArray(raw)) return raw.map((x) => String(x));
+  return [];
+}
+
+/** يدعم مصفوفة Postgres integer[] وأي تمثيل غير متوقع من PostgREST */
+function normalizeAllowedSiteIds(raw: unknown): number[] {
+  if (raw == null) return [];
+  if (Array.isArray(raw)) {
+    return [...new Set(raw.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0))].sort((a, b) => a - b);
+  }
+  if (typeof raw === "string") {
+    const s = raw.trim();
+    if (!s || s === "{}") return [];
+    try {
+      const p = JSON.parse(s) as unknown;
+      if (Array.isArray(p)) {
+        return [...new Set(p.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0))].sort((a, b) => a - b);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
   return [];
 }
 
@@ -69,7 +89,10 @@ export function enrichAppUserWithRoleRow(base: AppUserRow, roleRow: UserRoleRow 
     ? parsePermissionsFromRow(roleRow.permissions)
     : (LEGACY_PERMISSIONS[base.role] ?? []);
   const roleLabel = (roleRow?.name_ar?.trim() || LEGACY_ROLE_LABELS[base.role] || base.role).trim();
-  const allowedSiteIds = Array.isArray(base.allowed_site_ids) ? base.allowed_site_ids : [];
+  /** إن لم يُحمَّل العمود (استعلام قديم بدون allowed_site_ids) نُبقي undefined لاستخدام app_user_sites */
+  const allowedSiteIds = Object.hasOwn(base, "allowed_site_ids")
+    ? normalizeAllowedSiteIds(base.allowed_site_ids)
+    : undefined;
   const { allowed_site_ids: _as, ...rest } = base;
   return {
     ...rest,

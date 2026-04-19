@@ -22,9 +22,6 @@ import {
 async function submitBulkImport(fd: FormData): Promise<void> {
   void (await bulkImportUsersAction(fd));
 }
-async function submitDeleteAppUser(fd: FormData): Promise<void> {
-  void (await deleteAppUserAction(fd));
-}
 async function submitUpdateAppUser(fd: FormData): Promise<void> {
   void (await updateAppUserAction(fd));
 }
@@ -65,6 +62,16 @@ function firstSafeRoleSlug(roleList: RoleOption[]): string {
 
 export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
   const router = useRouter();
+
+  async function deleteAppUserClient(fd: FormData) {
+    const r = await deleteAppUserAction(fd);
+    if (!r.ok) {
+      toast.error(r.error ?? "فشل حذف المستخدم");
+      return;
+    }
+    toast.success("تم حذف المستخدم");
+    router.refresh();
+  }
   const rolesRef = useRef(roles);
   const [q, setQ] = useState("");
   const safeRoles = useMemo(() => roles.filter((r) => ROLE_SLUG_PATTERN.test(r.slug)), [roles]);
@@ -269,7 +276,14 @@ export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
             </thead>
             <tbody>
               {filtered.map((u) => (
-                <UserRowEditor key={u.id} u={u} roles={roles} sites={sites} canEdit={canEdit} />
+                <UserRowEditor
+                  key={u.id}
+                  u={u}
+                  roles={roles}
+                  sites={sites}
+                  canEdit={canEdit}
+                  deleteAction={deleteAppUserClient}
+                />
               ))}
             </tbody>
           </table>
@@ -285,11 +299,13 @@ function UserRowEditor({
   roles,
   sites,
   canEdit,
+  deleteAction,
 }: {
   u: UserRow;
   roles: RoleOption[];
   sites: SiteOption[];
   canEdit: boolean;
+  deleteAction: (fd: FormData) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -325,7 +341,7 @@ function UserRowEditor({
             <Button type="button" variant="secondary" className="h-8 px-2 text-xs" onClick={() => setOpen((v) => !v)}>
               {open ? "إغلاق" : "تعديل"}
             </Button>
-            <form action={submitDeleteAppUser}>
+            <form action={deleteAction}>
               <input type="hidden" name="userId" value={u.id} />
               <Button type="submit" variant="secondary" className="h-8 px-2 text-xs text-red-800">
                 حذف

@@ -12,10 +12,10 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   canRespondAsHr,
-  getAppUserSiteIds,
   isAdminOrHrRole,
   isFieldObserver,
   isTechnicalObserver,
+  resolveAllowedSiteIdsForSession,
 } from "@/lib/auth/transfer-access";
 import { requireScreen } from "@/lib/auth/require-screen";
 import { PERM } from "@/lib/permissions/keys";
@@ -62,7 +62,7 @@ export default async function TransfersPage({ searchParams }: Props) {
   const q = params.q?.trim();
 
   const role = appUser?.role ?? "";
-  const siteIds = appUser ? await getAppUserSiteIds(appUser.id) : [];
+  const sessionSites = appUser ? await resolveAllowedSiteIdsForSession(appUser) : undefined;
   const canHr = appUser ? canRespondAsHr(appUser) : false;
   const showHrTab = canHr;
   const canSeeAllDest = isAdminOrHrRole(role) || isTechnicalObserver(role);
@@ -71,27 +71,23 @@ export default async function TransfersPage({ searchParams }: Props) {
 
   const alerts = appUser
     ? await getTransferAlertCounts({
-        destinationSiteIds: siteIds,
+        destinationSiteIds: sessionSites === undefined ? null : sessionSites,
         isHr: canHr,
       })
     : { destinationPending: 0, hrPending: 0 };
 
   let workersPick: Awaited<ReturnType<typeof getWorkersForTransferPicker>> = [];
   if (tab === "new" && appUser) {
-    const siteFilter: number[] | null = canSeeAllDest ? null : siteIds;
+    const siteFilter: number[] | null = canSeeAllDest ? null : sessionSites === undefined ? null : sessionSites;
     workersPick = await getWorkersForTransferPicker({ siteIds: siteFilter, q });
   }
 
   let incoming: WorkerTransferRequestRow[] = [];
   if (tab === "incoming") {
-    if (isFieldObserver(role) && siteIds.length === 0) {
-      incoming = [];
-    } else {
-      incoming = await listTransferRequestsByStatus(
-        ["pending_destination"],
-        canSeeAllDest ? undefined : { toSiteIdIn: siteIds },
-      );
-    }
+    incoming = await listTransferRequestsByStatus(
+      ["pending_destination"],
+      canSeeAllDest ? undefined : { toSiteIdIn: sessionSites ?? [] },
+    );
   }
 
   let hrQueue: WorkerTransferRequestRow[] = [];
@@ -119,9 +115,9 @@ export default async function TransfersPage({ searchParams }: Props) {
             {alerts.hrPending > 0 ? `${alerts.hrPending} بانتظار اعتماد الموارد` : ""}
           </p>
         )}
-        {isFieldObserver(role) && siteIds.length === 0 && (
+        {isFieldObserver(role) && sessionSites !== undefined && sessionSites.length === 0 && (
           <p className="mt-2 text-xs font-bold text-red-700">
-            لا توجد مواقع مربوطة بحسابك. اطلب من الأدمن إدراج صفوف في جدول <code className="rounded bg-slate-100 px-1">app_user_sites</code> (app_user_id + site_id) بعد تنفيذ SQL الطلبات.
+            لا توجد مواقع مسموحة لحسابك. حدّد المواقع من «المستخدمون والأدوار» (أو جدول app_user_sites) لربط المواقع بالموافقات.
           </p>
         )}
         <div className="mt-3 flex flex-wrap gap-2 border-b border-slate-200 pb-2 text-sm">

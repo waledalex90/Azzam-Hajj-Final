@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { BrandLogo } from "@/components/branding/brand-logo";
+import { hasPermission } from "@/lib/auth/permissions";
+import { PERM } from "@/lib/permissions/keys";
 import type { AppUser } from "@/lib/types/db";
 
 type Props = {
@@ -8,10 +10,10 @@ type Props = {
 };
 
 const links = [
-  { href: "/dashboard", label: "الرئيسية" },
-  { href: "/attendance", label: "التحضير" },
-  { href: "/violations", label: "المخالفات" },
-];
+  { href: "/dashboard", label: "الرئيسية", perm: PERM.DASHBOARD },
+  { href: "/attendance", label: "التحضير", perm: PERM.PREP },
+  { href: "/violations", label: "المخالفات", perm: PERM.VIOLATIONS },
+] as const;
 
 export function TopNav({ user }: Props) {
   return (
@@ -25,15 +27,17 @@ export function TopNav({ user }: Props) {
           </div>
         </div>
         <nav className="hidden items-center gap-4 text-sm font-bold text-[#14532d] sm:flex">
-          {links.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="rounded-md px-2 py-1 hover:bg-[#f8f3df]"
-            >
-              {item.label}
-            </Link>
-          ))}
+          {links
+            .filter((item) => hasPermission(user, item.perm))
+            .map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="rounded-md px-2 py-1 hover:bg-[#f8f3df]"
+              >
+                {item.label}
+              </Link>
+            ))}
         </nav>
       </div>
     </header>

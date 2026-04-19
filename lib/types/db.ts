@@ -9,7 +9,11 @@ export type AppUser = {
   roleLabel: string;
   /** مصفوفة صلاحيات من user_roles.permissions */
   permissions: string[];
-  /** معرفات المواقع المسموح بها؛ [] = غير مقيد */
+  /**
+   * معرفات المواقع من `app_users.allowed_site_ids`.
+   * - `undefined` = العمود غير مُحمَّل (ترقية قديمة) — يُكمَّل من `app_user_sites`.
+   * - `[]` = مُعرَّف صراحةً: لا مواقع مسموحة من العمود (لا نستخدم جدول المواقع القديم).
+   */
   allowedSiteIds?: number[];
 };
 

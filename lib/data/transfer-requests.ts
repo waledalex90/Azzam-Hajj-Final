@@ -99,14 +99,21 @@ export async function listTransferRequestsByStatus(
 }
 
 export async function getTransferAlertCounts(params: {
-  destinationSiteIds: number[];
+  /** `null` = كل المواقع (بدون فلتر to_site_id) */
+  destinationSiteIds: number[] | null;
   isHr: boolean;
 }): Promise<{ destinationPending: number; hrPending: number }> {
   const supabase = createSupabaseAdminClient();
   let dest = 0;
   let hr = 0;
 
-  if (params.destinationSiteIds.length > 0) {
+  if (params.destinationSiteIds === null) {
+    const { count, error } = await supabase
+      .from("worker_transfer_requests")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending_destination");
+    if (!error) dest = count ?? 0;
+  } else if (params.destinationSiteIds.length > 0) {
     const { count, error } = await supabase
       .from("worker_transfer_requests")
       .select("*", { count: "exact", head: true })

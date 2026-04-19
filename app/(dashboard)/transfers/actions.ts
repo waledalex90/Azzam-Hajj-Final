@@ -7,7 +7,7 @@ import {
   canCreateWorkerTransferRequest,
   canRespondAsDestinationSite,
   canRespondAsHr,
-  getAppUserSiteIds,
+  getEffectiveSiteIdsForAppUser,
 } from "@/lib/auth/transfer-access";
 import { getSessionContext } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -30,7 +30,7 @@ export async function createWorkerTransferRequest(formData: FormData) {
   const toSiteId = Number(formData.get("toSiteId"));
   if (!workerId || !toSiteId) redirect(transfersUrl("new", "بيانات ناقصة."));
 
-  const siteIds = await getAppUserSiteIds(appUser.id);
+  const siteIds = await getEffectiveSiteIdsForAppUser(appUser);
   const supabase = createSupabaseAdminClient();
 
   const { data: worker, error: wErr } = await supabase
@@ -79,7 +79,7 @@ export async function destinationApproveTransfer(formData: FormData) {
   const requestId = Number(formData.get("requestId"));
   if (!requestId) redirect(transfersUrl("incoming", "طلب غير صالح."));
 
-  const siteIds = await getAppUserSiteIds(appUser.id);
+  const siteIds = await getEffectiveSiteIdsForAppUser(appUser);
   const supabase = createSupabaseAdminClient();
   const { data: row, error } = await supabase
     .from("worker_transfer_requests")
@@ -123,7 +123,7 @@ export async function destinationRejectTransfer(formData: FormData) {
   const note = String(formData.get("note") || "").trim();
   if (!requestId) redirect(transfersUrl("incoming", "طلب غير صالح."));
 
-  const siteIds = await getAppUserSiteIds(appUser.id);
+  const siteIds = await getEffectiveSiteIdsForAppUser(appUser);
   const supabase = createSupabaseAdminClient();
   const { data: row } = await supabase
     .from("worker_transfer_requests")

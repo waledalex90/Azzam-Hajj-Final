@@ -22,6 +22,8 @@ type WorkersPageParams = {
   page: number;
   pageSize: number;
   siteId?: number;
+  /** عند تعيين مواقع للمستخدم في الإدارة: يُقيّد الجداول بهذه المواقع عند غياب siteId */
+  allowedSiteIds?: number[];
   contractorId?: number;
   search?: string;
   /** يُستبعد من قائمة التحضير من لديهم سجل حضور لهذا التاريخ (ربط attendance_checks + attendance_rounds) */
@@ -117,6 +119,7 @@ type ChecksPageParams = {
   pageSize: number;
   workDate?: string;
   siteId?: number;
+  allowedSiteIds?: number[];
   /** فلتر مقاول العامل (جدول workers) — يطابق التحضير */
   contractorId?: number;
   search?: string;
@@ -340,8 +343,16 @@ export async function getPreppedWorkerIdsForDate(
   workDate: string,
   siteId?: number,
   roundNo: number = SHIFT_ROUND.morning,
+  siteIdsScope?: number[],
 ): Promise<number[]> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return [];
+  if (
+    siteIdsScope !== undefined &&
+    siteIdsScope.length === 0 &&
+    (siteId === undefined || !Number.isFinite(siteId))
+  ) {
+    return [];
+  }
   const r = normalizeShiftRound(roundNo);
   const supabase = createSupabaseAdminClient();
   const pageSize = 1000;
@@ -356,6 +367,8 @@ export async function getPreppedWorkerIdsForDate(
       .eq("attendance_rounds.round_no", r);
     if (siteId !== undefined && Number.isFinite(siteId)) {
       query = query.eq("attendance_rounds.site_id", siteId);
+    } else if (siteIdsScope && siteIdsScope.length > 0) {
+      query = query.in("attendance_rounds.site_id", siteIdsScope);
     }
     const { data, error } = await query.range(from, from + pageSize - 1);
     if (error || !data) break;
@@ -375,12 +388,13 @@ export async function getPrepExclusionWorkerIds(
   workDate: string,
   siteId: number | undefined,
   roundNo: number,
+  siteIdsScope?: number[],
 ): Promise<number[]> {
   const r = normalizeShiftRound(roundNo);
   const evening = r === SHIFT_ROUND.evening;
-  const forShift = await getPreppedWorkerIdsForDate(workDate, siteId, r);
+  const forShift = await getPreppedWorkerIdsForDate(workDate, siteId, r, siteIdsScope);
   if (!evening) return forShift;
-  const morning = await getPreppedWorkerIdsForDate(workDate, siteId, SHIFT_ROUND.morning);
+  const morning = await getPreppedWorkerIdsForDate(workDate, siteId, SHIFT_ROUND.morning, siteIdsScope);
   return Array.from(new Set([...forShift, ...morning]));
 }
 
@@ -391,10 +405,14 @@ export async function getAttendancePrepTabStats(
   contractorId?: number,
   search?: string,
   roundNo: number = SHIFT_ROUND.morning,
+  allowedSiteIds?: number[],
 ): Promise<AttendanceDayStats> {
   const r = normalizeShiftRound(roundNo);
+  const siteIdsScope =
+    siteId !== undefined && Number.isFinite(siteId) ? undefined : allowedSiteIds;
   const filteredIds = await getAttendanceWorkerIdsForFilters({
     siteId,
+    allowedSiteIds,
     contractorId,
     search,
     workDate,
@@ -404,11 +422,11 @@ export async function getAttendancePrepTabStats(
   const total = filteredIds.length;
   if (total === 0) return { total: 0, pending: 0, present: 0, absent: 0, half: 0 };
 
-  const excludeList = await getPrepExclusionWorkerIds(workDate, siteId, r);
+  const excludeList = await getPrepExclusionWorkerIds(workDate, siteId, r, siteIdsScope);
   const excludeSet = new Set(excludeList);
   const pending = filteredIds.filter((id) => !excludeSet.has(id)).length;
 
-  const preppedThisRound = await getPreppedWorkerIdsForDate(workDate, siteId, r);
+  const preppedThisRound = await getPreppedWorkerIdsForDate(workDate, siteId, r, siteIdsScope);
   const preppedInRoundSet = new Set(preppedThisRound);
   const preppedInFilter = filteredIds.filter((id) => preppedInRoundSet.has(id));
   let present = 0;
@@ -427,6 +445,8 @@ export async function getAttendancePrepTabStats(
       .eq("attendance_rounds.round_no", r);
     if (siteId !== undefined && Number.isFinite(siteId)) {
       q = q.eq("attendance_rounds.site_id", siteId);
+    } else if (siteIdsScope && siteIdsScope.length > 0) {
+      q = q.in("attendance_rounds.site_id", siteIdsScope);
     }
     const { data, error } = await q;
     if (error || !data) continue;
@@ -458,12 +478,20 @@ function resolvePrepShiftFilter(
 export async function getAllPendingPrepWorkers(
   params: Omit<WorkersPageParams, "page" | "pageSize">,
 ): Promise<{ rows: WorkerRow[]; meta: PaginationMeta }> {
+  if (params.allowedSiteIds !== undefined && params.allowedSiteIds.length === 0) {
+    return { rows: [], meta: buildPaginationMeta(0, 1, 1) };
+  }
   const supabase = createSupabaseAdminClient();
   const rn = normalizeShiftRound(params.roundNo);
   let excludeList: number[] = [];
   if (params.workDate && /^\d{4}-\d{2}-\d{2}$/.test(params.workDate)) {
     try {
-      excludeList = await getPrepExclusionWorkerIds(params.workDate, params.siteId, rn);
+      excludeList = await getPrepExclusionWorkerIds(
+        params.workDate,
+        params.siteId,
+        rn,
+        params.siteId ? undefined : params.allowedSiteIds,
+      );
     } catch {
       excludeList = [];
     }
@@ -490,7 +518,11 @@ export async function getAllPendingPrepWorkers(
       .eq("is_deleted", false)
       .order("id", { ascending: true });
 
-    if (params.siteId) query = query.eq("current_site_id", params.siteId);
+    if (params.siteId) {
+      query = query.eq("current_site_id", params.siteId);
+    } else if (params.allowedSiteIds && params.allowedSiteIds.length > 0) {
+      query = query.in("current_site_id", params.allowedSiteIds);
+    }
     if (params.contractorId) query = query.eq("contractor_id", params.contractorId);
     if (params.search?.trim()) {
       const value = params.search.trim();
@@ -529,12 +561,16 @@ export async function getAllPendingPrepWorkers(
 
 export async function getAttendanceWorkerIdsForFilters({
   siteId,
+  allowedSiteIds,
   contractorId,
   search,
   workDate,
   roundNo,
   shiftRoundFilter,
 }: Omit<WorkersPageParams, "page" | "pageSize">): Promise<number[]> {
+  if (allowedSiteIds !== undefined && allowedSiteIds.length === 0) {
+    return [];
+  }
   const supabase = createSupabaseAdminClient();
   let from = 0;
   const ids: number[] = [];
@@ -548,7 +584,12 @@ export async function getAttendanceWorkerIdsForFilters({
           ? normalizeShiftRound(shiftRoundFilter)
           : SHIFT_ROUND.morning;
     try {
-      excludeList = await getPrepExclusionWorkerIds(workDate, siteId, rnForExclude);
+      excludeList = await getPrepExclusionWorkerIds(
+        workDate,
+        siteId,
+        rnForExclude,
+        siteId ? undefined : allowedSiteIds,
+      );
     } catch {
       excludeList = [];
     }
@@ -567,6 +608,8 @@ export async function getAttendanceWorkerIdsForFilters({
 
     if (siteId) {
       query = query.eq("current_site_id", siteId);
+    } else if (allowedSiteIds && allowedSiteIds.length > 0) {
+      query = query.in("current_site_id", allowedSiteIds);
     }
     if (contractorId) {
       query = query.eq("contractor_id", contractorId);
@@ -661,7 +704,14 @@ export async function getContractorOptionsLive(): Promise<ContractorOption[]> {
 }
 
 /** إحصائيات اليوم: بدون فلتر مقاول/بحث — استعلامات aggregate سريعة (مثل لوحة التحكم). */
-async function getAttendanceDayStatsUnscoped(workDate: string, siteId?: number): Promise<AttendanceDayStats> {
+async function getAttendanceDayStatsUnscoped(
+  workDate: string,
+  siteId?: number,
+  allowedSiteIds?: number[],
+): Promise<AttendanceDayStats> {
+  if (!siteId && allowedSiteIds !== undefined && allowedSiteIds.length === 0) {
+    return { total: 0, pending: 0, present: 0, absent: 0, half: 0 };
+  }
   const supabase = createSupabaseAdminClient();
   const safeCount = async <T>(query: PromiseLike<{ count: number | null; error: T | null }>) => {
     const { count, error } = await query;
@@ -673,7 +723,11 @@ async function getAttendanceDayStatsUnscoped(workDate: string, siteId?: number):
     .select("*", { count: "exact", head: true })
     .eq("is_active", true)
     .eq("is_deleted", false);
-  if (siteId) totalWorkersQ = totalWorkersQ.eq("current_site_id", siteId);
+  if (siteId) {
+    totalWorkersQ = totalWorkersQ.eq("current_site_id", siteId);
+  } else if (allowedSiteIds && allowedSiteIds.length > 0) {
+    totalWorkersQ = totalWorkersQ.in("current_site_id", allowedSiteIds);
+  }
 
   let presentQ = supabase
     .from("attendance_daily_summary")
@@ -695,6 +749,10 @@ async function getAttendanceDayStatsUnscoped(workDate: string, siteId?: number):
     presentQ = presentQ.eq("site_id", siteId);
     absentQ = absentQ.eq("site_id", siteId);
     halfQ = halfQ.eq("site_id", siteId);
+  } else if (allowedSiteIds && allowedSiteIds.length > 0) {
+    presentQ = presentQ.in("site_id", allowedSiteIds);
+    absentQ = absentQ.in("site_id", allowedSiteIds);
+    halfQ = halfQ.in("site_id", allowedSiteIds);
   }
 
   const [totalNum, presentNum, absentNum, halfNum] = await Promise.all([
@@ -725,10 +783,12 @@ async function getAttendanceDayStatsFiltered(
   siteId: number | undefined,
   contractorId: number | undefined,
   search: string | undefined,
+  allowedSiteIds?: number[],
 ): Promise<AttendanceDayStats> {
   const supabase = createSupabaseAdminClient();
   const filteredIds = await getAttendanceWorkerIdsForFilters({
     siteId,
+    allowedSiteIds,
     contractorId,
     search,
   });
@@ -783,16 +843,17 @@ export async function getAttendanceDayStats(
   siteId?: number,
   contractorId?: number,
   search?: string,
+  allowedSiteIds?: number[],
 ): Promise<AttendanceDayStats> {
   const sid = siteId && Number.isFinite(siteId) ? siteId : undefined;
   const cid = contractorId && Number.isFinite(contractorId) ? contractorId : undefined;
   const searchTrim = search?.trim() || undefined;
 
   if (cid !== undefined || Boolean(searchTrim)) {
-    return getAttendanceDayStatsFiltered(workDate, sid, cid, searchTrim);
+    return getAttendanceDayStatsFiltered(workDate, sid, cid, searchTrim, allowedSiteIds);
   }
 
-  return getAttendanceDayStatsUnscoped(workDate, sid);
+  return getAttendanceDayStatsUnscoped(workDate, sid, allowedSiteIds);
 }
 
 /** بطاقات مراجعة/اعتماد حسب السجلات المحمّلة لهذه الوردية */
@@ -821,12 +882,16 @@ export async function getAttendanceChecksPage({
   pageSize,
   workDate,
   siteId,
+  allowedSiteIds,
   contractorId,
   search,
   status,
   confirmationStatus,
   roundNo,
 }: ChecksPageParams): Promise<{ rows: AttendanceCheckRow[]; meta: PaginationMeta }> {
+  if (allowedSiteIds !== undefined && allowedSiteIds.length === 0) {
+    return { rows: [], meta: buildPaginationMeta(0, page, pageSize) };
+  }
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
   const supabase = createSupabaseAdminClient();
@@ -860,6 +925,8 @@ export async function getAttendanceChecksPage({
 
   if (siteId) {
     query = query.eq("attendance_rounds.site_id", siteId);
+  } else if (allowedSiteIds && allowedSiteIds.length > 0) {
+    query = query.in("attendance_rounds.site_id", allowedSiteIds);
   }
 
   if (roundNo !== undefined && Number.isFinite(roundNo)) {

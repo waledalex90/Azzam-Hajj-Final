@@ -2,10 +2,14 @@ import { redirect } from "next/navigation";
 
 import { BrandLogo } from "@/components/branding/brand-logo";
 import { LoginForm } from "@/components/auth/login-form";
+import { getDefaultLandingPath } from "@/lib/auth/default-landing";
 import { getSessionContext } from "@/lib/auth/session";
 
 export default async function LoginPage() {
-  const { authUser } = await getSessionContext();
+  const { authUser, appUser } = await getSessionContext();
+  if (authUser && appUser) {
+    redirect(getDefaultLandingPath(appUser));
+  }
   if (authUser) {
     redirect("/dashboard");
   }

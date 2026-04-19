@@ -335,9 +335,7 @@ export async function updateRoleFormStateAction(
   return updateRoleAction(formData);
 }
 
-/**
- * حذف صف في user_roles بمعرّف خاطئ (تنظيف). لا يُسمح بحذف معرّفات صالحة من هنا.
- */
+/** حذف دور من user_roles إن لم يكن مرتبطاً بأي مستخدم. */
 export async function deleteRoleAction(formData: FormData): Promise<RoleMutationResult> {
   if (isDemoModeEnabled()) return { ok: true };
   try {
@@ -345,12 +343,6 @@ export async function deleteRoleAction(formData: FormData): Promise<RoleMutation
     const slug = String(formData.get("slug") || "").trim();
     if (!slug) {
       return { ok: false, error: "معرّف الدور ناقص." };
-    }
-    if (isValidRoleSlug(slug)) {
-      return {
-        ok: false,
-        error: "الحذف السريع متاح فقط للمعرّفات غير الصالحة (تنظيف). الأدوار الصالحة تُدار من قاعدة البيانات عند الحاجة.",
-      };
     }
 
     const admin = createSupabaseAdminClient();
