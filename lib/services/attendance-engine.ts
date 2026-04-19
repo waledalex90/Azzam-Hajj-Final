@@ -109,7 +109,7 @@ export async function submitAttendanceByWorkersEngine({
   const touched = inserted + updated;
   if (touched === 0 && payload.length > 0) {
     throw new Error(
-      "لم يُحفظ أي سجل في الحضور. إن كان الموقع وصلاحيات حسابك صحيحة في الواجهة: غالباً جلسة Supabase (JWT) لا تطابق صلاحيات can_access_* في قاعدة البيانات — جرّب تسجيل الخروج والدخول. إن استمر الأمر راجع دوال app.can_access_worker و app.can_access_site.",
+      "لم يُحفظ أي سجل في الحضور. إن كان الموقع وصلاحيات حسابك صحيحة: اطلب من مسؤول قاعدة البيانات تشغيل سكربت supabase_fix_can_access_match_app_user_sites.sql (يصلح قراءة المواقع من app_user_sites وصلاحية المراقب الفني). يمكن أيضاً تجربة تسجيل الخروج والدخول.",
     );
   }
   if (touched < payload.length) {
