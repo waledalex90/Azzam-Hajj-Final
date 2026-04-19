@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { revalidateAttendancePageCache } from "@/app/(dashboard)/attendance/actions";
@@ -36,11 +36,6 @@ export function ApprovalPendingShell({
 
   const [baseRows, setBaseRows] = useState(initialRows);
   const [stats, setStats] = useState(initialStats);
-
-  useEffect(() => {
-    setBaseRows(initialRows);
-    setStats(initialStats);
-  }, [initialRows, initialStats]);
 
   const filteredRows = useMemo(() => {
     const s = deferredSearch.trim();

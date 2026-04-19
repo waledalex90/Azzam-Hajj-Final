@@ -21,6 +21,19 @@ export function NoticeViolationTypeDropdown({ types, viewMode, viewSelectedIds }
     return types.filter((t) => ids.includes(t.id));
   }, [types, viewMode, viewSelectedIds]);
 
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (viewMode) return;
+    function close(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [viewMode]);
+
   if (viewMode) {
     return (
       <div className="violation-type-block">
@@ -38,18 +51,6 @@ export function NoticeViolationTypeDropdown({ types, viewMode, viewSelectedIds }
       </div>
     );
   }
-
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function close(e: MouseEvent) {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
 
   function toggle(id: number) {
     setSelected((prev) => {

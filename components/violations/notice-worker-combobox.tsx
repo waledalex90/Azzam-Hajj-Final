@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { WorkerRow } from "@/lib/types/db";
 
@@ -32,18 +32,16 @@ export function NoticeWorkerCombobox({
     return m;
   }, [workers]);
 
-  const [text, setText] = useState("");
-  const [selectedId, setSelectedId] = useState("");
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!initialWorkerId) return;
+  const seed = useMemo(() => {
+    if (!initialWorkerId) return { text: "", selectedId: "" };
     const w = workerMap.get(Number(initialWorkerId));
-    if (w) {
-      setSelectedId(String(w.id));
-      setText(`${w.name} — ${w.id_number}`);
-    }
+    if (!w) return { text: "", selectedId: "" };
+    return { text: `${w.name} — ${w.id_number ?? ""}`, selectedId: String(w.id) };
   }, [initialWorkerId, workerMap]);
+
+  const [text, setText] = useState(seed.text);
+  const [selectedId, setSelectedId] = useState(seed.selectedId);
+  const [open, setOpen] = useState(false);
 
   const filtered = useMemo(() => {
     const s = norm(text);

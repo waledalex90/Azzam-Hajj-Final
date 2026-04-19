@@ -102,6 +102,7 @@ export function NoticeLinkedSelects({
       <label>
         العامل:
         <NoticeWorkerCombobox
+          key={`${initial?.workerId ?? "none"}-${workers.length}`}
           workers={workers}
           initialWorkerId={initial?.workerId}
           onPickWorker={(w) => syncFromWorker(w)}

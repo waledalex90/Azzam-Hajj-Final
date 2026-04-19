@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useLayoutEffect, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,10 @@ export function NoticePrintToolbar({ violationTypes, contractors, workers, viewP
   const [draftPrint, setDraftPrint] = useState<NoticePrintData | null>(null);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => setMounted(true), []);
+  useLayoutEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- createPortal إلى document.body بعد مطابقة SSR
+    setMounted(true);
+  }, []);
 
   const sheetData = viewPrintData ?? draftPrint;
 

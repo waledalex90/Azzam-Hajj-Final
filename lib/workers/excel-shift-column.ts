@@ -76,7 +76,7 @@ export function getShiftColumnRaw(record: Record<string, unknown>): string {
 /** صباحي/1 → 1، مسائي/2 → 2؛ فارغ → null */
 export function parseShiftRoundValue(raw: string): number | null {
   if (!raw) return null;
-  let t = easternDigitsToAscii(raw.trim());
+  const t = easternDigitsToAscii(raw.trim());
   if (t === "1" || /^1(\.0+)?$/.test(t)) return 1;
   if (t === "2" || /^2(\.0+)?$/.test(t)) return 2;
   const n = Number(String(t).replace(",", "."));
