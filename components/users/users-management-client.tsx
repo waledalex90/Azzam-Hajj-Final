@@ -58,12 +58,20 @@ function permLabelsForRole(roles: RoleOption[], slug: string): string[] {
   return PERMISSION_CATALOG.filter((p) => keys.includes(p.key)).map((p) => p.label);
 }
 
+/** يطابق enum app_role / أعمدة role — يستبعد slugs خاطئة من user_roles (مثل "-") */
+const ROLE_SLUG_PATTERN = /^[a-z][a-z0-9_]*$/;
+
+function firstSafeRoleSlug(roleList: RoleOption[]): string {
+  return roleList.find((r) => ROLE_SLUG_PATTERN.test(r.slug))?.slug ?? "";
+}
+
 export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
   const router = useRouter();
-  const createFormRef = useRef<HTMLFormElement>(null);
   const rolesRef = useRef(roles);
   const [q, setQ] = useState("");
-  const [roleSlug, setRoleSlug] = useState(roles[0]?.slug ?? "");
+  const safeRoles = useMemo(() => roles.filter((r) => ROLE_SLUG_PATTERN.test(r.slug)), [roles]);
+  const [roleSlug, setRoleSlug] = useState(() => firstSafeRoleSlug(roles));
+  const [createUserFormKey, setCreateUserFormKey] = useState(0);
   const [createUserSiteKey, setCreateUserSiteKey] = useState(0);
   const [createUserState, createUserFormAction, createUserPending] = useActionState(createAppUserFormAction, null);
 
@@ -74,14 +82,21 @@ export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
   }, [roles]);
 
   useEffect(() => {
+    if (!safeRoles.some((r) => r.slug === roleSlug)) {
+      queueMicrotask(() => {
+        setRoleSlug(firstSafeRoleSlug(safeRoles));
+      });
+    }
+  }, [safeRoles, roleSlug]);
+
+  useEffect(() => {
     if (!createUserState) return;
     if (createUserState.success) {
       toast.success(createUserState.message, { id: "create-app-user" });
-      createFormRef.current?.reset();
-      queueMicrotask(() => {
-        setRoleSlug(rolesRef.current[0]?.slug ?? "");
-        setCreateUserSiteKey((k) => k + 1);
-      });
+      const nextSlug = firstSafeRoleSlug(rolesRef.current.filter((r) => ROLE_SLUG_PATTERN.test(r.slug)));
+      setRoleSlug(nextSlug);
+      setCreateUserFormKey((k) => k + 1);
+      setCreateUserSiteKey((k) => k + 1);
       router.refresh();
     } else {
       toast.error(createUserState.error, { id: "create-app-user-err", duration: 12_000 });
@@ -121,7 +136,7 @@ export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
           <Card className="p-4">
             <h3 className="text-base font-extrabold text-slate-900">إضافة مستخدم</h3>
             <form
-              ref={createFormRef}
+              key={createUserFormKey}
               className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
               action={createUserFormAction}
               aria-busy={createUserPending}
@@ -154,19 +169,25 @@ export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-600">الدور</label>
+                <input type="hidden" name="role" value={roleSlug} />
                 <select
-                  name="role"
                   required
                   value={roleSlug}
                   onChange={(e) => setRoleSlug(e.target.value)}
                   className="mt-1 min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                  aria-label="الدور"
                 >
-                  {roles.map((r) => (
+                  {safeRoles.map((r) => (
                     <option key={r.slug} value={r.slug}>
                       {r.name_ar}
                     </option>
                   ))}
                 </select>
+                {safeRoles.length === 0 ? (
+                  <p className="mt-1 text-[11px] font-bold text-amber-800">
+                    لا يوجد دور بمعرّف صالح في النظام. راجع جدول الأدوار في Supabase (الحقل slug يجب أن يكون مثل hr وليس شرطة).
+                  </p>
+                ) : null}
               </div>
               <div className="sm:col-span-2 lg:col-span-3">
                 <SiteIdsMultiSelect
@@ -332,14 +353,20 @@ function UserRowEditor({
                 <label className="text-xs font-bold">الدور</label>
                 <select
                   name="role"
-                  defaultValue={u.role}
+                  defaultValue={
+                    roles.some((r) => r.slug === u.role && ROLE_SLUG_PATTERN.test(u.role))
+                      ? u.role
+                      : firstSafeRoleSlug(roles.filter((r) => ROLE_SLUG_PATTERN.test(r.slug)))
+                  }
                   className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm"
                 >
-                  {roles.map((r) => (
-                    <option key={r.slug} value={r.slug}>
-                      {r.name_ar}
-                    </option>
-                  ))}
+                  {roles
+                    .filter((r) => ROLE_SLUG_PATTERN.test(r.slug))
+                    .map((r) => (
+                      <option key={r.slug} value={r.slug}>
+                        {r.name_ar}
+                      </option>
+                    ))}
                 </select>
               </div>
               <div className="sm:col-span-2 lg:col-span-4">

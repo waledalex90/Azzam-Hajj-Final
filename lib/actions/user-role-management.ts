@@ -13,6 +13,9 @@ import * as XLSX from "xlsx";
 
 const LEGACY_SLUGS = new Set(["admin", "hr", "technical_observer", "field_observer"]);
 
+/** يطابق عمود role / enum app_role — يمنع قيماً مثل "-" من user_roles */
+const ROLE_SLUG_PATTERN = /^[a-z][a-z0-9_]*$/;
+
 /** عدة حقول مخفية `allowedSiteIds` أو نص قديم مفصول بفواصل → مصفوفة معرفات فريدة */
 function parseSiteIdsFromFormData(formData: FormData): number[] {
   const all = formData.getAll("allowedSiteIds");
@@ -93,6 +96,14 @@ export async function createAppUserAction(formData: FormData): Promise<CreateApp
       return { success: false, error: "البيانات ناقصة أو كلمة المرور أقل من 6 أحرف." };
     }
 
+    if (!ROLE_SLUG_PATTERN.test(role)) {
+      return {
+        success: false,
+        error:
+          "معرّف الدور غير صالح لقاعدة البيانات. استخدم أحرفاً إنجليزية صغيرة وأرقاماً وشرطة سفلية فقط (مثل hr أو admin).",
+      };
+    }
+
     const loginEmail = resolveStoredLoginEmail(username, loginEmailRaw, env.authEmailDomain);
 
     const allowed = await allowedRoleSlugs();
@@ -163,6 +174,14 @@ export async function updateAppUserAction(formData: FormData) {
 
   if (!id || !fullName || !username || !role) {
     return { ok: false as const, error: "بيانات ناقصة." };
+  }
+
+  if (!ROLE_SLUG_PATTERN.test(role)) {
+    return {
+      ok: false as const,
+      error:
+        "معرّف الدور غير صالح لقاعدة البيانات. استخدم أحرفاً إنجليزية صغيرة وأرقاماً وشرطة سفلية فقط.",
+    };
   }
 
   const allowed = await allowedRoleSlugs();
