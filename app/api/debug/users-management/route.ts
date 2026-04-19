@@ -45,7 +45,7 @@ export async function GET() {
       details: userPayload.error?.details,
     });
 
-    const { error: rolesErr } = await supabase
+    const { data: roleRows, error: rolesErr } = await supabase
       .from("user_roles")
       .select("slug, name_ar, permissions, created_at")
       .order("name_ar");
@@ -58,7 +58,7 @@ export async function GET() {
       hint: rolesErr?.hint,
     });
 
-    const { error: sitesErr } = await supabase.from("sites").select("id, name").order("name");
+    const { data: siteRows, error: sitesErr } = await supabase.from("sites").select("id, name").order("name");
     steps.push({
       step: "sites",
       ok: !sitesErr,
@@ -78,12 +78,42 @@ export async function GET() {
       allowed_site_ids: Array.isArray(u.allowed_site_ids) ? u.allowed_site_ids : [],
     }));
 
-    try {
-      toClientJson(users);
-      steps.push({ step: "JSON → عميل (users)", ok: true });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      steps.push({ step: "JSON → عميل (users)", ok: false, message: msg });
+    const roles =
+      roleRows?.map((r) => ({
+        slug: r.slug as string,
+        name_ar: r.name_ar as string,
+        permissions: r.permissions,
+      })) ?? [];
+
+    const sites =
+      siteRows?.map((s) => ({
+        id: s.id as number,
+        name: s.name as string,
+      })) ?? [];
+
+    const jsonSteps: [string, unknown][] = [
+      ["JSON → عميل (users)", users],
+      ["JSON → عميل (roles / permissions)", roles],
+      ["JSON → عميل (sites)", sites],
+      ["JSON → عميل (roleRows كاملة للوحة الأدوار)", roleRows ?? []],
+    ];
+
+    for (const [label, payload] of jsonSteps) {
+      try {
+        toClientJson(payload);
+        steps.push({ step: label, ok: true });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        steps.push({
+          step: label,
+          ok: false,
+          message: msg,
+          details:
+            typeof payload === "object" && payload !== null
+              ? `تلميح: افحص حقول jsonb غير متوقعة داخل permissions (مثلاً قيم لا تُحوَّل لـ JSON).`
+              : undefined,
+        });
+      }
     }
 
     const ok = steps.every((s) => s.ok);
