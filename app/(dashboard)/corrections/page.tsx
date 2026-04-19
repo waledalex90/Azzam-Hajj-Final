@@ -6,6 +6,8 @@ import { CorrectionResolveRow } from "@/components/corrections/correction-resolv
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getSiteOptions } from "@/lib/data/attendance";
 import { parsePage } from "@/lib/utils/pagination";
+import { requireScreen } from "@/lib/auth/require-screen";
+import { PERM } from "@/lib/permissions/keys";
 
 type Props = {
   searchParams: Promise<{
@@ -20,6 +22,7 @@ const PAGE_SIZE = 25;
 const PENDING_CAP = 8000;
 
 export default async function CorrectionsPage({ searchParams }: Props) {
+  await requireScreen(PERM.CORRECTIONS_SCREEN);
   const params = await searchParams;
   const page = parsePage(params.page, 1);
   const siteId = params.siteId ? Number(params.siteId) : undefined;

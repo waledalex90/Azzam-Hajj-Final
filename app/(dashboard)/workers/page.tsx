@@ -8,6 +8,8 @@ import { WorkersUploadForm } from "@/components/workers/workers-upload-form";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getContractorOptions, getSiteOptions } from "@/lib/data/attendance";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { requireScreen } from "@/lib/auth/require-screen";
+import { PERM } from "@/lib/permissions/keys";
 
 type Props = {
   searchParams: Promise<{
@@ -40,6 +42,8 @@ function normalizeText(value: unknown) {
 }
 
 export default async function WorkersPage({ searchParams }: Props) {
+  await requireScreen(PERM.WORKERS);
+
   async function createWorker(formData: FormData) {
     "use server";
     if (isDemoModeEnabled()) return;

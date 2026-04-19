@@ -9,8 +9,11 @@ import { ViolationFormWorkerSelect } from "@/components/violations/violation-for
 import { getViolationFormOptions, getViolationsPage } from "@/lib/data/violations";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getSessionContext } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/permissions";
 import { parsePage } from "@/lib/utils/pagination";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { requireScreen } from "@/lib/auth/require-screen";
+import { PERM } from "@/lib/permissions/keys";
 
 type Props = {
   searchParams: Promise<{
@@ -28,6 +31,8 @@ type Props = {
 const PAGE_SIZE = 20;
 
 export default async function ViolationsPage({ searchParams }: Props) {
+  await requireScreen(PERM.VIOLATIONS);
+
   async function createViolation(formData: FormData) {
     "use server";
     if (isDemoModeEnabled()) return;
@@ -40,7 +45,7 @@ export default async function ViolationsPage({ searchParams }: Props) {
     if (!workerId || !violationTypeId) return;
 
     const { appUser } = await getSessionContext();
-    if (!appUser) return;
+    if (!appUser || !hasPermission(appUser, PERM.VIOLATIONS)) return;
 
     const supabase = createSupabaseAdminClient();
     let finalSiteId = Number.isFinite(siteIdRaw) && siteIdRaw > 0 ? siteIdRaw : null;

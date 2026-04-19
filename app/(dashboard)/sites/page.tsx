@@ -5,8 +5,11 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { requireScreen } from "@/lib/auth/require-screen";
+import { PERM } from "@/lib/permissions/keys";
 
 export default async function SitesPage() {
+  await requireScreen(PERM.SITES);
   noStore();
 
   async function createSite(formData: FormData) {

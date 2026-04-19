@@ -19,6 +19,9 @@ import {
   NoticeOfficialViolationList,
 } from "@/components/violations/notice-official-paper";
 import { getSessionContext } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/permissions";
+import { requireScreen } from "@/lib/auth/require-screen";
+import { PERM } from "@/lib/permissions/keys";
 import {
   getInfractionNoticeOptions,
   getNoticeBundleForView,
@@ -69,7 +72,7 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
     if (!workerId || !contractorId || violationTypeIds.length === 0) return;
 
     const { appUser } = await getSessionContext();
-    if (!appUser) return;
+    if (!appUser || !hasPermission(appUser, PERM.VIOLATION_NOTICE)) return;
 
     const supabase = createSupabaseAdminClient();
     const options = await getInfractionNoticeOptions();
@@ -135,6 +138,8 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
     revalidatePath("/violations/notice");
     redirect("/violations/notice?saved=1");
   }
+
+  await requireScreen(PERM.VIOLATION_NOTICE);
 
   const params = await searchParams;
   const viewIdNum = params.viewId ? Number(params.viewId) : NaN;

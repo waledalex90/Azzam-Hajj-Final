@@ -4,12 +4,16 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { requireScreen } from "@/lib/auth/require-screen";
+import { PERM } from "@/lib/permissions/keys";
 
 type Props = {
   searchParams: Promise<Record<string, string | undefined>>;
 };
 
 export default async function ContractorsPage({ searchParams }: Props) {
+  await requireScreen(PERM.CONTRACTORS);
+
   async function createContractor(formData: FormData) {
     "use server";
     if (isDemoModeEnabled()) return;

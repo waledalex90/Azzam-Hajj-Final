@@ -17,7 +17,8 @@ import {
   isFieldObserver,
   isTechnicalObserver,
 } from "@/lib/auth/transfer-access";
-import { getSessionContext } from "@/lib/auth/session";
+import { requireScreen } from "@/lib/auth/require-screen";
+import { PERM } from "@/lib/permissions/keys";
 import { getSiteOptions } from "@/lib/data/attendance";
 import {
   getTransferAlertCounts,
@@ -55,7 +56,7 @@ function statusLabel(s: WorkerTransferRequestRow["status"]) {
 }
 
 export default async function TransfersPage({ searchParams }: Props) {
-  const { appUser } = await getSessionContext();
+  const appUser = await requireScreen(PERM.TRANSFERS);
   const params = await searchParams;
   const tab = TABS.some((t) => t.id === params.tab) ? params.tab! : "new";
   const q = params.q?.trim();

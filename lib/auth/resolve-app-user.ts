@@ -6,25 +6,42 @@ import type { AppUser } from "@/lib/types/db";
 import { LEGACY_ROLE_LABELS } from "@/lib/constants/roles";
 import { PERM } from "@/lib/permissions/keys";
 
+/** شاشات عامة + تشغيل — تُستخدم عند عدم وجود صف في user_roles */
+const SCREEN_PERMS: string[] = [
+  PERM.DASHBOARD,
+  PERM.WORKERS,
+  PERM.SITES,
+  PERM.CONTRACTORS,
+  PERM.TRANSFERS,
+  PERM.REPORTS,
+  PERM.CORRECTIONS_SCREEN,
+  PERM.VIOLATION_NOTICE,
+  PERM.VIOLATIONS,
+];
+
+const OPS_PERMS: string[] = [
+  PERM.PREP,
+  PERM.APPROVAL,
+  PERM.CORRECTION_REQUEST,
+  PERM.WORKERS_IMPORT,
+];
+
 /** إذا لم يُوجد صف في user_roles بعد (قبل تشغيل الـ migration). */
 const LEGACY_PERMISSIONS: Record<string, string[]> = {
-  admin: [
+  admin: [...SCREEN_PERMS, ...OPS_PERMS, PERM.USERS_MANAGE, PERM.ROLES_MANAGE],
+  hr: [...SCREEN_PERMS, ...OPS_PERMS, PERM.USERS_MANAGE],
+  technical_observer: [PERM.DASHBOARD, PERM.PREP, PERM.WORKERS, PERM.SITES, PERM.REPORTS],
+  field_observer: [
+    PERM.DASHBOARD,
     PERM.PREP,
     PERM.APPROVAL,
     PERM.CORRECTION_REQUEST,
-    PERM.WORKERS_IMPORT,
-    PERM.USERS_MANAGE,
-    PERM.ROLES_MANAGE,
+    PERM.WORKERS,
+    PERM.SITES,
+    PERM.VIOLATIONS,
+    PERM.VIOLATION_NOTICE,
+    PERM.TRANSFERS,
   ],
-  hr: [
-    PERM.PREP,
-    PERM.APPROVAL,
-    PERM.CORRECTION_REQUEST,
-    PERM.WORKERS_IMPORT,
-    PERM.USERS_MANAGE,
-  ],
-  technical_observer: [PERM.PREP],
-  field_observer: [PERM.PREP, PERM.APPROVAL, PERM.CORRECTION_REQUEST],
 };
 
 function parsePermissionsFromRow(raw: unknown): string[] {

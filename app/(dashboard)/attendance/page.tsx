@@ -17,7 +17,7 @@ import {
 } from "@/lib/data/attendance";
 import { AttendancePrepWorkzone } from "@/components/attendance/attendance-prep-workzone";
 import { AttendanceReviewTab } from "@/components/attendance/attendance-review-tab";
-import { getSessionContext } from "@/lib/auth/session";
+import { requireScreen } from "@/lib/auth/require-screen";
 import { hasPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
 import type { AttendanceDayStats } from "@/lib/types/db";
@@ -53,7 +53,7 @@ export const maxDuration = 120;
 export default async function AttendancePage({ searchParams }: Props) {
   noStore();
   const prepMountKey = randomUUID();
-  const { appUser } = await getSessionContext();
+  const appUser = await requireScreen(PERM.PREP);
   const canCorrection = Boolean(appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST));
   const canResetAttendance = Boolean(
     appUser && (hasPermission(appUser, PERM.PREP) || hasPermission(appUser, PERM.APPROVAL)),

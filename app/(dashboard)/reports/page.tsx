@@ -1,6 +1,9 @@
 import { ReportsHub } from "@/components/reports/reports-hub";
+import { requireScreen } from "@/lib/auth/require-screen";
+import { PERM } from "@/lib/permissions/keys";
 
-export default function ReportsPage() {
+export default async function ReportsPage() {
+  await requireScreen(PERM.REPORTS);
   return (
     <section className="space-y-4">
       <ReportsHub />

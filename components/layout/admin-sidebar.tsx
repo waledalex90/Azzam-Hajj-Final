@@ -31,23 +31,24 @@ type Props = {
 };
 
 const menuItems = [
-  { href: "/dashboard", label: "الرئيسية", icon: Home },
-  { href: "/workers", label: "الموظفين", icon: Users },
-  { href: "/sites", label: "المواقع", icon: MapPin },
-  { href: "/contractors", label: "المقاولين", icon: Building2 },
-  { href: "/attendance", label: "تسجيل الحضور", icon: ClipboardList },
-  { href: "/approval", label: "اعتماد الحضور", icon: BadgeCheck },
-  { href: "/transfers", label: "نقل الموظفين", icon: Truck },
-  { href: "/reports", label: "التقارير", icon: FileBarChart2 },
-  { href: "/corrections", label: "طلبات التعديل", icon: BellRing },
-  { href: "/violations/notice", label: "إشعار المخالفة", icon: FileWarning },
+  /** الرئيسية متاحة لأي مستخدم مسجّل — تجنب قفل الحسابات قبل تحديث مصفوفة الصلاحيات */
+  { href: "/dashboard", label: "الرئيسية", icon: Home, always: true as boolean },
+  { href: "/workers", label: "الموظفين", icon: Users, perm: PERM.WORKERS },
+  { href: "/sites", label: "المواقع", icon: MapPin, perm: PERM.SITES },
+  { href: "/contractors", label: "المقاولين", icon: Building2, perm: PERM.CONTRACTORS },
+  { href: "/attendance", label: "تسجيل الحضور", icon: ClipboardList, perm: PERM.PREP },
+  { href: "/approval", label: "اعتماد الحضور", icon: BadgeCheck, perm: PERM.APPROVAL },
+  { href: "/transfers", label: "نقل الموظفين", icon: Truck, perm: PERM.TRANSFERS },
+  { href: "/reports", label: "التقارير", icon: FileBarChart2, perm: PERM.REPORTS },
+  { href: "/corrections", label: "طلبات التعديل", icon: BellRing, perm: PERM.CORRECTIONS_SCREEN },
+  { href: "/violations/notice", label: "إشعار المخالفة", icon: FileWarning, perm: PERM.VIOLATION_NOTICE },
   {
     href: "/users",
     label: "المستخدمون والأدوار",
     icon: UserSquare2,
     anyPerms: [PERM.USERS_MANAGE, PERM.ROLES_MANAGE] as const,
   },
-  { href: "/violations", label: "المخالفات", icon: UserCog },
+  { href: "/violations", label: "المخالفات", icon: UserCog, perm: PERM.VIOLATIONS },
 ] as const;
 
 function isActive(pathname: string, href: string) {
@@ -92,8 +93,12 @@ export function AdminSidebar({ user }: Props) {
       <nav className="grid gap-1 px-3 pb-4">
         {menuItems
           .filter((item) => {
+            if ("always" in item && item.always) return true;
             if ("anyPerms" in item && item.anyPerms) {
               return item.anyPerms.some((p) => hasPermission(user, p));
+            }
+            if ("perm" in item && item.perm) {
+              return hasPermission(user, item.perm);
             }
             return true;
           })
