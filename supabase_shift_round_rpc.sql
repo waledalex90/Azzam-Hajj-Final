@@ -27,8 +27,8 @@ begin
   if v_user_id is null then
     raise exception 'Unauthorized user';
   end if;
-  if v_role not in ('admin', 'hr', 'technical_observer') then
-    raise exception 'Only admin/hr/technical_observer can submit checks';
+  if v_role not in ('admin', 'hr', 'technical_observer', 'field_observer') then
+    raise exception 'Only admin/hr/technical_observer/field_observer can submit checks';
   end if;
 
   with normalized_payload as (
@@ -87,10 +87,10 @@ begin
   updated_rows as (
     update public.attendance_checks ac
     set status = pwr.status,
-        technical_observer_id = v_user_id,
+        technical_observer_id = case when v_role = 'field_observer' then null else v_user_id end,
         checked_at = now(),
         confirmation_status = 'pending',
-        field_observer_id = null,
+        field_observer_id = case when v_role = 'field_observer' then v_user_id else null end,
         confirmed_at = null,
         confirm_note = null,
         rejection_reason = null
@@ -101,13 +101,14 @@ begin
   ),
   inserted_rows as (
     insert into public.attendance_checks(
-      round_id, worker_id, status, technical_observer_id, checked_at, confirmation_status
+      round_id, worker_id, status, technical_observer_id, field_observer_id, checked_at, confirmation_status
     )
     select
       pwr.round_id,
       pwr.worker_id,
       pwr.status,
-      v_user_id,
+      case when v_role = 'field_observer' then null else v_user_id end,
+      case when v_role = 'field_observer' then v_user_id else null end,
       now(),
       'pending'
     from payload_with_round pwr
