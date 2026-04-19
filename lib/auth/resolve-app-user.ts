@@ -38,6 +38,7 @@ type AppUserRow = {
   full_name: string;
   username: string;
   role: string;
+  allowed_site_ids?: number[] | null;
 };
 
 type UserRoleRow = {
@@ -50,10 +51,13 @@ export function enrichAppUserWithRoleRow(base: AppUserRow, roleRow: UserRoleRow 
     ? parsePermissionsFromRow(roleRow.permissions)
     : (LEGACY_PERMISSIONS[base.role] ?? []);
   const roleLabel = (roleRow?.name_ar?.trim() || LEGACY_ROLE_LABELS[base.role] || base.role).trim();
+  const allowedSiteIds = Array.isArray(base.allowed_site_ids) ? base.allowed_site_ids : [];
+  const { allowed_site_ids: _as, ...rest } = base;
   return {
-    ...base,
+    ...rest,
     permissions,
     roleLabel,
+    allowedSiteIds,
   };
 }
 
@@ -62,7 +66,7 @@ export async function loadAppUserWithRole(authUserId: string): Promise<AppUser |
   const supabase = createSupabaseAdminClient();
   const { data: base } = await supabase
     .from("app_users")
-    .select("id, auth_user_id, full_name, username, role")
+    .select("id, auth_user_id, full_name, username, role, allowed_site_ids")
     .eq("auth_user_id", authUserId)
     .maybeSingle<AppUserRow>();
 

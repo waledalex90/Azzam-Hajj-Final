@@ -14,7 +14,6 @@ import {
   Home,
   LogOut,
   MapPin,
-  ShieldCheck,
   Truck,
   UserCog,
   Users,
@@ -42,13 +41,18 @@ const menuItems = [
   { href: "/reports", label: "التقارير", icon: FileBarChart2 },
   { href: "/corrections", label: "طلبات التعديل", icon: BellRing },
   { href: "/violations/notice", label: "إشعار المخالفة", icon: FileWarning },
-  { href: "/users", label: "المستخدمين", icon: UserSquare2, perm: PERM.USERS_MANAGE },
-  { href: "/roles", label: "الأدوار والصلاحيات", icon: ShieldCheck, perm: PERM.ROLES_MANAGE },
+  {
+    href: "/users",
+    label: "المستخدمون والأدوار",
+    icon: UserSquare2,
+    anyPerms: [PERM.USERS_MANAGE, PERM.ROLES_MANAGE] as const,
+  },
   { href: "/violations", label: "المخالفات", icon: UserCog },
 ] as const;
 
 function isActive(pathname: string, href: string) {
   if (href === "/dashboard") return pathname === "/dashboard";
+  if (href === "/users") return pathname === "/users" || pathname.startsWith("/users?");
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -88,8 +92,8 @@ export function AdminSidebar({ user }: Props) {
       <nav className="grid gap-1 px-3 pb-4">
         {menuItems
           .filter((item) => {
-            if ("perm" in item && item.perm) {
-              return hasPermission(user, item.perm);
+            if ("anyPerms" in item && item.anyPerms) {
+              return item.anyPerms.some((p) => hasPermission(user, p));
             }
             return true;
           })

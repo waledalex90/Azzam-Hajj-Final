@@ -9,6 +9,8 @@ export type AppUser = {
   roleLabel: string;
   /** مصفوفة صلاحيات من user_roles.permissions */
   permissions: string[];
+  /** معرفات المواقع المسموح بها؛ [] = غير مقيد */
+  allowedSiteIds?: number[];
 };
 
 export type WorkerRow = {
