@@ -14,6 +14,7 @@ import type { PaginationMeta } from "@/lib/types/db";
 
 import { HorizontalAttendanceMatrixTable } from "./horizontal-attendance-matrix";
 import { MultiEntityPicker } from "./multi-entity-picker";
+import { PayrollReportTable } from "./payroll-report-table";
 
 function defaultDates() {
   const to = new Date();
@@ -40,6 +41,16 @@ function buildFilters(
     contractorIds: contractorIds.length ? contractorIds : null,
     supervisorIds: supervisorIds.length ? supervisorIds : null,
     shiftRound: shiftRound === "1" ? 1 : shiftRound === "2" ? 2 : null,
+  };
+}
+
+/** أول وآخر يوم في الشهر الميلادي (للمسير ومصفوفة الحضور). */
+function monthDateBounds(year: number, month: number) {
+  const d1 = new Date(year, month - 1, 1);
+  const d2 = new Date(year, month, 0);
+  return {
+    dateFrom: d1.toISOString().slice(0, 10),
+    dateTo: d2.toISOString().slice(0, 10),
   };
 }
 
@@ -85,14 +96,21 @@ function buildExportQuery(
   }
 
   if (tab !== "workers") {
-    p.set("dateFrom", filters.dateFrom);
-    p.set("dateTo", filters.dateTo);
+    let df = filters.dateFrom;
+    let dt = filters.dateTo;
+    if (tab === "payroll") {
+      const b = monthDateBounds(filters.year, filters.month);
+      df = b.dateFrom;
+      dt = b.dateTo;
+    }
+    p.set("dateFrom", df);
+    p.set("dateTo", dt);
   }
   if (filters.siteIds.length) p.set("sites", filters.siteIds.join(","));
   if (filters.contractorIds.length) p.set("contractors", filters.contractorIds.join(","));
   if (filters.supervisorIds.length) p.set("supervisors", filters.supervisorIds.join(","));
   if (filters.shiftRound) p.set("shiftRound", filters.shiftRound);
-  if (tab === "matrix") {
+  if (tab === "matrix" || tab === "payroll") {
     p.set("year", String(filters.year));
     p.set("month", String(filters.month));
   }
@@ -152,11 +170,17 @@ export function ReportsHub() {
       const c = horizontalContractor === "" ? [] : [Number(horizontalContractor)];
       return buildFilters(dateFrom, dateTo, s, c, [], horizontalShift);
     }
+    if (tab === "payroll") {
+      const { dateFrom: df, dateTo: dt } = monthDateBounds(year, month);
+      return buildFilters(df, dt, siteIds, contractorIds, supervisorIds, shiftRound);
+    }
     return buildFilters(dateFrom, dateTo, siteIds, contractorIds, supervisorIds, shiftRound);
   }, [
     tab,
     dateFrom,
     dateTo,
+    year,
+    month,
     siteIds,
     contractorIds,
     supervisorIds,
@@ -368,6 +392,12 @@ export function ReportsHub() {
         <h1 className="text-lg font-extrabold text-slate-900">محرك التقارير</h1>
         <p className="text-sm text-slate-600">
           فلاتر متعددة من الخادم، معاينة ≤50 سطر، تصدير CSV كامل مباشر من السيرفر مع شريط تقدم.
+          {tab === "payroll" && (
+            <span className="mt-1 block text-emerald-900">
+              مسير الرواتب: يُحسب نطاق الفترة تلقائياً من السنة والشهر المختارين (من أول الشهر إلى آخره)، مع
+              نفس فلاتر الموقع والمقاول والوردية كما في تقارير الحضور.
+            </span>
+          )}
         </p>
         <div className="flex flex-wrap gap-2">
           {TABS.map((t) => (
@@ -522,7 +552,7 @@ export function ReportsHub() {
         </Card>
       ) : (
       <Card className="grid gap-3 p-4 md:grid-cols-2 lg:grid-cols-3">
-        {tab !== "workers" && (
+        {tab !== "workers" && tab !== "payroll" && (
           <>
             <div className="space-y-1">
               <p className="text-xs font-bold text-slate-700">من تاريخ</p>
@@ -534,7 +564,7 @@ export function ReportsHub() {
             </div>
           </>
         )}
-        {tab === "matrix" && (
+        {(tab === "matrix" || tab === "payroll") && (
           <>
             <div className="space-y-1">
               <p className="text-xs font-bold text-slate-700">السنة</p>
@@ -685,7 +715,17 @@ export function ReportsHub() {
             <HorizontalAttendanceMatrixTable rows={rows} year={year} month={month} />
           </div>
         )}
-        {!loading && rows.length > 0 && tab !== "horizontal_report" && (
+        {!loading && rows.length > 0 && tab === "payroll" && (
+          <div className="p-3">
+            <PayrollReportTable
+              rows={rows}
+              periodStart={monthDateBounds(year, month).dateFrom}
+              periodEnd={monthDateBounds(year, month).dateTo}
+              onSaved={() => void refresh()}
+            />
+          </div>
+        )}
+        {!loading && rows.length > 0 && tab !== "horizontal_report" && tab !== "payroll" && (
           <div className="max-h-[480px] overflow-auto">
             <table className="min-w-full text-xs">
               <thead className="sticky top-0 bg-slate-100">
@@ -700,8 +740,9 @@ export function ReportsHub() {
                             </th>
                           ))}
                           <th className="px-2 py-2">حضور</th>
-                          <th className="px-2 py-2">نصف</th>
+                          <th className="px-2 py-2">نصف أيام</th>
                           <th className="px-2 py-2">غياب</th>
+                          <th className="px-2 py-2">إجمالي أيام العمل</th>
                         </>
                       )
                     : (
@@ -738,6 +779,9 @@ export function ReportsHub() {
                             <td className="px-2 py-1 text-center">{String(row.present_days ?? "")}</td>
                             <td className="px-2 py-1 text-center">{String(row.half_days ?? "")}</td>
                             <td className="px-2 py-1 text-center">{String(row.absent_days ?? "")}</td>
+                            <td className="px-2 py-1 text-center font-bold text-emerald-900">
+                              {String(row.attendance_day_equivalent ?? "")}
+                            </td>
                           </>
                         )
                       : (

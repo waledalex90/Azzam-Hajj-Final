@@ -101,6 +101,22 @@ export async function previewMatrix(
   return { rows, meta: buildPaginationMeta(total, page, PREVIEW_SIZE) };
 }
 
+export async function upsertPayrollManualDeduction(
+  workerId: number,
+  periodStart: string,
+  periodEnd: string,
+  amountSar: number,
+) {
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.rpc("upsert_payroll_manual_deduction", {
+    p_worker_id: workerId,
+    p_period_start: periodStart,
+    p_period_end: periodEnd,
+    p_amount_sar: amountSar,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export async function previewPayroll(f: ReportFilters, page: number) {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase.rpc("get_payroll_report_page_v2", {

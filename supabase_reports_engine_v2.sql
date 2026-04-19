@@ -3,6 +3,43 @@
 
 begin;
 
+-- ============== Payroll: manual deductions per worker + period (مسير الرواتب) ==============
+create table if not exists public.payroll_manual_deductions (
+  id bigint generated always as identity primary key,
+  worker_id bigint not null references public.workers (id) on delete cascade,
+  period_start date not null,
+  period_end date not null,
+  amount_sar numeric(12, 2) not null default 0,
+  updated_at timestamptz not null default now(),
+  unique (worker_id, period_start, period_end)
+);
+
+create index if not exists idx_payroll_manual_deductions_period
+  on public.payroll_manual_deductions (period_start, period_end);
+
+create or replace function public.upsert_payroll_manual_deduction(
+  p_worker_id bigint,
+  p_period_start date,
+  p_period_end date,
+  p_amount_sar numeric
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.payroll_manual_deductions (worker_id, period_start, period_end, amount_sar, updated_at)
+  values (p_worker_id, p_period_start, p_period_end, coalesce(p_amount_sar, 0), now())
+  on conflict (worker_id, period_start, period_end)
+  do update set
+    amount_sar = excluded.amount_sar,
+    updated_at = now();
+end;
+$$;
+
+grant execute on function public.upsert_payroll_manual_deduction (bigint, date, date, numeric) to service_role;
+
 -- ============== Shared filter helpers (nullable empty array = no filter) ==============
 -- p_ids null OR empty → match all rows for that dimension
 
@@ -157,7 +194,9 @@ as $$
   from paged p;
 $$;
 
--- ============== Payroll v2 (multi filters) + daily rate column ==============
+-- ============== Payroll v2 (multi filters) + يومية + خصومات مخالفات + خصومات يدوية ==============
+drop function if exists public.get_payroll_report_page_v2(date, date, bigint[], bigint[], bigint[], smallint, integer, integer);
+
 create or replace function public.get_payroll_report_page_v2(
   p_date_start date,
   p_date_end date,
@@ -176,11 +215,13 @@ returns table(
   contractor_name text,
   supervisor_name text,
   payment_type text,
+  work_daily_rate_sar numeric,
   daily_rate_sar numeric,
   monthly_basis_sar numeric,
   paid_day_equivalent numeric,
   gross_sar numeric,
-  deductions_sar numeric,
+  violation_deductions_sar numeric,
+  manual_deductions_sar numeric,
   net_sar numeric,
   total_count bigint
 )
@@ -198,7 +239,11 @@ as $$
       coalesce(c.name, 'غير محدد') as cname,
       coalesce(sup.full_name, '—') as supname,
       coalesce(w.payment_type, 'salary') as ptype,
-      coalesce(w.basic_salary, 0)::numeric(12, 2) as basic
+      coalesce(w.basic_salary, 0)::numeric(12, 2) as basic,
+      case
+        when coalesce(w.payment_type, 'salary') = 'daily' then coalesce(w.basic_salary, 0)::numeric(12, 4)
+        else (coalesce(w.basic_salary, 0) / 30.0)::numeric(12, 4)
+      end as day_rate_eff
     from public.workers w
     left join public.sites s on s.id = w.current_site_id
     left join public.contractors c on c.id = w.contractor_id
@@ -250,20 +295,26 @@ as $$
       and (wv.occurred_at at time zone 'Asia/Riyadh')::date between p_date_start and p_date_end
     group by wv.worker_id
   ),
+  manual as (
+    select
+      pmd.worker_id as mid,
+      coalesce(pmd.amount_sar, 0)::numeric(12, 2) as msum
+    from public.payroll_manual_deductions pmd
+    where pmd.period_start = p_date_start
+      and pmd.period_end = p_date_end
+  ),
   calc as (
     select
       wb.*,
       coalesce(p.paid_days, 0)::numeric(12, 4) as paid_eq,
-      case
-        when coalesce(p.paid_days, 0) = 0 then 0::numeric(12, 2)
-        when wb.ptype = 'daily' then (coalesce(p.paid_days, 0) * wb.basic)::numeric(12, 2)
-        else ((coalesce(p.paid_days, 0) / 30.0) * wb.basic)::numeric(12, 2)
-      end as gross,
-      coalesce(d.dsum, 0)::numeric(12, 2) as ded_amt
+      (coalesce(p.paid_days, 0) * wb.day_rate_eff)::numeric(12, 2) as gross,
+      coalesce(d.dsum, 0)::numeric(12, 2) as ded_viol,
+      coalesce(m.msum, 0)::numeric(12, 2) as ded_manual
     from worker_base wb
     left join paid p on p.pid = wb.wid
     left join ded d on d.did = wb.wid
-    where coalesce(p.paid_days, 0) > 0 or coalesce(d.dsum, 0) > 0
+    left join manual m on m.mid = wb.wid
+    where coalesce(p.paid_days, 0) > 0 or coalesce(d.dsum, 0) > 0 or coalesce(m.msum, 0) > 0
   ),
   counted as (
     select
@@ -279,6 +330,7 @@ as $$
     counted.cname as contractor_name,
     counted.supname as supervisor_name,
     counted.ptype as payment_type,
+    counted.day_rate_eff::numeric(12, 2) as work_daily_rate_sar,
     case
       when counted.ptype = 'daily' then counted.basic
       else null::numeric(12, 2)
@@ -289,8 +341,9 @@ as $$
     end as monthly_basis_sar,
     counted.paid_eq as paid_day_equivalent,
     counted.gross as gross_sar,
-    counted.ded_amt as deductions_sar,
-    (counted.gross - counted.ded_amt)::numeric(12, 2) as net_sar,
+    counted.ded_viol as violation_deductions_sar,
+    counted.ded_manual as manual_deductions_sar,
+    (counted.gross - counted.ded_viol - counted.ded_manual)::numeric(12, 2) as net_sar,
     counted.tc as total_count
   from counted
   order by counted.wname
@@ -754,7 +807,8 @@ returns table(
   d21 text, d22 text, d23 text, d24 text, d25 text, d26 text, d27 text, d28 text, d29 text, d30 text, d31 text,
   present_days numeric(8,2),
   absent_days numeric(8,2),
-  half_days numeric(8,2)
+  half_days numeric(8,2),
+  attendance_day_equivalent numeric(8,2)
 )
 language sql
 stable
@@ -792,6 +846,30 @@ base_workers as (
       or w.current_site_id = any(app.current_user_site_ids())
     )
 ),
+day_status as (
+  select
+    ads.worker_id,
+    ads.work_date,
+    ads.final_status
+  from public.attendance_daily_summary ads
+  join bounds b on ads.work_date between b.d_start and b.d_end
+),
+worker_day_stats as (
+  select
+    ds.worker_id as wid,
+    sum(case when ds.final_status = 'present' then 1 else 0 end)::numeric(8, 2) as present_days,
+    sum(case when ds.final_status = 'absent' then 1 else 0 end)::numeric(8, 2) as absent_days,
+    sum(case when ds.final_status = 'half' then 1 else 0 end)::numeric(8, 2) as half_days,
+    sum(
+      case ds.final_status
+        when 'present' then 1::numeric
+        when 'half' then 0.5::numeric
+        else 0::numeric
+      end
+    )::numeric(8, 2) as attendance_day_equivalent
+  from day_status ds
+  group by ds.worker_id
+),
 agg as (
   select
     ads.worker_id,
@@ -801,10 +879,7 @@ agg as (
       when 'absent' then 'A'
       when 'half' then 'H'
       else ''
-    end as mark,
-    ads.present_points,
-    ads.absent_points,
-    ads.half_points
+    end as mark
   from public.attendance_daily_summary ads
   join bounds b on ads.work_date between b.d_start and b.d_end
 )
@@ -845,11 +920,13 @@ select
   max(agg.mark) filter (where extract(day from agg.work_date) = 29) as d29,
   max(agg.mark) filter (where extract(day from agg.work_date) = 30) as d30,
   max(agg.mark) filter (where extract(day from agg.work_date) = 31) as d31,
-  coalesce(sum(agg.present_points), 0)::numeric(8,2) as present_days,
-  coalesce(sum(agg.absent_points), 0)::numeric(8,2) as absent_days,
-  coalesce(sum(agg.half_points), 0)::numeric(8,2) as half_days
+  coalesce(max(wds.present_days), 0)::numeric(8, 2) as present_days,
+  coalesce(max(wds.absent_days), 0)::numeric(8, 2) as absent_days,
+  coalesce(max(wds.half_days), 0)::numeric(8, 2) as half_days,
+  coalesce(max(wds.attendance_day_equivalent), 0)::numeric(8, 2) as attendance_day_equivalent
 from base_workers bw
 left join agg on agg.worker_id = bw.id
+left join worker_day_stats wds on wds.wid = bw.id
 group by bw.id, bw.worker_name, bw.id_number, bw.site_name, bw.contractor_name
 order by bw.worker_name;
 $$;
@@ -876,6 +953,7 @@ returns table(
   present_days numeric(8,2),
   absent_days numeric(8,2),
   half_days numeric(8,2),
+  attendance_day_equivalent numeric(8,2),
   total_workers bigint
 )
 language sql

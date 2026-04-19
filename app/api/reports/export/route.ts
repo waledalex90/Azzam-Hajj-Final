@@ -145,6 +145,7 @@ export async function GET(req: NextRequest) {
                 "present_days",
                 "absent_days",
                 "half_days",
+                "attendance_day_equivalent",
               ];
               ensureHeader(head);
               for (const r of rows) {
@@ -158,6 +159,7 @@ export async function GET(req: NextRequest) {
                   r.present_days,
                   r.absent_days,
                   r.half_days,
+                  r.attendance_day_equivalent,
                 ];
                 controller.enqueue(enc.encode(rowToCsvLine(cells) + "\n"));
               }
@@ -184,11 +186,13 @@ export async function GET(req: NextRequest) {
                 "contractor_name",
                 "supervisor_name",
                 "payment_type",
+                "work_daily_rate_sar",
                 "daily_rate_sar",
                 "monthly_basis_sar",
                 "paid_day_equivalent",
                 "gross_sar",
-                "deductions_sar",
+                "violation_deductions_sar",
+                "manual_deductions_sar",
                 "net_sar",
               ]);
               for (const r of rows) {
@@ -202,11 +206,13 @@ export async function GET(req: NextRequest) {
                       r.contractor_name,
                       r.supervisor_name,
                       r.payment_type,
+                      r.work_daily_rate_sar,
                       r.daily_rate_sar,
                       r.monthly_basis_sar,
                       r.paid_day_equivalent,
                       r.gross_sar,
-                      r.deductions_sar,
+                      r.violation_deductions_sar,
+                      r.manual_deductions_sar,
                       r.net_sar,
                     ]) + "\n",
                   ),

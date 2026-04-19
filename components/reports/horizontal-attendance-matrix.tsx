@@ -78,8 +78,9 @@ export function HorizontalAttendanceMatrixTable({
                   </th>
                 ))}
                 <th className="border border-slate-200 px-1 py-2 text-center font-bold">حضور</th>
-                <th className="border border-slate-200 px-1 py-2 text-center font-bold">نصف</th>
+                <th className="border border-slate-200 px-1 py-2 text-center font-bold">نصف أيام</th>
                 <th className="border border-slate-200 px-1 py-2 text-center font-bold">غياب</th>
+                <th className="border border-slate-200 px-1 py-2 text-center font-bold">إجمالي أيام العمل</th>
               </tr>
             )}
             itemContent={(_index, row) => (
@@ -112,6 +113,9 @@ export function HorizontalAttendanceMatrixTable({
                 </td>
                 <td className="border border-slate-200 px-1 py-1.5 text-center">
                   {String(row.absent_days ?? "")}
+                </td>
+                <td className="border border-slate-200 px-1 py-1.5 text-center font-bold text-emerald-900">
+                  {String(row.attendance_day_equivalent ?? "")}
                 </td>
               </>
             )}
