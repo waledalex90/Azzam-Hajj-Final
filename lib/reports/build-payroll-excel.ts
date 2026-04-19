@@ -47,21 +47,20 @@ const WHITE_FILL: ExcelJS.Fill = {
 
 /** أرقام مالية بدون لاحقة نصية */
 const MONEY_FMT = "#,##0.00";
-const DAYS_FMT = '#,##0.00';
+const DAYS_FMT = "#,##0.00";
 
 type ColDef = {
   key: string;
   header: string;
   width: number;
-  /** نص لمنع الترميز العلمي للأرقام الطويلة */
   forceText?: boolean;
-  /** عمود مبلغ ريال */
   money?: boolean;
-  /** أيام عمل (كسور) */
   days?: boolean;
+  /** عمود توقيع يدوي */
+  signatureCol?: boolean;
 };
 
-const COLS: ColDef[] = [
+const BASE_COLS: ColDef[] = [
   { key: "worker_id", header: "معرف الموظف", width: 12, forceText: true },
   { key: "worker_name", header: "الاسم", width: 26 },
   { key: "id_number", header: "رقم الإقامة", width: 18, forceText: true },
@@ -75,6 +74,30 @@ const COLS: ColDef[] = [
   { key: "net_sar", header: "الصافي", width: 14, money: true },
 ];
 
+function buildCols(includeRowSignature: boolean): ColDef[] {
+  if (!includeRowSignature) return BASE_COLS;
+  const sig: ColDef = {
+    key: "_sign",
+    header: "التوقيع",
+    width: 18,
+    signatureCol: true,
+  };
+  const i = BASE_COLS.findIndex((c) => c.key === "worker_name");
+  if (i < 0) return [...BASE_COLS, sig];
+  return [...BASE_COLS.slice(0, i + 1), sig, ...BASE_COLS.slice(i + 1)];
+}
+
+function colLetter(n: number): string {
+  let s = "";
+  let x = n;
+  while (x > 0) {
+    const r = (x - 1) % 26;
+    s = String.fromCodePoint(65 + r) + s;
+    x = Math.floor((x - 1) / 26);
+  }
+  return s;
+}
+
 function numVal(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
@@ -82,7 +105,7 @@ function numVal(v: unknown): number | null {
 }
 
 /**
- * ملف Excel منسّق لمسير الرواتب (شعار اختياري من public/company-logo.png).
+ * ملف Excel لمسير الرواتب — شعار من public أو COMPANY_LOGO_ABS_PATH
  */
 export async function buildPayrollExcelBuffer(opts: {
   rows: Record<string, unknown>[];
@@ -90,9 +113,21 @@ export async function buildPayrollExcelBuffer(opts: {
   dateTo: string;
   year: number;
   month: number;
-  /** مساحة توقيع في آخر الملف — افتراضياً بدون */
+  /** عمود توقيع فارغ بجانب الاسم */
+  includeRowSignature?: boolean;
+  /** توقيع إداري في نهاية الملف */
+  includeFooterSignature?: boolean;
+  /** @deprecated استخدم includeFooterSignature */
   includeSignature?: boolean;
 }): Promise<Buffer> {
+  const includeRowSignature = Boolean(opts.includeRowSignature);
+  const includeFooterSignature =
+    opts.includeFooterSignature ?? opts.includeSignature ?? false;
+
+  const COLS = buildCols(includeRowSignature);
+  const lastCol = COLS.length;
+  const L = colLetter(lastCol);
+
   const workbook = new ExcelJS.Workbook();
   workbook.created = new Date();
   workbook.title = "مسير الرواتب";
@@ -100,19 +135,6 @@ export async function buildPayrollExcelBuffer(opts: {
   const sheet = workbook.addWorksheet("مسير الرواتب", {
     views: [{ rightToLeft: true, showGridLines: true }],
   });
-
-  const lastCol = COLS.length;
-  const colLetter = (n: number) => {
-    let s = "";
-    let x = n;
-    while (x > 0) {
-      const r = (x - 1) % 26;
-      s = String.fromCodePoint(65 + r) + s;
-      x = Math.floor((x - 1) / 26);
-    }
-    return s;
-  };
-  const L = colLetter(lastCol);
 
   let r = 1;
 
@@ -143,6 +165,13 @@ export async function buildPayrollExcelBuffer(opts: {
   title.value = titleText;
   title.font = { bold: true, size: 16, color: { argb: "FF0F172A" } };
   title.alignment = { horizontal: "center", vertical: "middle" };
+  r += 1;
+
+  sheet.mergeCells(`A${r}:${L}${r}`);
+  const periodCell = sheet.getCell(`A${r}`);
+  periodCell.value = `فترة الاحتساب: من ${opts.dateFrom} إلى ${opts.dateTo}`;
+  periodCell.font = { size: 11, color: { argb: "FF334155" }, bold: true };
+  periodCell.alignment = { horizontal: "center", vertical: "middle" };
   r += 2;
 
   const headerRowNum = r;
@@ -161,25 +190,30 @@ export async function buildPayrollExcelBuffer(opts: {
     const fill = idx % 2 === 0 ? ALT_FILL : WHITE_FILL;
     COLS.forEach((c, j) => {
       const cell = sheet.getCell(r, j + 1);
-      const raw = row[c.key];
-      if (c.forceText) {
-        cell.value = raw === null || raw === undefined ? "" : String(raw);
-        cell.numFmt = "@";
-      } else if (c.money) {
-        const n = numVal(raw);
-        cell.value = n !== null ? n : 0;
-        cell.numFmt = MONEY_FMT;
-      } else if (c.days) {
-        const n = numVal(raw);
-        cell.value = n !== null ? n : 0;
-        cell.numFmt = DAYS_FMT;
+      if (c.signatureCol) {
+        cell.value = "________________";
+        cell.font = { size: 10, italic: true, color: { argb: "FF64748B" } };
       } else {
-        cell.value = raw === null || raw === undefined ? "" : String(raw);
+        const raw = row[c.key];
+        if (c.forceText) {
+          cell.value = raw === null || raw === undefined ? "" : String(raw);
+          cell.numFmt = "@";
+        } else if (c.money) {
+          const n = numVal(raw);
+          cell.value = n !== null ? n : 0;
+          cell.numFmt = MONEY_FMT;
+        } else if (c.days) {
+          const n = numVal(raw);
+          cell.value = n !== null ? n : 0;
+          cell.numFmt = DAYS_FMT;
+        } else {
+          cell.value = raw === null || raw === undefined ? "" : String(raw);
+        }
       }
       cell.fill = fill;
       cell.alignment = {
         vertical: "middle",
-        horizontal: c.money || c.days ? "right" : "right",
+        horizontal: "right",
         wrapText: true,
       };
       cell.border = BORDER_THIN;
@@ -188,7 +222,7 @@ export async function buildPayrollExcelBuffer(opts: {
   });
 
   r += 2;
-  if (opts.includeSignature) {
+  if (includeFooterSignature) {
     sheet.mergeCells(`A${r}:E${r}`);
     const s1 = sheet.getCell(`A${r}`);
     s1.value = "مسؤول الموارد البشرية: ________________________________";

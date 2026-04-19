@@ -99,15 +99,8 @@ function buildExportQuery(
   }
 
   if (tab !== "workers") {
-    let df = filters.dateFrom;
-    let dt = filters.dateTo;
-    if (tab === "payroll") {
-      const b = monthDateBounds(filters.year, filters.month);
-      df = b.dateFrom;
-      dt = b.dateTo;
-    }
-    p.set("dateFrom", df);
-    p.set("dateTo", dt);
+    p.set("dateFrom", filters.dateFrom);
+    p.set("dateTo", filters.dateTo);
   }
   if (filters.siteIds.length) p.set("sites", filters.siteIds.join(","));
   if (filters.contractorIds.length) p.set("contractors", filters.contractorIds.join(","));
@@ -170,6 +163,17 @@ export function ReportsHub() {
   const [payrollSearchInput, setPayrollSearchInput] = useState("");
   const [payrollSearch, setPayrollSearch] = useState("");
   const payrollSearchCommitted = useRef<string | null>(null);
+  const prevTabRef = useRef<ReportsTab | null>(null);
+
+  /** عند الدخول لتبويب المسير: تعبئة فترة الاحتساب من الشهر/السنة الحاليين */
+  useEffect(() => {
+    if (tab === "payroll" && prevTabRef.current !== "payroll") {
+      const b = monthDateBounds(year, month);
+      setDateFrom(b.dateFrom);
+      setDateTo(b.dateTo);
+    }
+    prevTabRef.current = tab;
+  }, [tab, year, month]);
 
   const filters = useMemo((): ReportFilters => {
     if (tab === "horizontal_report") {
@@ -178,8 +182,7 @@ export function ReportsHub() {
       return buildFilters(dateFrom, dateTo, s, c, [], horizontalShift);
     }
     if (tab === "payroll") {
-      const { dateFrom: df, dateTo: dt } = monthDateBounds(year, month);
-      return buildFilters(df, dt, siteIds, contractorIds, supervisorIds, shiftRound);
+      return buildFilters(dateFrom, dateTo, siteIds, contractorIds, supervisorIds, shiftRound);
     }
     return buildFilters(dateFrom, dateTo, siteIds, contractorIds, supervisorIds, shiftRound);
   }, [
@@ -439,8 +442,8 @@ export function ReportsHub() {
           فلاتر متعددة من الخادم؛ معاينة على دفعات (حتى 1000 صف لمسير الرواتب)، وتصدير CSV كامل من السيرفر.
           {tab === "payroll" && (
             <span className="mt-1 block text-emerald-900">
-              مسير الرواتب: الفترة من السنة والشهر؛ البحث يمر عبر السيرفر على كل الموظفين ضمن الفلاتر (اسم، إقامة، أو
-              معرف) مع ترقيم صفحات للمعاينة؛ تصدير Excel / PDF من الخادم.
+              مسير الرواتب: حدّد فترة الاحتساب من/إلى يدوياً أو استخدم «ملء الفترة من الشهر والسنة». البحث على السيرفر
+              (اسم / إقامة / معرف)؛ تصدير Excel / PDF مع شعار من public/company-logo.png عند وجوده.
             </span>
           )}
         </p>
@@ -575,14 +578,18 @@ export function ReportsHub() {
         </Card>
       ) : (
       <Card className="flex flex-wrap items-end gap-3 p-4">
-        {tab !== "workers" && tab !== "payroll" && (
+        {tab !== "workers" && (
           <>
             <div className="space-y-1">
-              <p className="text-xs font-bold text-slate-700">من تاريخ</p>
+              <p className="text-xs font-bold text-slate-700">
+                {tab === "payroll" ? "فترة الاحتساب — من" : "من تاريخ"}
+              </p>
               <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <p className="text-xs font-bold text-slate-700">إلى تاريخ</p>
+              <p className="text-xs font-bold text-slate-700">
+                {tab === "payroll" ? "فترة الاحتساب — إلى" : "إلى تاريخ"}
+              </p>
               <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </div>
           </>
@@ -590,7 +597,7 @@ export function ReportsHub() {
         {(tab === "matrix" || tab === "payroll") && (
           <>
             <div className="space-y-1">
-              <p className="text-xs font-bold text-slate-700">السنة</p>
+              <p className="text-xs font-bold text-slate-700">السنة (مرجع العرض)</p>
               <Input
                 type="number"
                 min={2024}
@@ -599,7 +606,7 @@ export function ReportsHub() {
               />
             </div>
             <div className="space-y-1">
-              <p className="text-xs font-bold text-slate-700">الشهر</p>
+              <p className="text-xs font-bold text-slate-700">الشهر (مرجع العرض)</p>
               <Input
                 type="number"
                 min={1}
@@ -608,6 +615,21 @@ export function ReportsHub() {
                 onChange={(e) => setMonth(Number(e.target.value))}
               />
             </div>
+            {tab === "payroll" && (
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800"
+                  onClick={() => {
+                    const b = monthDateBounds(year, month);
+                    setDateFrom(b.dateFrom);
+                    setDateTo(b.dateTo);
+                  }}
+                >
+                  ملء الفترة من الشهر والسنة
+                </button>
+              </div>
+            )}
           </>
         )}
         <MultiEntityPicker kind="site" label="المواقع (متعدد)" selectedIds={siteIds} onChange={setSiteIds} />
@@ -742,6 +764,8 @@ export function ReportsHub() {
           <div className="space-y-2 p-2 sm:p-3">
             <PayrollReportToolbar
               filters={filters}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
               year={year}
               month={month}
               locked={payrollLocked}
@@ -782,8 +806,8 @@ export function ReportsHub() {
               <div className="max-h-[min(78vh,920px)] overflow-auto rounded-lg border border-slate-100">
                 <PayrollReportTable
                   rows={rows}
-                  periodStart={monthDateBounds(year, month).dateFrom}
-                  periodEnd={monthDateBounds(year, month).dateTo}
+                  periodStart={dateFrom}
+                  periodEnd={dateTo}
                   filter={{
                     siteIds: filters.siteIds,
                     contractorIds: filters.contractorIds,

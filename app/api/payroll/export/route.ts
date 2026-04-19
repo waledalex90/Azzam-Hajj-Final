@@ -42,8 +42,19 @@ export async function GET(req: NextRequest) {
 
   const yq = url.searchParams.get("year");
   const mq = url.searchParams.get("month");
-  const signRaw = (url.searchParams.get("sign") || "").toLowerCase();
-  const includeSign = signRaw === "1" || signRaw === "true" || signRaw === "yes";
+  const rowSignRaw = (url.searchParams.get("rowSign") || "").toLowerCase();
+  const includeRowSign =
+    rowSignRaw === "1" || rowSignRaw === "true" || rowSignRaw === "yes";
+  const footerSignRaw = (url.searchParams.get("footerSign") || "").toLowerCase();
+  /** توقيع نهاية الصفحة — أو المعامل القديم sign=1 */
+  const signLegacy = (url.searchParams.get("sign") || "").toLowerCase();
+  const includeFooterSign =
+    footerSignRaw === "1" ||
+    footerSignRaw === "true" ||
+    footerSignRaw === "yes" ||
+    signLegacy === "1" ||
+    signLegacy === "true" ||
+    signLegacy === "yes";
   const d0 = new Date(f.dateFrom);
   const year = yq ? Number(yq) : d0.getFullYear();
   const month = mq ? Number(mq) : d0.getMonth() + 1;
@@ -87,7 +98,8 @@ export async function GET(req: NextRequest) {
       dateTo: f.dateTo,
       year: Number.isFinite(year) ? year : d0.getFullYear(),
       month: Number.isFinite(month) ? month : d0.getMonth() + 1,
-      includeSignature: includeSign,
+      includeRowSignature: includeRowSign,
+      includeFooterSignature: includeFooterSign,
     });
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
@@ -103,7 +115,8 @@ export async function GET(req: NextRequest) {
     dateTo: f.dateTo,
     year: Number.isFinite(year) ? year : d0.getFullYear(),
     month: Number.isFinite(month) ? month : d0.getMonth() + 1,
-    includeSignature: includeSign,
+    includeRowSignature: includeRowSign,
+    includeFooterSignature: includeFooterSign,
   });
   return new NextResponse(out, {
     headers: {

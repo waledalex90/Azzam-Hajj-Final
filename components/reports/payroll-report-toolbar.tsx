@@ -10,12 +10,6 @@ import {
 } from "@/app/(dashboard)/reports/payroll-actions";
 import type { ReportFilters } from "@/lib/reports/queries";
 
-function monthDateBounds(year: number, month: number) {
-  const d1 = new Date(year, month - 1, 1);
-  const d2 = new Date(year, month, 0);
-  return { dateFrom: d1.toISOString().slice(0, 10), dateTo: d2.toISOString().slice(0, 10) };
-}
-
 function parseImportRows(raw: Record<string, unknown>[]): Array<{ workerId: number; amountSar: number }> {
   const out: Array<{ workerId: number; amountSar: number }> = [];
   for (const row of raw) {
@@ -38,12 +32,16 @@ function parseImportRows(raw: Record<string, unknown>[]): Array<{ workerId: numb
 
 export function PayrollReportToolbar({
   filters,
+  dateFrom,
+  dateTo,
   year,
   month,
   locked,
   onAfterMutation,
 }: {
   filters: ReportFilters;
+  dateFrom: string;
+  dateTo: string;
   year: number;
   month: number;
   locked: boolean;
@@ -52,9 +50,8 @@ export function PayrollReportToolbar({
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  /** إدراج مساحة التوقيع في ملفات Excel / PDF عند التصدير */
-  const [includeExportSignature, setIncludeExportSignature] = useState(false);
-  const { dateFrom, dateTo } = monthDateBounds(year, month);
+  const [includeRowSignature, setIncludeRowSignature] = useState(false);
+  const [includeFooterSignature, setIncludeFooterSignature] = useState(false);
   const filterPick = {
     siteIds: filters.siteIds,
     contractorIds: filters.contractorIds,
@@ -71,7 +68,8 @@ export function PayrollReportToolbar({
     if (filters.contractorIds?.length) p.set("contractors", filters.contractorIds.join(","));
     if (filters.supervisorIds?.length) p.set("supervisors", filters.supervisorIds.join(","));
     if (filters.shiftRound) p.set("shiftRound", String(filters.shiftRound));
-    if (includeExportSignature) p.set("sign", "1");
+    if (includeRowSignature) p.set("rowSign", "1");
+    if (includeFooterSignature) p.set("footerSign", "1");
     return p.toString();
   };
 
@@ -123,15 +121,26 @@ export function PayrollReportToolbar({
           مسير معتمد (مقفل) — تعديل الخصومات يتطلب إلغاء القفل (اعتماد/إدارة).
         </p>
       )}
-      <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-bold text-slate-700">
-        <input
-          type="checkbox"
-          checked={includeExportSignature}
-          onChange={(e) => setIncludeExportSignature(e.target.checked)}
-          className="h-3.5 w-3.5 rounded border-slate-400"
-        />
-        إدراج مساحة التوقيع في التصدير (Excel / PDF)
-      </label>
+      <div className="flex flex-col gap-1.5 text-[11px] font-bold text-slate-700">
+        <label className="flex cursor-pointer items-center gap-1.5">
+          <input
+            type="checkbox"
+            checked={includeRowSignature}
+            onChange={(e) => setIncludeRowSignature(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-slate-400"
+          />
+          عمود توقيع بجانب اسم كل موظف (Excel / PDF)
+        </label>
+        <label className="flex cursor-pointer items-center gap-1.5">
+          <input
+            type="checkbox"
+            checked={includeFooterSignature}
+            onChange={(e) => setIncludeFooterSignature(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-slate-400"
+          />
+          توقيع إداري في نهاية الصفحة (Excel / PDF)
+        </label>
+      </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <input
           ref={fileRef}

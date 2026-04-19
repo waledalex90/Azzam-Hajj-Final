@@ -27,8 +27,9 @@ const AR_MONTHS = [
   "ديسمبر",
 ];
 
-/** يطابق عناوين أعمدة Excel */
-const COLS: { key: string; ar: string; num?: boolean }[] = [
+type ColPdf = { key: string; ar: string; num?: boolean; signatureCol?: boolean };
+
+const BASE_COLS_PDF: ColPdf[] = [
   { key: "worker_id", ar: "معرف الموظف" },
   { key: "worker_name", ar: "الاسم" },
   { key: "id_number", ar: "رقم الإقامة" },
@@ -42,11 +43,18 @@ const COLS: { key: string; ar: string; num?: boolean }[] = [
   { key: "net_sar", ar: "الصافي", num: true },
 ];
 
+function buildColsPdf(includeRowSignature: boolean): ColPdf[] {
+  if (!includeRowSignature) return BASE_COLS_PDF;
+  const sig: ColPdf = { key: "_sign", ar: "التوقيع", signatureCol: true };
+  const i = BASE_COLS_PDF.findIndex((c) => c.key === "worker_name");
+  if (i < 0) return [...BASE_COLS_PDF, sig];
+  return [...BASE_COLS_PDF.slice(0, i + 1), sig, ...BASE_COLS_PDF.slice(i + 1)];
+}
+
 function hasArabic(s: string) {
   return /[\u0600-\u06FF]/.test(s);
 }
 
-/** خط عربي في سياق رسم PDF LTR: تشكيل ثم عكس ترتيب الحروف للعرض */
 function arPdf(s: string): string {
   if (!s) return "";
   const t = String(s);
@@ -62,14 +70,44 @@ function fmtNum(v: unknown): string {
   return n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function addLogoPdf(
+  doc: jsPDF,
+  margin: number,
+): { deltaY: number } {
+  const logo = readCompanyLogoBuffer();
+  if (!logo) return { deltaY: 0 };
+  try {
+    const b64 = logo.buffer.toString("base64");
+    doc.addImage(b64, logo.format, margin, margin, 52, 15);
+    return { deltaY: 22 };
+  } catch {
+    try {
+      const u8 = new Uint8Array(logo.buffer);
+      doc.addImage(u8, logo.format, margin, margin, 52, 15);
+      return { deltaY: 22 };
+    } catch {
+      return { deltaY: 0 };
+    }
+  }
+}
+
 export async function buildPayrollPdfBuffer(opts: {
   rows: Record<string, unknown>[];
   dateFrom: string;
   dateTo: string;
   year: number;
   month: number;
-  includeSignature: boolean;
+  includeRowSignature?: boolean;
+  includeFooterSignature?: boolean;
+  /** @deprecated */
+  includeSignature?: boolean;
 }): Promise<ArrayBuffer> {
+  const includeRowSignature = Boolean(opts.includeRowSignature);
+  const includeFooterSignature =
+    opts.includeFooterSignature ?? opts.includeSignature ?? false;
+
+  const COLS = buildColsPdf(includeRowSignature);
+
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   doc.setR2L(true);
 
@@ -93,17 +131,8 @@ export async function buildPayrollPdfBuffer(opts: {
   const margin = 10;
   let y = 12;
 
-  const logo = readCompanyLogoBuffer();
-  if (logo) {
-    try {
-      const fmt = logo.format;
-      const u8 = new Uint8Array(logo.buffer);
-      doc.addImage(u8, fmt, margin, margin, 52, 15);
-      y = 32;
-    } catch {
-      /* skip broken image */
-    }
-  }
+  const { deltaY } = addLogoPdf(doc, margin);
+  y += deltaY;
 
   const mo = AR_MONTHS[Math.max(0, Math.min(11, opts.month - 1))];
   const titleLine = `مسير الرواتب — ${mo} ${opts.year}`;
@@ -112,11 +141,21 @@ export async function buildPayrollPdfBuffer(opts: {
   doc.setTextColor(15, 23, 42);
   doc.setFont(arabicFontOk ? FONT_FAMILY : "helvetica", "normal");
   doc.text(arPdf(titleLine), pageW / 2, y, { align: "center" });
-  y += 10;
+  y += 6;
+  doc.setFontSize(9);
+  doc.setTextColor(51, 65, 85);
+  doc.text(
+    arPdf(`فترة الاحتساب: من ${opts.dateFrom} إلى ${opts.dateTo}`),
+    pageW / 2,
+    y,
+    { align: "center" },
+  );
+  y += 8;
 
   const head = [COLS.map((c) => arPdf(c.ar))];
   const body = opts.rows.map((row) =>
     COLS.map((c) => {
+      if (c.signatureCol) return "______________";
       const raw = row[c.key];
       if (c.num) return fmtNum(raw);
       if (c.key === "worker_id") return raw === null || raw === undefined ? "" : String(raw);
@@ -141,7 +180,6 @@ export async function buildPayrollPdfBuffer(opts: {
       lineWidth: 0.05,
       fontStyle: "normal",
     },
-    /** لا نستخدم bold: الخط العربي المضاف بوزن normal فقط؛ Helvetica-Bold يفسد العناوين */
     headStyles: {
       fillColor: [30, 41, 59],
       textColor: 255,
@@ -167,7 +205,7 @@ export async function buildPayrollPdfBuffer(opts: {
 
   doc.setTextColor(100, 116, 139);
   doc.setFontSize(8);
-  if (opts.includeSignature) {
+  if (includeFooterSignature) {
     finalY += 6;
     doc.setFont(arabicFontOk ? FONT_FAMILY : "helvetica", "normal");
     doc.text(arPdf("مسؤول الموارد البشرية: ________________________________"), pageW - margin, finalY, {
