@@ -69,58 +69,82 @@ async function allowedRoleSlugs(): Promise<Set<string>> {
   return LEGACY_SLUGS;
 }
 
-export async function createAppUserAction(formData: FormData) {
-  if (isDemoModeEnabled()) return { ok: true as const };
+/** نتيجة إنشاء مستخدم — للواجهة (useActionState) والاستدعاء المباشر */
+export type CreateAppUserResult =
+  | { success: true; message: string }
+  | { success: false; error: string };
+
+export async function createAppUserAction(formData: FormData): Promise<CreateAppUserResult> {
+  if (isDemoModeEnabled()) {
+    return { success: true, message: "وضع التجربة: لم يُحفظ مستخدم حقيقي." };
+  }
+
   try {
     await assertUsersManage();
-  } catch {
-    return { ok: false as const, error: "لا تملك صلاحية إدارة المستخدمين." };
+
+    const fullName = String(formData.get("fullName") || "").trim();
+    const username = String(formData.get("username") || "").trim();
+    const loginEmailRaw = String(formData.get("loginEmail") || "").trim();
+    const password = String(formData.get("password") || "");
+    const role = String(formData.get("role") || "").trim();
+    const siteIds = parseSiteIdsFromFormData(formData);
+
+    if (!fullName || !username || !password || password.length < 6 || !role) {
+      return { success: false, error: "البيانات ناقصة أو كلمة المرور أقل من 6 أحرف." };
+    }
+
+    const loginEmail = resolveStoredLoginEmail(username, loginEmailRaw, env.authEmailDomain);
+
+    const allowed = await allowedRoleSlugs();
+    if (!allowed.has(role)) {
+      return { success: false, error: "الدور غير صالح." };
+    }
+
+    const admin = createSupabaseAdminClient();
+    const { data: authRes, error: authErr } = await admin.auth.admin.createUser({
+      email: loginEmail,
+      password,
+      email_confirm: true,
+    });
+    if (authErr || !authRes.user) {
+      return { success: false, error: authErr?.message ?? "فشل إنشاء حساب الدخول." };
+    }
+
+    const ins = await admin.from("app_users").insert({
+      auth_user_id: authRes.user.id,
+      full_name: fullName,
+      username,
+      role,
+      login_email: loginEmail,
+      allowed_site_ids: siteIds,
+    });
+
+    if (ins.error) {
+      await admin.auth.admin.deleteUser(authRes.user.id);
+      return { success: false, error: ins.error.message };
+    }
+
+    revalidatePath("/users");
+    return {
+      success: true,
+      message: `تم إنشاء المستخدم «${fullName}» (${username}) بنجاح.`,
+    };
+  } catch (e) {
+    const err = e instanceof Error ? e : new Error(String(e));
+    console.error("[createAppUserAction]", err);
+    if (err.message === "forbidden") {
+      return { success: false, error: "لا تملك صلاحية إدارة المستخدمين." };
+    }
+    return { success: false, error: `فشل الإنشاء: ${err.message}` };
   }
+}
 
-  const fullName = String(formData.get("fullName") || "").trim();
-  const username = String(formData.get("username") || "").trim();
-  const loginEmailRaw = String(formData.get("loginEmail") || "").trim();
-  const password = String(formData.get("password") || "");
-  const role = String(formData.get("role") || "").trim();
-  const siteIds = parseSiteIdsFromFormData(formData);
-
-  if (!fullName || !username || !password || password.length < 6 || !role) {
-    return { ok: false as const, error: "البيانات ناقصة أو كلمة المرور أقل من 6 أحرف." };
-  }
-
-  const loginEmail = resolveStoredLoginEmail(username, loginEmailRaw, env.authEmailDomain);
-
-  const allowed = await allowedRoleSlugs();
-  if (!allowed.has(role)) {
-    return { ok: false as const, error: "الدور غير صالح." };
-  }
-
-  const admin = createSupabaseAdminClient();
-  const { data: authRes, error: authErr } = await admin.auth.admin.createUser({
-    email: loginEmail,
-    password,
-    email_confirm: true,
-  });
-  if (authErr || !authRes.user) {
-    return { ok: false as const, error: authErr?.message ?? "فشل إنشاء حساب الدخول." };
-  }
-
-  const ins = await admin.from("app_users").insert({
-    auth_user_id: authRes.user.id,
-    full_name: fullName,
-    username,
-    role,
-    login_email: loginEmail,
-    allowed_site_ids: siteIds,
-  });
-
-  if (ins.error) {
-    await admin.auth.admin.deleteUser(authRes.user.id);
-    return { ok: false as const, error: ins.error.message };
-  }
-
-  revalidatePath("/users");
-  return { ok: true as const };
+/** لـ `useActionState` — الحالة السابقة غير مستخدمة */
+export async function createAppUserFormAction(
+  _prevState: CreateAppUserResult | null,
+  formData: FormData,
+): Promise<CreateAppUserResult> {
+  return createAppUserAction(formData);
 }
 
 export async function updateAppUserAction(formData: FormData) {

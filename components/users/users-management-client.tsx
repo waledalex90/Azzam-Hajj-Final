@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,16 +13,11 @@ import { PERMISSION_CATALOG } from "@/lib/permissions/keys";
 import { SiteIdsMultiSelect } from "@/components/users/site-ids-multi-select";
 import {
   bulkImportUsersAction,
-  createAppUserAction,
+  createAppUserFormAction,
   deleteAppUserAction,
   resetAppUserPasswordAction,
   updateAppUserAction,
 } from "@/lib/actions/user-role-management";
-
-/** تحويل نتيجة Server Action إلى void ليتوافق مع نوع form action في React 19 */
-async function submitCreateAppUser(fd: FormData): Promise<void> {
-  void (await createAppUserAction(fd));
-}
 async function submitBulkImport(fd: FormData): Promise<void> {
   void (await bulkImportUsersAction(fd));
 }
@@ -61,10 +59,34 @@ function permLabelsForRole(roles: RoleOption[], slug: string): string[] {
 }
 
 export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
+  const router = useRouter();
+  const createFormRef = useRef<HTMLFormElement>(null);
+  const rolesRef = useRef(roles);
   const [q, setQ] = useState("");
   const [roleSlug, setRoleSlug] = useState(roles[0]?.slug ?? "");
+  const [createUserSiteKey, setCreateUserSiteKey] = useState(0);
+  const [createUserState, createUserFormAction, createUserPending] = useActionState(createAppUserFormAction, null);
 
   const preview = useMemo(() => permLabelsForRole(roles, roleSlug), [roles, roleSlug]);
+
+  useEffect(() => {
+    rolesRef.current = roles;
+  }, [roles]);
+
+  useEffect(() => {
+    if (!createUserState) return;
+    if (createUserState.success) {
+      toast.success(createUserState.message, { id: "create-app-user" });
+      createFormRef.current?.reset();
+      queueMicrotask(() => {
+        setRoleSlug(rolesRef.current[0]?.slug ?? "");
+        setCreateUserSiteKey((k) => k + 1);
+      });
+      router.refresh();
+    } else {
+      toast.error(createUserState.error, { id: "create-app-user-err", duration: 12_000 });
+    }
+  }, [createUserState, router]);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -98,7 +120,13 @@ export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
         <>
           <Card className="p-4">
             <h3 className="text-base font-extrabold text-slate-900">إضافة مستخدم</h3>
-            <form className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" action={submitCreateAppUser}>
+            <form
+              ref={createFormRef}
+              className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+              action={createUserFormAction}
+              aria-busy={createUserPending}
+              inert={createUserPending ? true : undefined}
+            >
               <div>
                 <label className="text-xs font-bold text-slate-600">الاسم الكامل</label>
                 <Input name="fullName" required className="mt-1" />
@@ -142,6 +170,7 @@ export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
               </div>
               <div className="sm:col-span-2 lg:col-span-3">
                 <SiteIdsMultiSelect
+                  key={`create-user-sites-${createUserSiteKey}`}
                   sites={sites}
                   initialSelectedIds={[]}
                   label="المواقع المسموح بها (اختياري)"
@@ -154,12 +183,32 @@ export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
                   {preview.length ? preview.map((p) => <li key={p}>{p}</li>) : <li>—</li>}
                 </ul>
               </div>
-              <div className="sm:col-span-2 lg:col-span-3">
-                <Button type="submit" className="bg-slate-900 font-bold text-white">
-                  إنشاء مستخدم
+              <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap items-center gap-3">
+                <Button
+                  type="submit"
+                  disabled={createUserPending}
+                  className="bg-slate-900 font-bold text-white disabled:pointer-events-none disabled:opacity-60"
+                  aria-disabled={createUserPending}
+                >
+                  {createUserPending ? (
+                    <>
+                      <Loader2 className="me-2 inline-block h-4 w-4 animate-spin" aria-hidden />
+                      جاري الإنشاء…
+                    </>
+                  ) : (
+                    "إنشاء مستخدم"
+                  )}
                 </Button>
               </div>
             </form>
+            {createUserState && !createUserState.success ? (
+              <div
+                className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800"
+                role="alert"
+              >
+                {createUserState.error}
+              </div>
+            ) : null}
           </Card>
 
           <Card className="p-4">
