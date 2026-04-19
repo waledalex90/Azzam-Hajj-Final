@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { createPortal, flushSync } from "react-dom";
 
 import { Button } from "@/components/ui/button";
-import type { NoticePrintData } from "@/lib/types/notice-print";
-import { buildNoticeInfractionPdf } from "@/lib/reports/notice-infraction-pdf";
+import type { NoticePrintData } from "@/components/violations/notice-print-document";
+import { NoticePrintDocument } from "@/components/violations/notice-print-document";
 import type { NoticeSiteKey } from "@/lib/data/violations";
 import type { ViolationTypeOption } from "@/lib/types/db";
 
@@ -17,6 +18,7 @@ type Props = {
   violationTypes: ViolationTypeOption[];
   contractors: ContractorMini[];
   workers: WorkerMini[];
+  /** عند عرض إشعار محفوظ — يُستخدم مباشرة للطباعة */
   viewPrintData: NoticePrintData | null;
 };
 
@@ -56,57 +58,64 @@ function buildFromForm(
   };
 }
 
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-/** زر تحميل PDF — توليد برمجي (jsPDF) دون لقطة شاشة أو طباعة المتصفح */
+/** أزرار الطباعة + نموذج طباعة مخفي يظهر فقط داخل @media print */
 export function NoticePrintToolbar({ violationTypes, contractors, workers, viewPrintData }: Props) {
-  const [busy, setBusy] = useState(false);
+  /** لنسخة «جديد»: آخر بيانات جُهّزت للطباعة من النموذج */
+  const [draftPrint, setDraftPrint] = useState<NoticePrintData | null>(null);
+  const [mounted, setMounted] = useState(false);
 
-  const getData = useCallback((): NoticePrintData | null => {
-    if (viewPrintData) return viewPrintData;
-    const form = document.getElementById(NOTICE_FORM_ID);
-    if (!form || !(form instanceof HTMLFormElement)) {
-      window.alert("لم يُعثر على نموذج الإشعار. تأكد أنك في وضع «إصدار إشعار جديد».");
-      return null;
+  useEffect(() => setMounted(true), []);
+
+  const sheetData = viewPrintData ?? draftPrint;
+
+  const runPrint = useCallback(() => {
+    let data: NoticePrintData | null = viewPrintData;
+    if (!data) {
+      const form = document.getElementById(NOTICE_FORM_ID);
+      if (!form || !(form instanceof HTMLFormElement)) {
+        window.alert("لم يُعثر على نموذج الإشعار. تأكد أنك في وضع «إصدار إشعار جديد».");
+        return;
+      }
+      data = buildFromForm(form, contractors, workers);
     }
-    return buildFromForm(form, contractors, workers);
-  }, [viewPrintData, contractors, workers]);
-
-  const handlePdf = useCallback(async () => {
-    const data = getData();
-    if (!data) return;
-    if (data.violationTypeIds.length === 0) {
-      window.alert("اختر نوع مخالفة واحد على الأقل قبل التحميل.");
+    if (!data) {
+      window.alert("تعذّر تجهيز بيانات الطباعة.");
       return;
     }
-    setBusy(true);
-    try {
-      const blob = await buildNoticeInfractionPdf(data, violationTypes);
-      const safeNo = (data.noticeNo || "notice").replace(/[^\w\u0600-\u06FF-]/g, "_");
-      downloadBlob(blob, `اشعار-مخالفة-${safeNo}.pdf`);
-    } catch (e) {
-      console.error(e);
-      window.alert("تعذّر إنشاء ملف PDF. حاول مرة أخرى.");
-    } finally {
-      setBusy(false);
+    if (data.violationTypeIds.length === 0) {
+      window.alert("اختر نوع مخالفة واحد على الأقل قبل الطباعة.");
+      return;
     }
-  }, [getData, violationTypes]);
+    if (!viewPrintData) {
+      flushSync(() => setDraftPrint(data));
+    }
+    window.print();
+  }, [viewPrintData, contractors, workers]);
 
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button type="button" variant="primary" disabled={busy} onClick={handlePdf}>
-        {busy ? "جاري التحميل…" : "تحميل PDF"}
-      </Button>
-    </div>
+    <>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="secondary" onClick={runPrint}>
+          طباعة
+        </Button>
+        <Button
+          type="button"
+          variant="primary"
+          onClick={runPrint}
+          title="نفس نافذة الطباعة — اختر «Microsoft Print to PDF» أو «Save as PDF» لحفظ الملف"
+        >
+          حفظ PDF
+        </Button>
+      </div>
+
+      {mounted &&
+        sheetData &&
+        createPortal(
+          <div className="only-print notice-print-a4 notice-print-portal" aria-hidden>
+            <NoticePrintDocument data={sheetData} violationTypes={violationTypes} />
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
