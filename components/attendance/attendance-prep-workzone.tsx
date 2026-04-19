@@ -18,6 +18,8 @@ type Props = {
   workDate: string;
   /** 1 صباحي، 2 مسائي */
   roundNo: number;
+  siteId?: string;
+  contractorId?: string;
 };
 
 function applyPrepToStats(
@@ -40,6 +42,8 @@ export function AttendancePrepWorkzone({
   initialStatusMap,
   workDate,
   roundNo,
+  siteId,
+  contractorId,
 }: Props) {
   const router = useRouter();
   const [dayStats, setDayStats] = useState(initialDayStats);
@@ -80,6 +84,17 @@ export function AttendancePrepWorkzone({
     await revalidateAttendancePageCache();
     router.refresh();
   }, [router]);
+
+  /** بعد حفظ التحضير: الانتقال لتبويب المراجعة لرؤية السجلات المعلّقة للاعتماد */
+  const goToReviewTab = useCallback(() => {
+    const qs = new URLSearchParams();
+    qs.set("tab", "review");
+    qs.set("date", workDate);
+    qs.set("shift", String(roundNo));
+    if (siteId) qs.set("siteId", siteId);
+    if (contractorId) qs.set("contractorId", contractorId);
+    router.push(`/attendance?${qs.toString()}`);
+  }, [router, workDate, roundNo, siteId, contractorId]);
 
   const allDone = workers.length === 0;
 
@@ -162,6 +177,7 @@ export function AttendancePrepWorkzone({
         filteredTotalRows={scopeIds.length}
         skipServerRefresh
         onAttendanceChunkSaved={onPrepDone}
+        onPrepSuccessNavigate={goToReviewTab}
       />
     </>
   );

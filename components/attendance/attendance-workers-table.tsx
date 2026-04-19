@@ -21,6 +21,8 @@ type Props = {
   skipServerRefresh?: boolean;
   onAttendanceChunkSaved?: (workerIds: number[], status: AttendanceStatus) => void;
   onAttendanceSessionComplete?: () => void;
+  /** بعد نجاح التحضير (صف أو دفعة): الانتقال لتبويب المراجعة */
+  onPrepSuccessNavigate?: () => void;
   suppressEmptyMessage?: boolean;
 };
 
@@ -53,6 +55,7 @@ export function AttendanceWorkersTable({
   skipServerRefresh = false,
   onAttendanceChunkSaved,
   onAttendanceSessionComplete,
+  onPrepSuccessNavigate,
   suppressEmptyMessage = false,
 }: Props) {
   const router = useRouter();
@@ -132,6 +135,7 @@ export function AttendanceWorkersTable({
         void router.refresh();
       }
       onAttendanceSessionComplete?.();
+      onPrepSuccessNavigate?.();
     } finally {
       setIsSaving(false);
     }
@@ -188,6 +192,7 @@ export function AttendanceWorkersTable({
           onAttendanceChunkSaved?.([workerId], status);
           void router.refresh();
         }
+        onPrepSuccessNavigate?.();
       } finally {
         setIsSaving(false);
       }

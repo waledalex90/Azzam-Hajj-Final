@@ -232,6 +232,8 @@ export default async function AttendancePage({ searchParams }: Props) {
           initialStatusMap={initialStatusMap}
           workDate={workDate}
           roundNo={roundNo}
+          siteId={params.siteId}
+          contractorId={params.contractorId}
         />
       ) : (
         <>
