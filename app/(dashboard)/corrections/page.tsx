@@ -21,6 +21,12 @@ type Props = {
 const PAGE_SIZE = 25;
 const PENDING_CAP = 8000;
 
+function toIsoDateOnly(value: string | null | undefined): string | null {
+  if (value == null || value === "") return null;
+  const s = String(value).trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
 export default async function CorrectionsPage({ searchParams }: Props) {
   await requireScreen(PERM.CORRECTIONS_SCREEN);
   const params = await searchParams;
@@ -115,7 +121,10 @@ export default async function CorrectionsPage({ searchParams }: Props) {
     .filter((x): x is typeof x & { check: CheckInfo } => Boolean(x.check));
 
   merged = merged.filter((x) => {
-    if (dateFilter && x.check.workDate !== dateFilter) return false;
+    if (dateFilter) {
+      const rowDay = toIsoDateOnly(x.check.workDate);
+      if (rowDay !== dateFilter) return false;
+    }
     if (siteId && Number.isFinite(siteId) && x.check.siteId !== siteId) return false;
     if (q) {
       const name = x.check.workers?.name?.toLowerCase() ?? "";
@@ -176,6 +185,13 @@ export default async function CorrectionsPage({ searchParams }: Props) {
         <Card className="border-red-200 bg-red-50 text-sm text-red-800">
           <p className="font-bold">تعذّر تحميل الطلبات.</p>
           {error.message ? <p className="mt-1 text-xs opacity-90">{error.message}</p> : null}
+          {error.message?.toLowerCase().includes("correction_requests") ? (
+            <p className="mt-2 text-xs font-bold">
+              أنشئ الجدول في Supabase: نفّذ ملف المشروع{" "}
+              <code className="rounded bg-white/80 px-1">supabase_correction_requests.sql</code> من SQL Editor، ثم من
+              الإعدادات أعد تحميل الـ schema إن لزم.
+            </p>
+          ) : null}
         </Card>
       )}
 
