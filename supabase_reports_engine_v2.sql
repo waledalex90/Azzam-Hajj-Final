@@ -724,6 +724,74 @@ as $$
   limit greatest(1, least(p_page_size, 1000));
 $$;
 
+-- تفاصيل مخالفات معتمدة تُحتسب في خصومات المقاول (نفس فلاتر مستخلص المقاولين)
+create or replace function public.get_contractor_invoice_violation_lines(
+  p_date_start date,
+  p_date_end date,
+  p_site_ids bigint[],
+  p_contractor_ids bigint[],
+  p_supervisor_ids bigint[],
+  p_shift_round smallint
+)
+returns table(
+  contractor_id bigint,
+  contractor_name text,
+  worker_id bigint,
+  worker_name text,
+  violation_id bigint,
+  violation_type_name text,
+  deduction_sar numeric,
+  occurred_at timestamptz,
+  description text
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with worker_allowed as (
+    select w.id as wid
+    from public.workers w
+    where w.is_active = true
+      and w.is_deleted = false
+      and (
+        p_site_ids is null or cardinality(p_site_ids) = 0 or w.current_site_id = any(p_site_ids)
+      )
+      and (
+        p_contractor_ids is null or cardinality(p_contractor_ids) = 0 or w.contractor_id = any(p_contractor_ids)
+      )
+      and (
+        p_supervisor_ids is null
+        or cardinality(p_supervisor_ids) = 0
+        or (w.assigned_supervisor_id is not null and w.assigned_supervisor_id = any(p_supervisor_ids))
+      )
+      and (p_shift_round is null or w.shift_round is null or w.shift_round = p_shift_round)
+      and (
+        auth.role() = 'service_role'
+        or app.is_admin_or_hr()
+        or w.current_site_id = any(app.current_user_site_ids())
+      )
+  )
+  select
+    w.contractor_id,
+    coalesce(c.name, 'غير محدد')::text as contractor_name,
+    wv.worker_id,
+    w.name::text as worker_name,
+    wv.id as violation_id,
+    coalesce(vt.name_ar, '—')::text as violation_type_name,
+    coalesce(wv.deduction_sar, vt.deduction_sar, 0)::numeric(12, 2) as deduction_sar,
+    wv.occurred_at,
+    wv.description
+  from public.worker_violations wv
+  join public.workers w on w.id = wv.worker_id
+  join public.violation_types vt on vt.id = wv.violation_type_id
+  left join public.contractors c on c.id = w.contractor_id
+  where wv.status = 'approved'
+    and (wv.occurred_at at time zone 'Asia/Riyadh')::date between p_date_start and p_date_end
+    and w.id in (select wa.wid from worker_allowed wa)
+  order by contractor_name, worker_name, wv.occurred_at, wv.id;
+$$;
+
 -- ============== Violations detail + payroll period columns ==============
 create or replace function public.get_violations_report_page_v2(
   p_date_from date,
@@ -1156,6 +1224,7 @@ grant execute on function public.get_attendance_log_report_page(date, date, bigi
 grant execute on function public.get_payroll_report_page_v2(date, date, bigint[], bigint[], bigint[], smallint, integer, integer, text) to service_role;
 grant execute on function public.get_worker_period_payroll_map(date, date, bigint[], bigint[], bigint[], smallint) to service_role;
 grant execute on function public.get_contractor_invoice_summary_page(date, date, bigint[], bigint[], bigint[], smallint, integer, integer) to service_role;
+grant execute on function public.get_contractor_invoice_violation_lines(date, date, bigint[], bigint[], bigint[], smallint) to service_role;
 grant execute on function public.get_violations_report_page_v2(date, date, bigint[], bigint[], bigint[], text, smallint, integer, integer) to service_role;
 grant execute on function public.get_workers_master_report_page(bigint[], bigint[], bigint[], text, text, integer, integer) to service_role;
 grant execute on function public.get_monthly_attendance_matrix_page_v2(integer, integer, bigint[], bigint[], bigint[], smallint, integer, integer) to service_role;

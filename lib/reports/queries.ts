@@ -186,6 +186,31 @@ export async function previewPayroll(f: ReportFilters, page: number, search: str
   return { rows, meta: buildPaginationMeta(total, page, PREVIEW_PAYROLL_SIZE) };
 }
 
+/** أسطر مخالفات معتمدة تُجمع في عمود خصومات مستخلص المقاول (للمعاينة) */
+export async function fetchContractorInvoiceViolationLines(f: ReportFilters) {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.rpc("get_contractor_invoice_violation_lines", {
+    p_date_start: f.dateFrom,
+    p_date_end: f.dateTo,
+    p_site_ids: f.siteIds,
+    p_contractor_ids: f.contractorIds,
+    p_supervisor_ids: f.supervisorIds,
+    p_shift_round: f.shiftRound,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Array<{
+    contractor_id: number;
+    contractor_name: string;
+    worker_id: number;
+    worker_name: string;
+    violation_id: number;
+    violation_type_name: string;
+    deduction_sar: number;
+    occurred_at: string;
+    description: string | null;
+  }>;
+}
+
 export async function previewContractors(f: ReportFilters, page: number) {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase.rpc("get_contractor_invoice_summary_page", {

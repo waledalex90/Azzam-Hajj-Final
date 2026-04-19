@@ -72,24 +72,38 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
 
     const occurredAt = new Date(`${date}T${time || "00:00"}:00`);
     const selectedTypes = options.violationTypes.filter((item) => violationTypeIds.includes(item.id));
-    const summary =
+    const typeNamesJoined = selectedTypes.map((item) => item.name_ar).join("، ");
+    const summaryBase =
       `إشعار مخالفة رقم ${noticeNo}\n` +
       `الموقع: ${selectedSite}\n` +
       `المقاول: ${contractor?.name ?? "-"}\n` +
       `اسم مشرف المقاول: ${supervisorName || "-"}\n` +
       `المندوب: ${delegateName || "-"}\n` +
-      `تفاصيل المخالفة: ${selectedTypes.map((item) => item.name_ar).join("، ")}\n` +
+      `تفاصيل المخالفة: ${typeNamesJoined}\n` +
       `ملاحظات: ${notes || "-"}`;
 
-    await supabase.from("worker_violations").insert({
-      worker_id: workerId,
-      site_id: siteIdFromKey,
-      violation_type_id: violationTypeIds[0],
-      description: summary,
-      occurred_at: occurredAt.toISOString(),
-      reported_by: appUser.id,
-      status: "pending_review",
+    /** سجل لكل نوع مخالفة — يُحسب خصم كل نوع في مستخلص المقاول بعد الاعتماد */
+    const rowsToInsert = violationTypeIds.map((vid) => {
+      const typeItem = options.violationTypes.find((t) => t.id === vid);
+      const label = typeItem?.name_ar ?? `نوع #${vid}`;
+      return {
+        worker_id: workerId,
+        site_id: siteIdFromKey,
+        violation_type_id: vid,
+        description: `${summaryBase}\n---\nسجل الخصم: «${label}» (قيمة الخصم من إعدادات النوع عند اعتماد المخالفة).`,
+        occurred_at: occurredAt.toISOString(),
+        reported_by: appUser.id,
+        status: "pending_review" as const,
+      };
     });
+
+    if (rowsToInsert.length === 0) return;
+
+    const { error: insertError } = await supabase.from("worker_violations").insert(rowsToInsert);
+    if (insertError) {
+      console.error(insertError);
+      return;
+    }
 
     revalidatePath("/violations");
     revalidatePath("/dashboard");

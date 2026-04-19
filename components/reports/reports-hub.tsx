@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  getContractorInvoiceViolationLinesAction,
   listReportsFilterOptionsAction,
   runReportsPreviewAction,
   type ReportsTab,
@@ -164,6 +165,20 @@ export function ReportsHub() {
   const [payrollSearch, setPayrollSearch] = useState("");
   const payrollSearchCommitted = useRef<string | null>(null);
   const prevTabRef = useRef<ReportsTab | null>(null);
+  const [contractorViolationLines, setContractorViolationLines] = useState<
+    Array<{
+      contractor_id: number;
+      contractor_name: string;
+      worker_id: number;
+      worker_name: string;
+      violation_id: number;
+      violation_type_name: string;
+      deduction_sar: number;
+      occurred_at: string;
+      description: string | null;
+    }>
+  >([]);
+  const [contractorViolationsLoading, setContractorViolationsLoading] = useState(false);
 
   /** عند الدخول لتبويب المسير: تعبئة فترة الاحتساب من الشهر/السنة الحاليين */
   useEffect(() => {
@@ -199,6 +214,28 @@ export function ReportsHub() {
     horizontalContractor,
     horizontalShift,
   ]);
+
+  useEffect(() => {
+    if (tab !== "contractors") {
+      setContractorViolationLines([]);
+      return;
+    }
+    let cancelled = false;
+    setContractorViolationsLoading(true);
+    void getContractorInvoiceViolationLinesAction(filters)
+      .then((lines) => {
+        if (!cancelled) setContractorViolationLines(lines);
+      })
+      .catch(() => {
+        if (!cancelled) setContractorViolationLines([]);
+      })
+      .finally(() => {
+        if (!cancelled) setContractorViolationsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, filters]);
 
   useEffect(() => {
     let cancelled = false;
@@ -444,6 +481,12 @@ export function ReportsHub() {
             <span className="mt-1 block text-emerald-900">
               مسير الرواتب: حدّد فترة الاحتساب من/إلى يدوياً أو استخدم «ملء الفترة من الشهر والسنة». البحث على السيرفر
               (اسم / إقامة / معرف)؛ تصدير Excel / PDF مع شعار من public/company-logo.png عند وجوده.
+            </span>
+          )}
+          {tab === "contractors" && (
+            <span className="mt-1 block text-emerald-900">
+              مستخلص المقاولين: عمود الخصومات يجمع خصومات المخالفات المعتمدة لعمال المقاول في الفترة (من إشعارات
+              المخالفة بعد الاعتماد). أسفل الصفحة: تفصيل كل سجل خصم.
             </span>
           )}
         </p>
@@ -922,6 +965,66 @@ export function ReportsHub() {
           </div>
         )}
       </Card>
+
+      {tab === "contractors" && (
+        <Card className="space-y-2 p-4">
+          <h2 className="text-sm font-extrabold text-slate-900">تفاصيل خصومات المخالفات (معتمدة ضمن الفترة)</h2>
+          <p className="text-xs text-slate-600">
+            مجموع الأسطر أدناه يطابق عمود «الخصومات» في الجدول أعلاه بعد اعتماد المخالفات. المخالفات قيد المراجعة لا
+            تُحسب حتى تُعتمد.
+          </p>
+          {contractorViolationsLoading ? (
+            <p className="text-sm text-slate-500">جاري تحميل التفاصيل…</p>
+          ) : contractorViolationLines.length === 0 ? (
+            <p className="text-sm text-slate-500">لا توجد مخالفات معتمدة في هذه الفترة ضمن الفلاتر.</p>
+          ) : (
+            <div className="max-h-[360px] overflow-auto rounded-lg border border-slate-200">
+              <table className="min-w-full text-xs">
+                <thead className="sticky top-0 bg-slate-100">
+                  <tr>
+                    <th className="px-2 py-2 text-right">المقاول</th>
+                    <th className="px-2 py-2 text-right">الموظف</th>
+                    <th className="px-2 py-2 text-right">نوع المخالفة</th>
+                    <th className="px-2 py-2 text-left">الخصم</th>
+                    <th className="px-2 py-2 text-right">التاريخ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contractorViolationLines.map((v) => (
+                    <tr key={v.violation_id} className="border-t border-slate-200">
+                      <td className="px-2 py-1 text-right">{v.contractor_name}</td>
+                      <td className="px-2 py-1 text-right">{v.worker_name}</td>
+                      <td className="px-2 py-1 text-right">{v.violation_type_name}</td>
+                      <td className="px-2 py-1 text-left font-mono tabular-nums">
+                        {Number(v.deduction_sar).toLocaleString("en-GB", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </td>
+                      <td className="px-2 py-1 text-right whitespace-nowrap">
+                        {v.occurred_at ? String(v.occurred_at).slice(0, 16).replace("T", " ") : ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-slate-300 bg-slate-50 font-bold">
+                    <td colSpan={3} className="px-2 py-2 text-right">
+                      الإجمالي
+                    </td>
+                    <td className="px-2 py-2 text-left font-mono">
+                      {contractorViolationLines
+                        .reduce((s, x) => s + Number(x.deduction_sar), 0)
+                        .toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

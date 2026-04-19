@@ -2,6 +2,7 @@
 
 import { getSessionContext } from "@/lib/auth/session";
 import {
+  fetchContractorInvoiceViolationLines,
   listReportsFilterOptions,
   previewAttendanceLog,
   previewContractors,
@@ -35,6 +36,12 @@ export async function listReportsFilterOptionsAction() {
   const { appUser } = await getSessionContext();
   if (!appUser) throw new Error("غير مصرح");
   return listReportsFilterOptions();
+}
+
+export async function getContractorInvoiceViolationLinesAction(f: ReportFilters) {
+  const { appUser } = await getSessionContext();
+  if (!appUser) throw new Error("غير مصرح");
+  return fetchContractorInvoiceViolationLines(f);
 }
 
 export async function runReportsPreviewAction(payload: {
