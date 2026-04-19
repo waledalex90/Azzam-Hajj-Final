@@ -110,7 +110,8 @@ export function AttendanceWorkersTable({
           toast.loading(`جاري التحضير… ${i + 1}/${chunks.length}`, { id: progressId });
         }
         const res = await submitAttendancePrepBulk(workDate, status, chunks[i], roundNo, {
-          revalidate: i === chunks.length - 1,
+          /* منع revalidatePath أثناء التحضير المحلي — يتعارض مع تحديث الحالة ثم الانتقال (نفس السلوك لكل الأدوار) */
+          revalidate: skipServerRefresh ? false : i === chunks.length - 1,
         });
         if (!res.ok) {
           toast.error(res.error, { id: progressId });
@@ -177,7 +178,13 @@ export function AttendanceWorkersTable({
       if (isSaving) return;
       setIsSaving(true);
       try {
-        const res = await submitAttendancePrepBulk(workDate, status, [workerId], roundNo);
+        const res = await submitAttendancePrepBulk(
+          workDate,
+          status,
+          [workerId],
+          roundNo,
+          skipServerRefresh ? { revalidate: false } : undefined,
+        );
         if (!res.ok) {
           toast.error(res.error);
           if (skipServerRefresh) void router.refresh();
