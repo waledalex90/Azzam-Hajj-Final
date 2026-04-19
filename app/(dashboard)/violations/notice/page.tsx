@@ -10,6 +10,7 @@ import { PrintButton } from "@/components/violations/print-button";
 import { NoticeLinkedSelects } from "@/components/violations/notice-linked-selects";
 import { NoticeAttachments } from "@/components/violations/notice-attachments";
 import { NoticeViolationTypeDropdown } from "@/components/violations/notice-violation-type-dropdown";
+import { NoticeModeBar } from "@/components/violations/notice-mode-bar";
 import { getSessionContext } from "@/lib/auth/session";
 import {
   getInfractionNoticeOptions,
@@ -23,7 +24,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 type Props = {
-  searchParams: Promise<{ workerQ?: string; saved?: string; viewId?: string }>;
+  searchParams: Promise<{ saved?: string; viewId?: string }>;
 };
 
 function toDateValue(date: Date) {
@@ -143,12 +144,11 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
   }
 
   const params = await searchParams;
-  const workerQ = params.workerQ?.trim();
   const viewIdNum = params.viewId ? Number(params.viewId) : NaN;
   const viewMode = Number.isFinite(viewIdNum) && viewIdNum > 0;
 
   const now = new Date();
-  const options = await getInfractionNoticeOptions(workerQ);
+  const options = await getInfractionNoticeOptions();
 
   let viewBundle: NoticeBundleView | null = null;
   let workersForSelect = options.workers;
@@ -161,7 +161,7 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
     }
   }
 
-  const recentNotices = viewBundle ? [] : await getRecentContractorNotices(12);
+  const recentNotices = await getRecentContractorNotices(15);
 
   const contractorNameForView = viewBundle
     ? ((viewBundle.contractorId != null
@@ -186,45 +186,15 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
         </div>
       </div>
 
-      <Card className="no-print border-teal-200 bg-teal-50/80">
-        <p className="font-extrabold text-slate-900">اختر الوضع</p>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Link href="/violations/notice">
-            <Button variant={!viewBundle ? "primary" : "secondary"} type="button" className="min-h-10 px-4 py-2 text-sm">
-              إشعار مخالفة جديد
-            </Button>
-          </Link>
-          <span className="text-slate-500">|</span>
-          <a
-            href="#recent-contractor-notices"
-            className={
-              viewBundle
-                ? "inline-flex min-h-10 items-center rounded-xl bg-[#166534] px-4 py-2 text-sm font-extrabold text-white shadow-sm hover:bg-[#14532d]"
-                : "inline-flex min-h-10 items-center rounded-xl bg-[#f5efda] px-4 py-2 text-sm font-extrabold text-[#14532d] shadow-sm hover:bg-[#eee2be]"
-            }
-          >
-            عرض إشعار مقاول سابق
-          </a>
-        </div>
-        <p className="mt-2 text-sm text-slate-700">
-          للعرض فقط: انتقل للقائمة أدناه واضغط «عرض» بجانب الإشعار المطلوب، ثم اطبع إن لزم.
-        </p>
-      </Card>
-
-      {!viewBundle ? (
-        <Card className="no-print">
-          <p className="mb-2 font-bold text-slate-900">بحث عامل (تحميل قائمة أوسع من الخادم)</p>
-          <form method="get" className="flex flex-wrap items-end gap-2">
-            <div className="min-w-[220px] flex-1">
-              <label className="text-xs font-bold text-slate-600">الاسم أو رقم الهوية</label>
-              <Input name="workerQ" defaultValue={workerQ ?? ""} placeholder="مثال: 1010 أو جزء من الاسم" className="mt-1" />
-            </div>
-            <Button type="submit" variant="secondary">
-              تطبيق البحث
-            </Button>
-          </form>
-        </Card>
-      ) : null}
+      <NoticeModeBar
+        isViewMode={!!viewBundle}
+        recent={recentNotices.map((n) => ({
+          id: n.id,
+          noticeNo: n.noticeNo,
+          workerName: n.workerName,
+          contractorName: n.contractorName,
+        }))}
+      />
 
       {params.saved === "1" && (
         <Card className="no-print border-emerald-300 bg-emerald-50 text-emerald-800">
@@ -248,26 +218,6 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
             هذا النموذج للمراجعة أو الطباعة فقط. لإصدار إشعار جديد استخدم زر «إشعار مخالفة جديد» أعلاه.
           </p>
         </Card>
-      ) : null}
-
-      {!viewBundle && recentNotices.length > 0 ? (
-        <div id="recent-contractor-notices" className="scroll-mt-20">
-          <Card className="no-print border border-slate-200 p-4">
-            <p className="mb-2 font-bold text-slate-900">إشعارات مقاول حديثة (عرض / طباعة)</p>
-            <ul className="max-h-48 space-y-1 overflow-y-auto text-sm">
-              {recentNotices.map((n) => (
-                <li key={`${n.workerId}-${n.occurredAt}-${n.id}`} className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 py-1">
-                  <span>
-                    إشعار رقم <strong>{n.noticeNo}</strong> — {n.workerName} — {n.contractorName}
-                  </span>
-                  <Link className="shrink-0 font-semibold text-blue-700 underline" href={`/violations/notice?viewId=${n.id}`}>
-                    عرض
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </div>
       ) : null}
 
       <Card className="paper-card overflow-hidden border border-black bg-white p-0">

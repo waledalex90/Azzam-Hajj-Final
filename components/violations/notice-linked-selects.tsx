@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
-import { Input } from "@/components/ui/input";
+import { NoticeWorkerCombobox } from "@/components/violations/notice-worker-combobox";
 import type { ContractorOption, WorkerRow } from "@/lib/types/db";
 
 type Props = {
@@ -13,14 +13,12 @@ type Props = {
     arafatSiteId: number | null;
     muzdalifahSiteId: number | null;
   };
-  /** عرض إشعار محفوظ للطباعة فقط */
   mode?: "edit" | "view";
   initial?: {
     workerId: string;
     contractorId: string;
     siteKey: SiteKey;
   };
-  /** عند mode=view يُفضَّل تمرير النصوص الجاهزة بدل القوائم */
   viewLabels?: {
     contractorName: string;
     workerLabel: string;
@@ -49,7 +47,6 @@ export function NoticeLinkedSelects({
   initial,
   viewLabels,
 }: Props) {
-  const [workerId, setWorkerId] = useState<string>(initial?.workerId ?? "");
   const [contractorId, setContractorId] = useState<string>(initial?.contractorId ?? "");
   const [siteKey, setSiteKey] = useState<SiteKey>(initial?.siteKey ?? "mina");
   const isView = mode === "view";
@@ -73,39 +70,7 @@ export function NoticeLinkedSelects({
     );
   }
 
-  const workerMap = useMemo(() => {
-    const map = new Map<number, WorkerRow>();
-    workers.forEach((worker) => map.set(worker.id, worker));
-    return map;
-  }, [workers]);
-
-  const [workerFilter, setWorkerFilter] = useState("");
-
-  const filteredWorkers = useMemo(() => {
-    const s = workerFilter.trim().toLowerCase();
-    if (!s) return workers;
-    return workers.filter(
-      (w) => w.name.toLowerCase().includes(s) || (w.id_number && w.id_number.includes(s)),
-    );
-  }, [workers, workerFilter]);
-
-  const displayWorkers = useMemo(() => {
-    const list = filteredWorkers;
-    if (!workerId) return list;
-    const wid = Number(workerId);
-    const chosen = workerMap.get(wid);
-    if (chosen && !list.some((w) => w.id === chosen.id)) {
-      return [chosen, ...list];
-    }
-    return list;
-  }, [filteredWorkers, workerId, workerMap]);
-
-  function handleWorkerChange(nextWorkerId: string) {
-    setWorkerId(nextWorkerId);
-    const numericWorkerId = Number(nextWorkerId);
-    if (!numericWorkerId) return;
-    const worker = workerMap.get(numericWorkerId);
-    if (!worker) return;
+  function syncFromWorker(worker: WorkerRow) {
     if (worker.contractor_id) {
       setContractorId(String(worker.contractor_id));
     }
@@ -114,22 +79,7 @@ export function NoticeLinkedSelects({
   }
 
   return (
-    <div className="notice-linked-block space-y-2">
-      <div className="no-print">
-        <label className="block text-xs font-bold text-slate-800">بحث فوري عن العامل</label>
-        <Input
-          type="search"
-          value={workerFilter}
-          onChange={(e) => setWorkerFilter(e.target.value)}
-          placeholder="اسم أو رقم هوية…"
-          className="mt-1 max-w-md border border-black"
-          autoComplete="off"
-        />
-        <p className="mt-0.5 text-xs text-slate-600">
-          يظهر {displayWorkers.length} من أصل {workers.length} — استخدم «تطبيق البحث» أعلى الصفحة لتحميل المزيد من الخادم
-        </p>
-      </div>
-      <div className="paper-grid three">
+    <div className="paper-grid three">
       <label>
         بيانات المقاول:
         <select
@@ -151,22 +101,12 @@ export function NoticeLinkedSelects({
       </label>
       <label>
         العامل:
-        <select
-          name="workerId"
-          required={!isView}
-          disabled={isView}
-          value={workerId}
-          onChange={(e) => handleWorkerChange(e.target.value)}
-        >
-          <option value="" disabled>
-            اختر العامل
-          </option>
-          {displayWorkers.map((worker) => (
-            <option key={worker.id} value={worker.id}>
-              {worker.name} - {worker.id_number}
-            </option>
-          ))}
-        </select>
+        <NoticeWorkerCombobox
+          workers={workers}
+          initialWorkerId={initial?.workerId}
+          onPickWorker={(w) => syncFromWorker(w)}
+          required
+        />
       </label>
       <label>
         الموقع (المشعر):
@@ -182,7 +122,6 @@ export function NoticeLinkedSelects({
           <option value="muzdalifah">مزدلفة</option>
         </select>
       </label>
-      </div>
     </div>
   );
 }

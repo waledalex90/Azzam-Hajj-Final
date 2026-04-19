@@ -104,8 +104,8 @@ export default async function ViolationsPage({ searchParams }: Props) {
           </Link>
         </div>
         <p className="mt-1 text-sm text-slate-600">
-          عرض المخالفات بشكل منظم مع خيارات فرز حسب الحالة والموقع. المخالفات <strong>المعتمدة</strong> تُستخدم في
-          خصومات المقاول (المستخلصات) وفق قيمة الخصم المعرّفة لنوع المخالفة.
+          راجع المخالفات المعلّقة، وحدّد <strong>مبلغ الخصم على المقاول (ر.س)</strong> لكل سطر ثم اعتمد؛ القيمة تُحفظ على
+          السجل وتُستخدم في المستخلصات. القيمة الافتراضية مأخوذة من إعداد نوع المخالفة ويمكن تعديلها قبل الاعتماد.
         </p>
         <form className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-7" method="get">
           <select
