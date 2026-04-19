@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 
 import { getSessionContext } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
+import { isAdminOrHrRole } from "@/lib/auth/transfer-access";
 import { PERM } from "@/lib/permissions/keys";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
@@ -16,8 +17,8 @@ export async function resolveCorrectionRequest(
 ): Promise<CorrectionActionResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser } = await getSessionContext();
-  if (!appUser || !hasPermission(appUser, PERM.APPROVAL)) {
-    return { ok: false, error: "لا توجد صلاحية لتعديل الطلبات." };
+  if (!appUser || (!hasPermission(appUser, PERM.APPROVAL) && !isAdminOrHrRole(appUser.role))) {
+    return { ok: false, error: "لا توجد صلاحية لاعتماد طلب التعديل (موارد/أدمن أو من لديه اعتماد)." };
   }
   if (!requestId || !["present", "absent", "half"].includes(status)) {
     return { ok: false, error: "بيانات غير صالحة." };
@@ -39,12 +40,13 @@ export async function resolveCorrectionRequest(
 
   const checkId = reqRow.attendance_id;
 
+  const statusAr = status === "present" ? "حاضر" : status === "absent" ? "غائب" : "نصف يوم";
   const { error: upCheck } = await supabase
     .from("attendance_checks")
     .update({
       status,
       confirmation_status: "confirmed",
-      confirm_note: "تعديل من طلبات التصحيح",
+      confirm_note: `اعتماد طلب تعديل — الحالة: ${statusAr}`,
       confirmed_at: new Date().toISOString(),
     })
     .eq("id", checkId);
