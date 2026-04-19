@@ -55,9 +55,11 @@ export default async function AttendancePage({ searchParams }: Props) {
   const appUser = await requireScreen(PERM.PREP);
   const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
   const canCorrection = Boolean(appUser && hasPermission(appUser, PERM.CORRECTION_REQUEST));
+  /** طابور المراجعة والاعتماد: للمراقب الفني (ومن لديهم صلاحية الاعتماد) فقط — لا للمراقب الميداني. */
+  const canAccessReviewQueue = hasPermission(appUser, PERM.APPROVAL);
 
   const params = await searchParams;
-  const activeTab = params.tab === "review" ? "review" : "workers";
+  const activeTab = params.tab === "review" && canAccessReviewQueue ? "review" : "workers";
   let siteId = params.siteId ? Number(params.siteId) : undefined;
   if (allowedSiteIds !== undefined) {
     if (allowedSiteIds.length === 0) {
@@ -160,10 +162,21 @@ export default async function AttendancePage({ searchParams }: Props) {
     <section className="space-y-4">
       <AttendanceSyncBridge />
       <Card>
-        <h1 className="text-lg font-extrabold text-slate-900">تسجيل الحضور والمراجعة</h1>
+        <h1 className="text-lg font-extrabold text-slate-900">
+          {canAccessReviewQueue ? "تسجيل الحضور والمراجعة" : "تسجيل الحضور (التحضير الميداني)"}
+        </h1>
         <p className="mt-1 text-sm text-slate-600">
-          تبويب «الموظفون والتحضير» للتسجيل فقط (حاضر / غائب / نصف يوم). تبويب «مراجعة تحضير اليوم» لمراجعة السجلات
-          وطلب التعديل أو إعادة التحضير للعامل.
+          {canAccessReviewQueue ? (
+            <>
+              تبويب «الموظفون والتحضير» للتسجيل فقط (حاضر / غائب / نصف يوم). تبويب «مراجعة تحضير اليوم» لمراجعة
+              السجلات وطلب التعديل أو إعادة التحضير للعامل.
+            </>
+          ) : (
+            <>
+              تحضيرك هنا <span className="font-extrabold text-slate-800">أوليّ للميدان</span> ويُرسل لطابور المراقب
+              الفني للاعتماد أو الرفض؛ لا يُعتبر اعتماداً نهائياً من جهتك.
+            </>
+          )}
         </p>
 
         <div className="mt-3 flex items-center gap-2 border-b border-slate-200 text-sm">
@@ -177,16 +190,18 @@ export default async function AttendancePage({ searchParams }: Props) {
           >
             الموظفون والتحضير
           </Link>
-          <Link
-            href={`/attendance?tab=review&date=${workDate}&shift=${roundNo}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
-            className={`rounded-t-xl px-3 py-2 font-extrabold ${
-              activeTab === "review"
-                ? "bg-emerald-50 text-emerald-700"
-                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-            }`}
-          >
-            مراجعة تحضير اليوم
-          </Link>
+          {canAccessReviewQueue ? (
+            <Link
+              href={`/attendance?tab=review&date=${workDate}&shift=${roundNo}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
+              className={`rounded-t-xl px-3 py-2 font-extrabold ${
+                activeTab === "review"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+              }`}
+            >
+              مراجعة تحضير اليوم
+            </Link>
+          ) : null}
         </div>
 
         <p className="mt-2 text-xs text-slate-600">
@@ -231,6 +246,7 @@ export default async function AttendancePage({ searchParams }: Props) {
           roundNo={roundNo}
           siteId={params.siteId}
           contractorId={params.contractorId}
+          offerReviewNavigation={canAccessReviewQueue}
         />
       ) : (
         <>
