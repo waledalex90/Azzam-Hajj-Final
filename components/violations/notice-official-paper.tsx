@@ -193,7 +193,7 @@ export function NoticeOfficialHeader() {
         <p className="np-sub-title">مشاريع دورات المياه موسم حج 1447هـ</p>
       </div>
       <div className="np-logo">
-        <BrandLogo priority className="np-logo-img" />
+        <BrandLogo priority framed={false} className="np-logo-img" />
       </div>
     </div>
   );
