@@ -16,9 +16,7 @@ type Props = { searchParams: Promise<{ date?: string }> };
 export default async function DashboardHomePage({ searchParams }: Props) {
   const params = await searchParams;
   const filterDate =
-    params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)
-      ? params.date
-      : new Date().toISOString().slice(0, 10);
+    params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : null;
 
   const { appUser } = await getSessionContext();
   if (appUser && !hasPermission(appUser, PERM.DASHBOARD)) {
@@ -28,8 +26,8 @@ export default async function DashboardHomePage({ searchParams }: Props) {
   const siteScope = appUser ? await resolveAllowedSiteIdsForSession(appUser) : undefined;
 
   const [attendanceStats, dashboardData] = await Promise.all([
-    getDashboardStats(filterDate, siteScope),
-    getAdminDashboardData(filterDate, siteScope),
+    getDashboardStats(filterDate ?? undefined, siteScope),
+    getAdminDashboardData(filterDate ?? undefined, siteScope),
   ]);
 
   const transferAlerts = appUser
@@ -105,9 +103,11 @@ export default async function DashboardHomePage({ searchParams }: Props) {
 
       <Card className="border border-emerald-100 bg-emerald-50/40">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-extrabold text-slate-900">حضور — {filterDate}</h2>
+          <h2 className="text-sm font-extrabold text-slate-900">
+            حضور — {filterDate ?? "لم يُحدد التاريخ"}
+          </h2>
           <div className="flex flex-wrap items-center gap-2">
-            <DashboardDateFilter currentDate={filterDate} />
+            <DashboardDateFilter currentDate={filterDate ?? ""} />
             <Compass className="h-4 w-4 text-emerald-600" />
           </div>
         </div>
@@ -164,7 +164,9 @@ export default async function DashboardHomePage({ searchParams }: Props) {
 
       <Card className="min-h-[160px]">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-extrabold text-slate-900">المواقع — حضور {filterDate}</h2>
+          <h2 className="text-sm font-extrabold text-slate-900">
+            المواقع — حضور {filterDate ?? "—"}
+          </h2>
           <MapPin className="h-4 w-4 text-slate-400" />
         </div>
         <div className="mt-3 max-h-[280px] space-y-2 overflow-y-auto text-sm">

@@ -152,7 +152,13 @@ export default async function CorrectionsPage({ searchParams }: Props) {
         <form className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4" method="get">
           <div className="sm:col-span-2 lg:col-span-1">
             <label className="block text-xs font-bold text-slate-600">تصفية اختيارية بيوم العمل</label>
-            <Input type="date" name="date" defaultValue={params.date ?? ""} className="mt-1" />
+            <Input
+              type="date"
+              name="date"
+              defaultValue={params.date ?? ""}
+              placeholder="اختر التاريخ"
+              className="mt-1"
+            />
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-600">الموقع</label>

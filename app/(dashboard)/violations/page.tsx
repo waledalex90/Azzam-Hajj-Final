@@ -131,8 +131,8 @@ export default async function ViolationsPage({ searchParams }: Props) {
             placeholder="بحث عامل (اسم / هوية)"
             className="min-h-12"
           />
-          <Input name="dateFrom" type="date" defaultValue={dateFrom} />
-          <Input name="dateTo" type="date" defaultValue={dateTo} />
+          <Input name="dateFrom" type="date" defaultValue={dateFrom ?? ""} placeholder="اختر التاريخ" />
+          <Input name="dateTo" type="date" defaultValue={dateTo ?? ""} placeholder="اختر التاريخ" />
           <select
             name="shiftRound"
             defaultValue={params.shiftRound ?? ""}
@@ -185,7 +185,7 @@ export default async function ViolationsPage({ searchParams }: Props) {
               </option>
             ))}
           </select>
-          <Input name="occurredAt" type="datetime-local" />
+          <Input name="occurredAt" type="datetime-local" placeholder="اختر التاريخ" />
           <textarea
             name="description"
             placeholder="وصف المخالفة"

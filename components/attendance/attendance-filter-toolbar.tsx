@@ -18,7 +18,7 @@ function buildQuery(base: {
 }) {
   const p = new URLSearchParams();
   p.set("tab", base.tab);
-  p.set("date", base.date);
+  if (base.date.trim() !== "") p.set("date", base.date);
   p.set("shift", base.shift);
   if (base.siteId) p.set("siteId", base.siteId);
   if (base.includeContractor && base.contractorId) p.set("contractorId", base.contractorId);

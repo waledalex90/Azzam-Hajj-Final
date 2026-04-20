@@ -65,9 +65,12 @@ async function countDistinctContractorsForSites(siteIds: number[]): Promise<numb
   return set.size;
 }
 
-async function getAdminDashboardDataUncached(targetDate: string, siteScope?: number[]): Promise<AdminDashboardData> {
+async function getAdminDashboardDataUncached(
+  targetDate: string | null,
+  siteScope?: number[],
+): Promise<AdminDashboardData> {
   const supabase = createSupabaseAdminClient();
-  const today = targetDate;
+  const iqamaFrom = new Date().toISOString().slice(0, 10);
   const after30Days = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString().slice(0, 10);
 
   if (siteScope && siteScope.length === 0) {
@@ -136,7 +139,7 @@ async function getAdminDashboardDataUncached(targetDate: string, siteScope?: num
     .eq("is_active", true)
     .eq("is_deleted", false)
     .not("iqama_expiry", "is", null)
-    .gte("iqama_expiry", today)
+    .gte("iqama_expiry", iqamaFrom)
     .lte("iqama_expiry", after30Days)
     .order("iqama_expiry", { ascending: true })
     .limit(6);
@@ -178,25 +181,27 @@ async function getAdminDashboardDataUncached(targetDate: string, siteScope?: num
   };
 
   let siteAttendanceToday: SiteAttendanceRow[] = [];
-  try {
-    const siteList = (await getSiteOptions()).filter((s) => !scoped || siteScope!.includes(s.id));
-    const rows = await Promise.all(
-      siteList.map(async (s) => {
-        const st = await getAttendanceDayStats(today, s.id);
-        return {
-          siteId: s.id,
-          siteName: s.name,
-          totalWorkers: st.total,
-          present: st.present,
-          absent: st.absent,
-          half: st.half,
-          pending: st.pending,
-        } satisfies SiteAttendanceRow;
-      }),
-    );
-    siteAttendanceToday = rows.sort((a, b) => b.pending - a.pending || a.siteName.localeCompare(b.siteName, "ar"));
-  } catch {
-    siteAttendanceToday = [];
+  if (targetDate) {
+    try {
+      const siteList = (await getSiteOptions()).filter((s) => !scoped || siteScope!.includes(s.id));
+      const rows = await Promise.all(
+        siteList.map(async (s) => {
+          const st = await getAttendanceDayStats(targetDate, s.id);
+          return {
+            siteId: s.id,
+            siteName: s.name,
+            totalWorkers: st.total,
+            present: st.present,
+            absent: st.absent,
+            half: st.half,
+            pending: st.pending,
+          } satisfies SiteAttendanceRow;
+        }),
+      );
+      siteAttendanceToday = rows.sort((a, b) => b.pending - a.pending || a.siteName.localeCompare(b.siteName, "ar"));
+    } catch {
+      siteAttendanceToday = [];
+    }
   }
 
   return {
@@ -208,18 +213,33 @@ async function getAdminDashboardDataUncached(targetDate: string, siteScope?: num
   };
 }
 
-function resolveDashboardDate(workDate?: string): string {
-  return workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate) ? workDate : new Date().toISOString().slice(0, 10);
+const EMPTY_DASHBOARD_STATS: DashboardStats = {
+  presentToday: 0,
+  absentToday: 0,
+  halfToday: 0,
+  pendingToday: 0,
+  totalActiveWorkers: 0,
+  violationsToday: 0,
+};
+
+function parseDashboardDate(workDate?: string | null): string | null {
+  if (workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate)) return workDate;
+  return null;
 }
 
 export async function getDashboardStats(
-  workDate?: string,
+  workDate?: string | null,
   /** `undefined` = كل المواقع؛ مصفوفة = تقييد كصفحة التحضير */
   siteScope?: number[],
 ): Promise<DashboardStats> {
-  return getDashboardStatsUncached(resolveDashboardDate(workDate), siteScope);
+  const d = parseDashboardDate(workDate ?? undefined);
+  if (!d) return { ...EMPTY_DASHBOARD_STATS };
+  return getDashboardStatsUncached(d, siteScope);
 }
 
-export async function getAdminDashboardData(workDate?: string, siteScope?: number[]): Promise<AdminDashboardData> {
-  return getAdminDashboardDataUncached(resolveDashboardDate(workDate), siteScope);
+export async function getAdminDashboardData(
+  workDate?: string | null,
+  siteScope?: number[],
+): Promise<AdminDashboardData> {
+  return getAdminDashboardDataUncached(parseDashboardDate(workDate ?? undefined), siteScope);
 }

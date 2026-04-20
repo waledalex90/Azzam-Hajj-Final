@@ -1,0 +1,81 @@
+/* تنسيقات فوق react-day-picker — Minimal بألوان الهوية */
+.wrap :global(.rdp-root) {
+  --rdp-accent-color: #14532d;
+  --rdp-accent-background-color: #dcfce7;
+  --rdp-day-height: 2.65rem;
+  --rdp-day-width: 2.65rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.wrap :global(.rdp-month_caption) {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  padding-bottom: 0.35rem;
+}
+
+.wrap :global(.rdp-weekday) {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #64748b;
+  opacity: 1;
+}
+
+.wrap :global(.rdp-day_button) {
+  border-radius: 0.65rem;
+  padding: 0.45rem 0.35rem;
+  min-height: 2.65rem;
+  min-width: 2.65rem;
+  font-size: 1.02rem;
+  font-weight: 700;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    transform 120ms ease;
+}
+
+.wrap :global(.rdp-day_button:hover:not([disabled])) {
+  background-color: #f1f5f9;
+  color: #14532d;
+}
+
+.wrap :global(.rdp-selected .rdp-day_button) {
+  background-color: #14532d !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgb(20 83 45 / 0.35);
+}
+
+.wrap :global(.rdp-today:not(.rdp-selected) .rdp-day_button) {
+  border: 2px solid #d4af37;
+  color: #14532d;
+  font-weight: 800;
+}
+
+.wrap :global(.rdp-outside .rdp-day_button) {
+  color: #94a3b8;
+  opacity: 0.75;
+}
+
+.wrap :global(.rdp-disabled .rdp-day_button) {
+  opacity: 0.35;
+}
+
+.wrap :global(.rdp-nav button) {
+  border-radius: 0.5rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: #14532d;
+  font-weight: 800;
+}
+
+.wrap :global(.rdp-nav button:hover) {
+  background-color: #f1f5f9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wrap :global(.rdp-day_button) {
+    transition: none;
+  }
+}

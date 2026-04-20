@@ -21,10 +21,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/icons/icon-192.svg", type: "image/svg+xml" },
-      { url: "/icons/icon-512.svg", type: "image/svg+xml" },
+      { url: "/icons/abn-icon-192.svg", type: "image/svg+xml", sizes: "192x192" },
+      { url: "/icons/abn-icon-512.svg", type: "image/svg+xml", sizes: "512x512" },
     ],
-    apple: [{ url: "/icons/icon-192.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/icons/abn-icon-192.svg", type: "image/svg+xml" }],
+    shortcut: ["/icons/abn-icon-192.svg"],
   },
 };
 

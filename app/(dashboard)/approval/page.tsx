@@ -47,7 +47,7 @@ function approvalQueryString(params: {
 }) {
   const q = new URLSearchParams();
   q.set("tab", params.tab);
-  q.set("date", params.workDate);
+  if (params.workDate.trim() !== "") q.set("date", params.workDate);
   q.set("shift", String(params.roundNo));
   if (params.siteId) q.set("siteId", params.siteId);
   if (params.contractorId) q.set("contractorId", params.contractorId);
@@ -76,9 +76,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
   }
   const contractorId = params.contractorId ? Number(params.contractorId) : undefined;
   const workDate =
-    params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)
-      ? params.date
-      : new Date().toISOString().slice(0, 10);
+    params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : "";
 
   const roundNo = normalizeShiftRound(params.shift);
 
@@ -93,56 +91,60 @@ export default async function ApprovalPage({ searchParams }: Props) {
   let approvalStats = { pending: 0, confirmed: 0, total: 0 };
 
   try {
-    [sites, contractors, approvalStats] = await Promise.all([
-      getSiteOptionsLive(),
-      getContractorOptionsLive(),
-      getApprovalFilterCounts({
-        workDate,
-        siteId: sid,
-        contractorId: cid,
-        roundNo,
-        allowedSiteIds,
-      }),
-    ]);
+    if (!workDate) {
+      [sites, contractors] = await Promise.all([getSiteOptionsLive(), getContractorOptionsLive()]);
+    } else {
+      [sites, contractors, approvalStats] = await Promise.all([
+        getSiteOptionsLive(),
+        getContractorOptionsLive(),
+        getApprovalFilterCounts({
+          workDate,
+          siteId: sid,
+          contractorId: cid,
+          roundNo,
+          allowedSiteIds,
+        }),
+      ]);
 
-    [pendingBlock, historyBlock, pendingFilteredTotal] = await Promise.all([
-      activeTab === "pending"
-        ? getAttendanceChecksPage({
-            page: 1,
-            pageSize: FULL_LOAD,
-            workDate,
-            siteId: sid,
-            allowedSiteIds,
-            contractorId: cid,
-            search: undefined,
-            confirmationStatus: "pending",
-            roundNo,
-          })
-        : Promise.resolve(null),
-      activeTab === "history"
-        ? getAttendanceChecksPage({
-            page: 1,
-            pageSize: FULL_LOAD,
-            workDate,
-            siteId: sid,
-            allowedSiteIds,
-            contractorId: cid,
-            search: undefined,
-            confirmationStatus: "confirmed",
-            roundNo,
-          })
-        : Promise.resolve(null),
-      activeTab === "pending"
-        ? getPendingApprovalCheckIds({
-            workDate,
-            siteId: sid,
-            contractorId: cid,
-            search: undefined,
-            roundNo,
-            allowedSiteIds,
-          }).then((ids) => ids.length)
-        : Promise.resolve(0),
-    ]);
+      [pendingBlock, historyBlock, pendingFilteredTotal] = await Promise.all([
+        activeTab === "pending"
+          ? getAttendanceChecksPage({
+              page: 1,
+              pageSize: FULL_LOAD,
+              workDate,
+              siteId: sid,
+              allowedSiteIds,
+              contractorId: cid,
+              search: undefined,
+              confirmationStatus: "pending",
+              roundNo,
+            })
+          : Promise.resolve(null),
+        activeTab === "history"
+          ? getAttendanceChecksPage({
+              page: 1,
+              pageSize: FULL_LOAD,
+              workDate,
+              siteId: sid,
+              allowedSiteIds,
+              contractorId: cid,
+              search: undefined,
+              confirmationStatus: "confirmed",
+              roundNo,
+            })
+          : Promise.resolve(null),
+        activeTab === "pending"
+          ? getPendingApprovalCheckIds({
+              workDate,
+              siteId: sid,
+              contractorId: cid,
+              search: undefined,
+              roundNo,
+              allowedSiteIds,
+            }).then((ids) => ids.length)
+          : Promise.resolve(0),
+      ]);
+    }
   } catch {
     sites = [];
     contractors = [];
@@ -222,7 +224,14 @@ export default async function ApprovalPage({ searchParams }: Props) {
       </Card>
 
       <TabPanelTransition key={activeTab}>
-        {activeTab === "pending" ? (
+        {!workDate ? (
+          <Card className="border-amber-200 bg-amber-50/60 p-6 text-center">
+            <p className="text-base font-extrabold text-amber-950">اختر تاريخ العمل</p>
+            <p className="mt-2 text-sm text-amber-900/90">
+              من فضلك اختر التاريخ من الحقل أعلاه لعرض الاعتمادات المعلقة أو المعتمدة.
+            </p>
+          </Card>
+        ) : activeTab === "pending" ? (
           <ApprovalPendingShell
             key={`pend-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${mountKey}`}
             initialRows={pendingRows}

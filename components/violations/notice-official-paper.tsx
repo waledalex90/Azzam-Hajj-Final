@@ -20,11 +20,25 @@ export function NoticeOfficialMetaRow({ dateDefault, timeDefault, noticeNo, read
         <tr>
           <td className="np-td">
             <span className="np-inline-label">التاريخ:</span>
-            <Input name="date" type="date" readOnly={readOnly} defaultValue={dateDefault} className="np-field" />
+            <Input
+              name="date"
+              type="date"
+              readOnly={readOnly}
+              defaultValue={dateDefault}
+              placeholder="اختر التاريخ"
+              className="np-field"
+            />
           </td>
           <td className="np-td">
             <span className="np-inline-label">الوقت:</span>
-            <Input name="time" type="time" readOnly={readOnly} defaultValue={timeDefault} className="np-field" />
+            <Input
+              name="time"
+              type="time"
+              readOnly={readOnly}
+              defaultValue={timeDefault}
+              placeholder="اختر الوقت"
+              className="np-field"
+            />
           </td>
           <td className="np-td">
             <span className="np-inline-label">رقم الإشعار:</span>

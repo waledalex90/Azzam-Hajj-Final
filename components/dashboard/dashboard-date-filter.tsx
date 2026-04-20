@@ -8,7 +8,7 @@ export function DashboardDateFilter({ currentDate }: { currentDate: string }) {
   const router = useRouter();
   return (
     <DatePickerField
-      key={currentDate}
+      key={currentDate || "none"}
       name="date"
       defaultValue={currentDate}
       onCommitted={(d) => {

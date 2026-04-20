@@ -70,6 +70,7 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
     const mediaFiles = mediaRaw.filter((f): f is File => typeof f === "object" && f !== null && "size" in f && f.size > 0);
 
     if (!workerId || !contractorId || violationTypeIds.length === 0) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
 
     const { appUser } = await getSessionContext();
     if (!appUser || !hasPermission(appUser, PERM.VIOLATION_NOTICE)) return;
@@ -145,7 +146,6 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
   const viewIdNum = params.viewId ? Number(params.viewId) : NaN;
   const viewMode = Number.isFinite(viewIdNum) && viewIdNum > 0;
 
-  const now = new Date();
   const options = await getInfractionNoticeOptions();
 
   let viewBundle: NoticeBundleView | null = null;
@@ -258,7 +258,7 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
             encType="multipart/form-data"
             dir="rtl"
           >
-            <EditNoticeBody options={options} workersForSelect={workersForSelect} now={now} />
+            <EditNoticeBody options={options} workersForSelect={workersForSelect} />
           </form>
         )}
       </Card>
@@ -1084,19 +1084,17 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
 function EditNoticeBody({
   options,
   workersForSelect,
-  now,
 }: {
   options: Awaited<ReturnType<typeof getInfractionNoticeOptions>>;
   workersForSelect: Awaited<ReturnType<typeof getInfractionNoticeOptions>>["workers"];
-  now: Date;
 }) {
   return (
     <>
       <NoticeOfficialHeader />
 
       <NoticeOfficialMetaRow
-        dateDefault={toDateValue(now)}
-        timeDefault={toTimeValue(now)}
+        dateDefault=""
+        timeDefault=""
         noticeNo={String(options.noticeNo)}
       />
 

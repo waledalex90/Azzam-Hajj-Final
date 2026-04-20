@@ -460,7 +460,7 @@ export default async function WorkersPage({ searchParams }: Props) {
                 <option value="daily">راتب يومي</option>
               </select>
               <Input name="basicSalary" type="number" step="0.01" placeholder="الراتب المتفق عليه" />
-              <Input name="iqamaExpiry" type="date" placeholder="تاريخ انتهاء الإقامة" />
+              <Input name="iqamaExpiry" type="date" placeholder="اختر التاريخ" />
               <div className="flex items-end">
                 <button
                   type="submit"

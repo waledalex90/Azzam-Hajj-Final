@@ -21,16 +21,6 @@ import { MultiEntityPicker } from "./multi-entity-picker";
 import { PayrollReportTable } from "./payroll-report-table";
 import { PayrollReportToolbar } from "./payroll-report-toolbar";
 
-function defaultDates() {
-  const to = new Date();
-  const from = new Date();
-  from.setDate(from.getDate() - 30);
-  return {
-    dateFrom: from.toISOString().slice(0, 10),
-    dateTo: to.toISOString().slice(0, 10),
-  };
-}
-
 function buildFilters(
   dateFrom: string,
   dateTo: string,
@@ -132,10 +122,9 @@ const TABS: { id: ReportsTab; label: string }[] = [
 ];
 
 export function ReportsHub() {
-  const init = defaultDates();
   const [tab, setTab] = useState<ReportsTab>("attendance_log");
-  const [dateFrom, setDateFrom] = useState(init.dateFrom);
-  const [dateTo, setDateTo] = useState(init.dateTo);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [siteIds, setSiteIds] = useState<number[]>([]);
@@ -165,7 +154,6 @@ export function ReportsHub() {
   const [payrollSearchInput, setPayrollSearchInput] = useState("");
   const [payrollSearch, setPayrollSearch] = useState("");
   const payrollSearchCommitted = useRef<string | null>(null);
-  const prevTabRef = useRef<ReportsTab | null>(null);
   const [contractorViolationLines, setContractorViolationLines] = useState<
     Array<{
       contractor_id: number;
@@ -180,16 +168,6 @@ export function ReportsHub() {
     }>
   >([]);
   const [contractorViolationsLoading, setContractorViolationsLoading] = useState(false);
-
-  /** عند الدخول لتبويب المسير: تعبئة فترة الاحتساب من الشهر/السنة الحاليين */
-  useEffect(() => {
-    if (tab === "payroll" && prevTabRef.current !== "payroll") {
-      const b = monthDateBounds(year, month);
-      setDateFrom(b.dateFrom);
-      setDateTo(b.dateTo);
-    }
-    prevTabRef.current = tab;
-  }, [tab, year, month]);
 
   const filters = useMemo((): ReportFilters => {
     if (tab === "horizontal_report") {
@@ -219,6 +197,11 @@ export function ReportsHub() {
   useEffect(() => {
     if (tab !== "contractors") {
       setContractorViolationLines([]);
+      return;
+    }
+    if (!filters.dateFrom.trim() || !filters.dateTo.trim()) {
+      setContractorViolationLines([]);
+      setContractorViolationsLoading(false);
       return;
     }
     let cancelled = false;
@@ -256,6 +239,18 @@ export function ReportsHub() {
     setLoading(true);
     setError(null);
     try {
+      const needsDateRange =
+        tab === "attendance_log" ||
+        tab === "payroll" ||
+        tab === "contractors" ||
+        tab === "violations";
+      if (needsDateRange && (!dateFrom.trim() || !dateTo.trim())) {
+        setRows([]);
+        setMeta(null);
+        setError(null);
+        return;
+      }
+
       const res = await runReportsPreviewAction({
         tab,
         page,
@@ -283,6 +278,8 @@ export function ReportsHub() {
     filters,
     year,
     month,
+    dateFrom,
+    dateTo,
     attendanceStatus,
     violationStatus,
     workerStatus,
@@ -296,6 +293,10 @@ export function ReportsHub() {
 
   useEffect(() => {
     if (tab !== "payroll") return;
+    if (!filters.dateFrom.trim() || !filters.dateTo.trim()) {
+      setPayrollLocked(false);
+      return;
+    }
     let cancelled = false;
     void (async () => {
       try {
@@ -631,13 +632,23 @@ export function ReportsHub() {
               <p className="text-xs font-bold text-slate-700">
                 {tab === "payroll" ? "فترة الاحتساب — من" : "من تاريخ"}
               </p>
-              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                placeholder="اختر التاريخ"
+              />
             </div>
             <div className="space-y-1">
               <p className="text-xs font-bold text-slate-700">
                 {tab === "payroll" ? "فترة الاحتساب — إلى" : "إلى تاريخ"}
               </p>
-              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                placeholder="اختر التاريخ"
+              />
             </div>
           </>
         )}
