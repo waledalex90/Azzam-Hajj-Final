@@ -14,6 +14,13 @@ const withPWA = withPWAInit({
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "abn.sa.com",
+        pathname: "/wp-content/uploads/**",
+      },
+    ],
     formats: ["image/avif", "image/webp"],
   },
 };
