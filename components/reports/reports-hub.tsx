@@ -11,6 +11,7 @@ import {
 import { getPayrollLockStateAction } from "@/app/(dashboard)/reports/payroll-actions";
 import { SearchableSelect } from "@/components/filters/searchable-select";
 import { Card } from "@/components/ui/card";
+import { TabPanelTransition } from "@/components/ui/tab-panel-transition";
 import { Input } from "@/components/ui/input";
 import type { ReportFilters } from "@/lib/reports/queries";
 import type { PaginationMeta } from "@/lib/types/db";
@@ -499,8 +500,10 @@ export function ReportsHub() {
                 setTab(t.id);
                 setPage(1);
               }}
-              className={`rounded-lg px-3 py-2 text-sm font-bold ${
-                tab === t.id ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"
+              className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+                tab === t.id
+                  ? "bg-[#14532d] text-white shadow-md ring-2 ring-[#14532d]/30"
+                  : "bg-slate-50 text-slate-600 hover:bg-slate-100"
               }`}
             >
               {t.label}
@@ -509,6 +512,7 @@ export function ReportsHub() {
         </div>
       </Card>
 
+      <TabPanelTransition key={tab}>
       {tab === "horizontal_report" ? (
         <Card className="space-y-4 p-4">
           <div className="border-b border-slate-100 pb-3">
@@ -1025,6 +1029,7 @@ export function ReportsHub() {
           )}
         </Card>
       )}
+      </TabPanelTransition>
     </div>
   );
 }

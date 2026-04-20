@@ -1,0 +1,24 @@
+/* تفاعلات خفيفة — الصنف المحلي .root مطلوب لقواعد CSS Modules في Next */
+.root :global(button:not(:disabled)) {
+  transition:
+    transform 120ms ease,
+    opacity 120ms ease,
+    box-shadow 160ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+.root :global(button:not(:disabled):active) {
+  transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root :global(button:not(:disabled)) {
+    transition: opacity 120ms ease, background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+  }
+
+  .root :global(button:not(:disabled):active) {
+    transform: none;
+  }
+}

@@ -17,6 +17,7 @@ import { AttendancePrepWorkzone } from "@/components/attendance/attendance-prep-
 import { AttendanceReviewTab } from "@/components/attendance/attendance-review-tab";
 import { AttendanceRscRefreshLockProvider } from "@/components/attendance/attendance-rsc-refresh-lock";
 import { AttendanceSyncBridge } from "@/components/attendance/attendance-sync-bridge";
+import { TabPanelTransition } from "@/components/ui/tab-panel-transition";
 import { requireScreen } from "@/lib/auth/require-screen";
 import { canRequestAttendanceCorrection, hasPermission } from "@/lib/auth/permissions";
 import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
@@ -182,20 +183,20 @@ export default async function AttendancePage({ searchParams }: Props) {
         <div className="mt-3 flex items-center gap-2 border-b border-slate-200 text-sm">
           <Link
             href={`/attendance?tab=workers&date=${workDate}&shift=${roundNo}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
-            className={`rounded-t-xl px-3 py-2 font-extrabold ${
+            className={`rounded-t-xl px-3 py-2 font-extrabold transition-colors ${
               activeTab === "workers"
-                ? "bg-emerald-50 text-emerald-700"
-                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                ? "bg-[#14532d] text-white shadow-sm ring-2 ring-[#14532d]/25"
+                : "text-slate-600 hover:bg-slate-100"
             }`}
           >
             الموظفون والتحضير
           </Link>
           <Link
             href={`/attendance?tab=review&date=${workDate}&shift=${roundNo}${params.siteId ? `&siteId=${params.siteId}` : ""}${params.contractorId ? `&contractorId=${params.contractorId}` : ""}`}
-            className={`rounded-t-xl px-3 py-2 font-extrabold ${
+            className={`rounded-t-xl px-3 py-2 font-extrabold transition-colors ${
               activeTab === "review"
-                ? "bg-emerald-50 text-emerald-700"
-                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                ? "bg-[#14532d] text-white shadow-sm ring-2 ring-[#14532d]/25"
+                : "text-slate-600 hover:bg-slate-100"
             }`}
           >
             مراجعة تحضير اليوم
@@ -236,59 +237,61 @@ export default async function AttendancePage({ searchParams }: Props) {
         )}
       </Card>
 
-      {activeTab === "workers" ? (
-        <AttendancePrepWorkzone
-          key={`prep-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}`}
-          initialDayStats={dayStats}
-          initialWorkers={prepWorkers?.rows ?? []}
-          initialStatusMap={initialStatusMap}
-          workDate={workDate}
-          roundNo={roundNo}
-          siteId={params.siteId}
-          contractorId={params.contractorId}
-        />
-      ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-4">
-            <Card className="text-center">
-              <p className="text-xs text-slate-500">معلّق اعتماد</p>
-              <p className="mt-1 text-2xl font-extrabold text-slate-700">{reviewRoundStats?.pending ?? 0}</p>
-            </Card>
-            <Card className="text-center">
-              <p className="text-xs text-slate-500">حاضر</p>
-              <p className="mt-1 text-2xl font-extrabold text-emerald-700">{reviewRoundStats?.present ?? 0}</p>
-            </Card>
-            <Card className="text-center">
-              <p className="text-xs text-slate-500">غائب</p>
-              <p className="mt-1 text-2xl font-extrabold text-red-700">{reviewRoundStats?.absent ?? 0}</p>
-            </Card>
-            <Card className="text-center">
-              <p className="text-xs text-slate-500">نصف يوم</p>
-              <p className="mt-1 text-2xl font-extrabold text-amber-700">{reviewRoundStats?.half ?? 0}</p>
-            </Card>
-          </div>
-          <Card className="border-dashed border-slate-200 bg-white/80">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-extrabold text-slate-800">
-                سجلات المحضّرة للمراجعة — {workDate} — {roundNo === 2 ? "مسائي" : "صباحي"}
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="rounded-lg bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
-                  إجمالي السجلات: {reviewedRows.length}
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          <AttendanceReviewTab
-            key={`rev-${workDate}-${roundNo}-${params.siteId ?? ""}`}
-            initialRows={reviewedRows}
-            canCorrection={canCorrection}
-            readOnlyReview={!canManageReviewQueue}
-            shiftLabel={roundNo === 2 ? "مسائي" : "صباحي"}
+      <TabPanelTransition key={activeTab}>
+        {activeTab === "workers" ? (
+          <AttendancePrepWorkzone
+            key={`prep-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}`}
+            initialDayStats={dayStats}
+            initialWorkers={prepWorkers?.rows ?? []}
+            initialStatusMap={initialStatusMap}
+            workDate={workDate}
+            roundNo={roundNo}
+            siteId={params.siteId}
+            contractorId={params.contractorId}
           />
-        </>
-      )}
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <Card className="text-center">
+                <p className="text-xs text-slate-500">معلّق اعتماد</p>
+                <p className="mt-1 text-2xl font-extrabold text-slate-700">{reviewRoundStats?.pending ?? 0}</p>
+              </Card>
+              <Card className="text-center">
+                <p className="text-xs text-slate-500">حاضر</p>
+                <p className="mt-1 text-2xl font-extrabold text-emerald-700">{reviewRoundStats?.present ?? 0}</p>
+              </Card>
+              <Card className="text-center">
+                <p className="text-xs text-slate-500">غائب</p>
+                <p className="mt-1 text-2xl font-extrabold text-red-700">{reviewRoundStats?.absent ?? 0}</p>
+              </Card>
+              <Card className="text-center">
+                <p className="text-xs text-slate-500">نصف يوم</p>
+                <p className="mt-1 text-2xl font-extrabold text-amber-700">{reviewRoundStats?.half ?? 0}</p>
+              </Card>
+            </div>
+            <Card className="border-dashed border-slate-200 bg-white/80">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-extrabold text-slate-800">
+                  سجلات المحضّرة للمراجعة — {workDate} — {roundNo === 2 ? "مسائي" : "صباحي"}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="rounded-lg bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
+                    إجمالي السجلات: {reviewedRows.length}
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            <AttendanceReviewTab
+              key={`rev-${workDate}-${roundNo}-${params.siteId ?? ""}`}
+              initialRows={reviewedRows}
+              canCorrection={canCorrection}
+              readOnlyReview={!canManageReviewQueue}
+              shiftLabel={roundNo === 2 ? "مسائي" : "صباحي"}
+            />
+          </>
+        )}
+      </TabPanelTransition>
       </section>
     </AttendanceRscRefreshLockProvider>
   );

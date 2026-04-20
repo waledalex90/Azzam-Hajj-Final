@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { TableVirtuoso } from "react-virtuoso";
 
 function daysInMonth(y: number, m: number) {
@@ -15,7 +15,7 @@ function cellMark(raw: unknown) {
   return s;
 }
 
-export function HorizontalAttendanceMatrixTable({
+function HorizontalAttendanceMatrixTableInner({
   rows,
   year,
   month,
@@ -125,3 +125,5 @@ export function HorizontalAttendanceMatrixTable({
     </div>
   );
 }
+
+export const HorizontalAttendanceMatrixTable = memo(HorizontalAttendanceMatrixTableInner);

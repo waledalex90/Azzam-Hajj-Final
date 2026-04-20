@@ -2,6 +2,7 @@ import Link from "next/link";
 import { clsx } from "clsx";
 
 import { Card } from "@/components/ui/card";
+import { TabPanelTransition } from "@/components/ui/tab-panel-transition";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getSessionContext } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
@@ -130,7 +131,9 @@ export default async function UsersManagementPage({ searchParams }: Props) {
             href="/users"
             className={clsx(
               "rounded-lg px-4 py-2 text-sm font-extrabold transition-colors",
-              effectiveTab === "users" ? "bg-[#166534] text-white" : "bg-slate-100 text-slate-800 hover:bg-slate-200",
+              effectiveTab === "users"
+                ? "bg-[#14532d] text-white shadow-md ring-2 ring-[#14532d]/35"
+                : "bg-slate-50 text-slate-600 hover:bg-slate-100",
             )}
           >
             المستخدمون
@@ -141,7 +144,9 @@ export default async function UsersManagementPage({ searchParams }: Props) {
             href="/users?tab=roles"
             className={clsx(
               "rounded-lg px-4 py-2 text-sm font-extrabold transition-colors",
-              effectiveTab === "roles" ? "bg-[#166534] text-white" : "bg-slate-100 text-slate-800 hover:bg-slate-200",
+              effectiveTab === "roles"
+                ? "bg-[#14532d] text-white shadow-md ring-2 ring-[#14532d]/35"
+                : "bg-slate-50 text-slate-600 hover:bg-slate-100",
             )}
           >
             الأدوار والصلاحيات
@@ -198,11 +203,13 @@ export default async function UsersManagementPage({ searchParams }: Props) {
         </Card>
       )}
 
-      {effectiveTab === "users" && canUsers && (
-        <UsersManagementClient users={usersForClient} roles={rolesForClient} sites={sitesForClient} canEdit />
-      )}
+      <TabPanelTransition key={effectiveTab}>
+        {effectiveTab === "users" && canUsers && (
+          <UsersManagementClient users={usersForClient} roles={rolesForClient} sites={sitesForClient} canEdit />
+        )}
 
-      {effectiveTab === "roles" && canRoles && <RolesManagementPanel roles={roleRowsForPanel} />}
+        {effectiveTab === "roles" && canRoles && <RolesManagementPanel roles={roleRowsForPanel} />}
+      </TabPanelTransition>
     </section>
     );
   } catch (e) {

@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 import Link from "next/link";
 
 import { Card } from "@/components/ui/card";
+import { TabPanelTransition } from "@/components/ui/tab-panel-transition";
 import { Input } from "@/components/ui/input";
 import { WorkersListClient, type WorkersListRow } from "@/components/workers/workers-list-client";
 import { WorkersUploadForm } from "@/components/workers/workers-upload-form";
@@ -385,19 +386,24 @@ export default async function WorkersPage({ searchParams }: Props) {
         <div className="flex items-center gap-4 border-b border-slate-200 text-sm">
           <Link
             href="/workers?tab=list"
-            className={`pb-2 font-bold ${tab === "list" ? "border-b-2 border-[#0f766e] text-slate-900" : "text-slate-500"}`}
+            className={`pb-2 font-bold transition-colors ${
+              tab === "list" ? "border-b-2 border-[#14532d] text-[#14532d]" : "text-slate-600 hover:text-slate-800"
+            }`}
           >
             قائمة الموظفين
           </Link>
           <Link
             href="/workers?tab=create"
-            className={`pb-2 font-bold ${tab === "create" ? "border-b-2 border-[#0f766e] text-slate-900" : "text-slate-500"}`}
+            className={`pb-2 font-bold transition-colors ${
+              tab === "create" ? "border-b-2 border-[#14532d] text-[#14532d]" : "text-slate-600 hover:text-slate-800"
+            }`}
           >
             إضافة موظف جديد
           </Link>
         </div>
       </Card>
 
+      <TabPanelTransition key={tab}>
       {tab === "create" ? (
         <>
           <Card className="space-y-3">
@@ -456,7 +462,10 @@ export default async function WorkersPage({ searchParams }: Props) {
               <Input name="basicSalary" type="number" step="0.01" placeholder="الراتب المتفق عليه" />
               <Input name="iqamaExpiry" type="date" placeholder="تاريخ انتهاء الإقامة" />
               <div className="flex items-end">
-                <button className="w-full rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-600">
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-[#14532d] px-4 py-2 text-sm font-extrabold text-white shadow-md ring-2 ring-[#14532d]/35 hover:bg-[#166534]"
+                >
                   حفظ الموظف
                 </button>
               </div>
@@ -536,6 +545,7 @@ export default async function WorkersPage({ searchParams }: Props) {
           />
         </>
       )}
+      </TabPanelTransition>
     </section>
   );
 }

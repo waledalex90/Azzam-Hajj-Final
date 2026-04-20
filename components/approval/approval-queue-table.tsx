@@ -129,6 +129,13 @@ export function ApprovalQueueTable({
         toast.error("حدد صفاً واحداً على الأقل.");
         return;
       }
+      flushSync(() => {
+        setRemoved((prev) => {
+          const next = new Set(prev);
+          ids.forEach((id) => next.add(id));
+          return next;
+        });
+      });
       const chunks = chunkIds(ids, CLIENT_APPROVAL_CHUNK);
       const progressId = toast.loading(`جاري الاعتماد… دفعة 1 من ${chunks.length}`);
       for (let i = 0; i < chunks.length; i += 1) {
@@ -136,6 +143,7 @@ export function ApprovalQueueTable({
         const res = await approveApprovalChunk(chunks[i]);
         if (!res.ok) {
           toast.error(res.error, { id: progressId });
+          flushSync(() => setRemoved(new Set()));
           void router.refresh();
           return;
         }
@@ -151,6 +159,7 @@ export function ApprovalQueueTable({
         { id: progressId },
       );
       setSelected(new Set());
+      setRemoved(new Set());
       void router.refresh();
     } finally {
       setIsSaving(false);

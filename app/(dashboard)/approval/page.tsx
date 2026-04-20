@@ -6,6 +6,7 @@ import { ApprovalHistoryShell } from "@/components/approval/approval-history-she
 import { ApprovalPendingShell } from "@/components/approval/approval-pending-shell";
 import { AttendanceFilterToolbar } from "@/components/attendance/attendance-filter-toolbar";
 import { Card } from "@/components/ui/card";
+import { TabPanelTransition } from "@/components/ui/tab-panel-transition";
 import { requireScreen } from "@/lib/auth/require-screen";
 import { canRequestAttendanceCorrection, hasPermission } from "@/lib/auth/permissions";
 import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
@@ -188,16 +189,20 @@ export default async function ApprovalPage({ searchParams }: Props) {
         <div className="mt-3 flex items-center gap-2 border-b border-slate-200 text-sm">
           <Link
             href={`/approval?${tabQs.pending}`}
-            className={`rounded-t-xl px-3 py-2 font-extrabold ${
-              activeTab === "pending" ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:bg-slate-100"
+            className={`rounded-t-xl px-3 py-2 font-extrabold transition-colors ${
+              activeTab === "pending"
+                ? "bg-[#14532d] text-white shadow-sm ring-2 ring-[#14532d]/25"
+                : "text-slate-600 hover:bg-slate-100"
             }`}
           >
             الاعتمادات المعلقة
           </Link>
           <Link
             href={`/approval?${tabQs.history}`}
-            className={`rounded-t-xl px-3 py-2 font-extrabold ${
-              activeTab === "history" ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:bg-slate-100"
+            className={`rounded-t-xl px-3 py-2 font-extrabold transition-colors ${
+              activeTab === "history"
+                ? "bg-[#14532d] text-white shadow-sm ring-2 ring-[#14532d]/25"
+                : "text-slate-600 hover:bg-slate-100"
             }`}
           >
             الاعتمادات المعتمدة
@@ -216,26 +221,28 @@ export default async function ApprovalPage({ searchParams }: Props) {
         />
       </Card>
 
-      {activeTab === "pending" ? (
-        <ApprovalPendingShell
-          key={`pend-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${mountKey}`}
-          initialRows={pendingRows}
-          initialStats={approvalStats}
-          totalPendingFiltered={pendingFilteredTotal}
-          workDate={workDate}
-          siteId={params.siteId}
-          contractorId={params.contractorId}
-          roundNo={roundNo}
-          canCorrection={canCorrection}
-        />
-      ) : (
-        <ApprovalHistoryShell
-          key={`hist-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${mountKey}`}
-          initialRows={historyRows}
-          stats={approvalStats}
-          canRequestCorrection={canCorrection}
-        />
-      )}
+      <TabPanelTransition key={activeTab}>
+        {activeTab === "pending" ? (
+          <ApprovalPendingShell
+            key={`pend-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${mountKey}`}
+            initialRows={pendingRows}
+            initialStats={approvalStats}
+            totalPendingFiltered={pendingFilteredTotal}
+            workDate={workDate}
+            siteId={params.siteId}
+            contractorId={params.contractorId}
+            roundNo={roundNo}
+            canCorrection={canCorrection}
+          />
+        ) : (
+          <ApprovalHistoryShell
+            key={`hist-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${mountKey}`}
+            initialRows={historyRows}
+            stats={approvalStats}
+            canRequestCorrection={canCorrection}
+          />
+        )}
+      </TabPanelTransition>
     </section>
   );
 }

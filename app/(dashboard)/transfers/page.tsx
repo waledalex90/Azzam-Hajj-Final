@@ -9,6 +9,7 @@ import {
 } from "@/app/(dashboard)/transfers/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { TabPanelTransition } from "@/components/ui/tab-panel-transition";
 import { Input } from "@/components/ui/input";
 import {
   canRespondAsHr,
@@ -125,8 +126,10 @@ export default async function TransfersPage({ searchParams }: Props) {
             <Link
               key={t.id}
               href={`/transfers?tab=${t.id}`}
-              className={`rounded-t-lg px-3 py-2 font-extrabold ${
-                tab === t.id ? "bg-emerald-50 text-emerald-800" : "text-slate-500 hover:bg-slate-100"
+              className={`rounded-t-lg px-3 py-2 font-extrabold transition-colors ${
+                tab === t.id
+                  ? "bg-[#14532d] text-white shadow-sm ring-2 ring-[#14532d]/25"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               {t.label}
@@ -141,6 +144,7 @@ export default async function TransfersPage({ searchParams }: Props) {
         )}
       </Card>
 
+      <TabPanelTransition key={tab}>
       {tab === "new" && (
         <>
           <form className="flex flex-wrap items-end gap-2" method="get">
@@ -301,6 +305,7 @@ export default async function TransfersPage({ searchParams }: Props) {
           {history.length === 0 && <div className="p-6 text-center text-sm text-slate-500">لا يوجد سجل بعد.</div>}
         </Card>
       )}
+      </TabPanelTransition>
     </section>
   );
 }

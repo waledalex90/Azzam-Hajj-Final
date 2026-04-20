@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 
 import { savePayrollManualDeductionAction } from "@/app/(dashboard)/reports/payroll-actions";
 import type { ReportFilters } from "@/lib/reports/queries";
@@ -11,7 +11,7 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export function PayrollReportTable({
+function PayrollReportTableInner({
   rows,
   periodStart,
   periodEnd,
@@ -178,3 +178,5 @@ export function PayrollReportTable({
     </div>
   );
 }
+
+export const PayrollReportTable = memo(PayrollReportTableInner);

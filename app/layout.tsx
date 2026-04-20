@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Tajawal } from "next/font/google";
 import "./globals.css";
+import uxInteractions from "./ux-interactions.module.css";
 
 const tajawal = Tajawal({
   variable: "--font-tajawal",
@@ -38,7 +39,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" className={`${tajawal.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-slate-50 text-slate-900">{children}</body>
+      <body className={`${uxInteractions.root} min-h-full flex flex-col bg-slate-50 text-slate-900`}>{children}</body>
     </html>
   );
 }

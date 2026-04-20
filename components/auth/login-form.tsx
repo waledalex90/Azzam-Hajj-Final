@@ -94,7 +94,7 @@ export function LoginForm() {
       <Button
         type="submit"
         disabled={isLoading}
-        className="w-full border border-[#166534] bg-[#166534] py-2.5 text-white hover:bg-[#14532d]"
+        className="w-full py-2.5"
       >
         {isLoading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
       </Button>
