@@ -107,20 +107,22 @@ function RoleEditForm({
   );
 }
 
-function DeleteBadRoleButton({ slug }: { slug: string }) {
+/** حذف صف من `user_roles` — الخادم يرفض إن وُجد مستخدم في `app_users.role` بنفس المعرّف. */
+function DeleteRoleButton({ slug, mode }: { slug: string; mode: "cleanup" | "normal" }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(deleteRoleFormStateAction, null as RoleMutationResult | null);
 
   useEffect(() => {
     if (!state) return;
     if (state.ok) {
-      toast.success("تم حذف سجل الدور غير الصالح.", { id: "role-del" });
+      toast.success(mode === "cleanup" ? "تم حذف سجل الدور غير الصالح." : "تم حذف الدور.", { id: "role-del" });
       router.refresh();
     } else {
-      toast.error(state.error, { id: "role-del-err", duration: 12_000 });
+      toast.error(state.error, { id: "role-del-err", duration: 14_000 });
     }
-  }, [state, router]);
+  }, [state, router, mode]);
 
+  const isCleanup = mode === "cleanup";
   return (
     <form action={formAction} className="inline">
       <input type="hidden" name="slug" value={slug} />
@@ -128,10 +130,18 @@ function DeleteBadRoleButton({ slug }: { slug: string }) {
         type="submit"
         disabled={pending}
         variant="secondary"
-        className="h-8 border-red-200 bg-red-50 px-2 text-xs font-bold text-red-900 hover:bg-red-100"
-        title="حذف معرّف خاطئ فقط (تنظيف)"
+        className={
+          isCleanup
+            ? "h-8 border-red-200 bg-red-50 px-2 text-xs font-bold text-red-900 hover:bg-red-100"
+            : "h-8 border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 hover:bg-slate-50"
+        }
+        title={
+          isCleanup
+            ? "حذف معرّف لا يطابق صيغة النظام (مثل نقطة أو مسافة). يشترط ألا يكون أي مستخدم مُعيَّناً لهذا المعرّف."
+            : "حذف الدور نهائياً. يشترط ألا يكون أي مستخدم في «المستخدمون» مُعيَّناً لهذا الدور."
+        }
       >
-        {pending ? "…" : "حذف (تنظيف)"}
+        {pending ? "…" : isCleanup ? "حذف (تنظيف)" : "حذف الدور"}
       </Button>
     </form>
   );
@@ -202,13 +212,20 @@ export function RolesManagementPanel({ roles }: { roles: RoleRow[] | null }) {
                 const perms = Array.isArray(row.permissions)
                   ? (row.permissions as string[]).join("، ")
                   : String(row.permissions ?? "");
-                const showCleanup = !isValidRoleSlug(row.slug);
+                const slugInvalid = !isValidRoleSlug(row.slug);
                 const open = editingSlug === row.slug;
                 return (
                   <Fragment key={row.slug}>
                     <tr className="border-t border-slate-200">
                       <td className="px-3 py-2 font-bold text-slate-900">{row.name_ar}</td>
-                      <td className="px-3 py-2 font-mono text-xs text-slate-600">{row.slug}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-slate-600">
+                        {row.slug}
+                        {slugInvalid ? (
+                          <span className="mr-2 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
+                            معرّف غير قياسي
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="max-w-md px-3 py-2 text-xs text-slate-700">{perms || "—"}</td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap items-center gap-2">
@@ -220,7 +237,11 @@ export function RolesManagementPanel({ roles }: { roles: RoleRow[] | null }) {
                           >
                             {open ? "إغلاق" : "تعديل"}
                           </Button>
-                          {showCleanup ? <DeleteBadRoleButton slug={row.slug} /> : null}
+                          {slugInvalid ? (
+                            <DeleteRoleButton slug={row.slug} mode="cleanup" />
+                          ) : (
+                            <DeleteRoleButton slug={row.slug} mode="normal" />
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -241,10 +262,22 @@ export function RolesManagementPanel({ roles }: { roles: RoleRow[] | null }) {
           <div className="p-4 text-center text-sm text-slate-500">لا توجد أدوار بعد.</div>
         )}
         {list.length > 0 ? (
-          <p className="border-t border-slate-100 px-3 py-2 text-[11px] text-slate-500">
-            «حذف (تنظيف)» يظهر فقط للمعرّفات غير المطابقة لصيغة النظام (مثل شرطة أو رموز غير مسموحة) ولا يوجد مستخدمون
-            مرتبطون بهذا الدور.
-          </p>
+          <div className="border-t border-slate-100 px-3 py-2 text-[11px] leading-relaxed text-slate-600">
+            <p className="font-bold text-slate-700">عن الحذف</p>
+            <p className="mt-1">
+              الحذف (أي زر) ينجح فقط إذا لم يكن هناك <strong>أي مستخدم</strong> في شاشة «المستخدمون» مُعيَّن لهذا المعرّف
+              بالضبط. إن ظهرت رسالة خطأ بعد الضغط، انقل أولاً كل الحسابات إلى دور آخر ثم أعد المحاولة.
+            </p>
+            <p className="mt-1">
+              صيغة المعرّف المسموحة: حرف إنجليزي صغير ثم أحرف صغيرة وأرقام وشرطة سفلية فقط{" "}
+              <span className="font-mono">[a-z][a-z0-9_]*</span> — لا نقطة ولا مسافة. مثل{" "}
+              <span className="font-mono">prep_violation_notice</span> وليس{" "}
+              <span className="font-mono">prep.violation_notice</span>.
+            </p>
+            <p className="mt-1 text-slate-500">
+              «حذف (تنظيف)» للسجلات ذات المعرّف غير القياسي؛ «حذف الدور» للمعرّفات المطابقة للصيغة.
+            </p>
+          </div>
         ) : null}
       </Card>
     </div>
