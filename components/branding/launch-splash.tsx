@@ -6,8 +6,8 @@ export function LaunchSplash() {
       <div className="launch-screen__overlay">
         <div className="launch-screen__logo-wrap">
           <Image
-            src="/icons/icon-512.svg"
-            alt="Azzam Hajj Launch Icon"
+            src="/icons/abn-icon-512.svg"
+            alt="أيقونة نظام عزام للحج"
             width={164}
             height={164}
             priority

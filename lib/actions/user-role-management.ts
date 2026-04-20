@@ -39,6 +39,26 @@ function parseSiteIdsFromExcelCell(raw: unknown): number[] {
   return [...new Set(nums)].sort((a, b) => a - b);
 }
 
+/** خلية رقمية أو نصية من Excel → معرف موقع واحد أو أكثر */
+function siteIdFragmentsFromCell(raw: unknown): number[] {
+  if (raw === null || raw === undefined) return [];
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) return [raw];
+  const s = String(raw).trim();
+  if (!s) return [];
+  return parseSiteIdsFromExcelCell(s);
+}
+
+/** يدمج `site_ids` مع أعمدة `site_id_1` … `site_id_3` (قوائم منسدلة في القالب) */
+function parseSiteIdsFromExcelRow(r: Record<string, unknown>): number[] {
+  const fromListCell = parseSiteIdsFromExcelCell(r["site_ids"] ?? r["المواقع"] ?? r["allowed_site_ids"] ?? "");
+  const extra: number[] = [];
+  for (const key of ["site_id_1", "site_id_2", "site_id_3", "site_1", "site_2", "site_3"] as const) {
+    extra.push(...siteIdFragmentsFromCell(r[key]));
+  }
+  const merged = [...fromListCell, ...extra];
+  return [...new Set(merged)].sort((a, b) => a - b);
+}
+
 function slugify(raw: string): string {
   return raw
     .trim()
@@ -385,7 +405,7 @@ export async function deleteRoleFormStateAction(
   return deleteRoleAction(formData);
 }
 
-/** استيراد من Excel: أعمدة — full_name, login_email, username, password, role, site_ids (اختياري، عدة معرفات في خلية واحدة) */
+/** استيراد من Excel: أعمدة — full_name, login_email, username, password, role؛ مواقع اختيارية عبر site_id_1…site_id_3 و/أو site_ids (خلية واحدة مفصولة) */
 export async function bulkImportUsersAction(formData: FormData) {
   if (isDemoModeEnabled()) return { ok: false as const, error: "وضع التجربة: الاستيراد معطّل." };
   try {
@@ -420,7 +440,7 @@ export async function bulkImportUsersAction(formData: FormData) {
     const username = String(r["username"] ?? r["اسم_الدخول"] ?? "").trim();
     const password = String(r["password"] ?? r["كلمة_السر"] ?? "");
     const role = String(r["role"] ?? r["الدور"] ?? "").trim();
-    const siteIds = parseSiteIdsFromExcelCell(r["site_ids"] ?? r["المواقع"] ?? r["allowed_site_ids"] ?? "");
+    const siteIds = parseSiteIdsFromExcelRow(r);
 
     const loginEmail = resolveStoredLoginEmail(username, loginEmailRaw, env.authEmailDomain);
 

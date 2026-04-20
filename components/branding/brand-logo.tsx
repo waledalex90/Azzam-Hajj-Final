@@ -9,12 +9,12 @@ type Props = {
 export function BrandLogo({ className, priority = false }: Props) {
   return (
     <Image
-      src="https://abn.sa.com/wp-content/uploads/2022/01/logo-removebg-preview.png"
-      alt="Azzam Company Logo"
-      width={210}
-      height={70}
+      src="/icons/abn-icon-512.svg"
+      alt="شعار ABN عزام"
+      width={512}
+      height={512}
       priority={priority}
-      className={clsx("h-auto w-[150px] sm:w-[190px]", className)}
+      className={clsx("h-auto w-11 shrink-0 sm:w-12", className)}
     />
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -19,9 +20,6 @@ import {
   resetAppUserPasswordAction,
   updateAppUserAction,
 } from "@/lib/actions/user-role-management";
-async function submitBulkImport(fd: FormData): Promise<void> {
-  void (await bulkImportUsersAction(fd));
-}
 async function submitUpdateAppUser(fd: FormData): Promise<void> {
   void (await updateAppUserAction(fd));
 }
@@ -62,6 +60,21 @@ function firstSafeRoleSlug(roleList: RoleOption[]): string {
 
 export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
   const router = useRouter();
+
+  async function submitBulkImport(fd: FormData): Promise<void> {
+    const r = await bulkImportUsersAction(fd);
+    if (!r.ok) {
+      toast.error(r.error, { id: "bulk-import-users", duration: 12_000 });
+      return;
+    }
+    const parts = [`تم استيراد ${r.imported} مستخدمًا بنجاح.`];
+    if (r.failed > 0) parts.push(`تخطّي أو فشل: ${r.failed} صفًا.`);
+    toast.success(parts.join(" "), { id: "bulk-import-users-ok", duration: 10_000 });
+    if (r.errors.length > 0) {
+      toast.error(r.errors.join(" "), { id: "bulk-import-users-warn", duration: 14_000 });
+    }
+    router.refresh();
+  }
 
   async function deleteAppUserClient(fd: FormData) {
     const r = await deleteAppUserAction(fd);
@@ -240,14 +253,25 @@ export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
           <Card className="p-4">
             <h3 className="text-base font-extrabold text-slate-900">استيراد من Excel</h3>
             <p className="mt-1 text-xs text-slate-600">
-              صف العناوين: <code className="rounded bg-slate-100 px-1">full_name</code>،{" "}
+              نزّل القالب الجاهز (قوائم منسدلة للدور ولحد ثلاثة مواقع)، أو عرّف الملف يدويًا بنفس العناوين:{" "}
+              <code className="rounded bg-slate-100 px-1">full_name</code>،{" "}
               <code className="rounded bg-slate-100 px-1">username</code>،{" "}
               <code className="rounded bg-slate-100 px-1">password</code>،{" "}
               <code className="rounded bg-slate-100 px-1">role</code>،{" "}
               <code className="rounded bg-slate-100 px-1">login_email</code> (اختياري — إن تُرك يُشتق من اسم الدخول)،{" "}
-              <code className="rounded bg-slate-100 px-1">site_ids</code> (اختياري — عدة أرقام في خلية واحدة مفصولة بفاصلة أو مسافة أو؛ مثل{" "}
+              <code className="rounded bg-slate-100 px-1">site_id_1</code> …{" "}
+              <code className="rounded bg-slate-100 px-1">site_id_3</code> (اختياري)،{" "}
+              <code className="rounded bg-slate-100 px-1">site_ids</code> (اختياري — عدة أرقام في خلية واحدة مثل{" "}
               <span className="font-mono">1,2,3</span>)
             </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Link
+                href="/api/users-import-template"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200/80 bg-slate-100 px-4 py-2 text-sm font-extrabold text-slate-700 shadow-sm hover:bg-slate-200/90"
+              >
+                تنزيل قالب Excel
+              </Link>
+            </div>
             <form className="mt-3 flex flex-wrap items-end gap-3" action={submitBulkImport}>
               <Input type="file" name="file" accept=".xlsx,.xls" required className="max-w-xs" />
               <Button type="submit" variant="secondary">
