@@ -12,6 +12,12 @@
   "theme_color": "#0b0b0c",
   "icons": [
     {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
       "src": "/icons/abn-icon-192.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
