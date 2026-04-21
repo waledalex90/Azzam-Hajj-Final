@@ -8,6 +8,7 @@ import { TableVirtuoso, Virtuoso } from "react-virtuoso";
 
 import { submitAttendancePrepBulk } from "@/app/(dashboard)/attendance/actions";
 import { useAttendanceRscRefreshLock } from "@/components/attendance/attendance-rsc-refresh-lock";
+import { useRunWithGlobalLock } from "@/components/providers/global-action-lock-context";
 import type { WorkerRow } from "@/lib/types/db";
 import { workerHasSiteForPrep } from "@/lib/utils/worker-prep-eligibility";
 
@@ -62,6 +63,7 @@ export function AttendanceWorkersTable({
   suppressEmptyMessage = false,
 }: Props) {
   const router = useRouter();
+  const runLocked = useRunWithGlobalLock();
   const rscRefreshLock = useAttendanceRscRefreshLock();
   const [selected, setSelected] = useState<number[]>([]);
   const [bulkScope, setBulkScope] = useState<"page" | "all">("page");
@@ -142,47 +144,49 @@ export function AttendanceWorkersTable({
       chunks.push(withSite.slice(i, i + CLIENT_PREP_CHUNK));
     }
 
-    setIsSaving(true);
-    if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = true;
-    const progressId = chunks.length > 1 ? toast.loading(`جاري التحضير… 1/${chunks.length}`) : undefined;
+    await runLocked(async () => {
+      setIsSaving(true);
+      if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = true;
+      const progressId = chunks.length > 1 ? toast.loading(`جاري التحضير… 1/${chunks.length}`) : undefined;
 
-    try {
-      for (let i = 0; i < chunks.length; i += 1) {
-        if (chunks.length > 1 && progressId !== undefined) {
-          toast.loading(`جاري التحضير… ${i + 1}/${chunks.length}`, { id: progressId });
-        }
-        const res = await submitAttendancePrepBulk(workDate, status, chunks[i], roundNo, {
-          /* منع revalidatePath أثناء التحضير المحلي — يتعارض مع تحديث الحالة ثم الانتقال (نفس السلوك لكل الأدوار) */
-          revalidate: skipServerRefresh ? false : i === chunks.length - 1,
-        });
-        if (!res.ok) {
-          toast.error(res.error, { id: progressId });
-          if (skipServerRefresh) void router.refresh();
-          return;
-        }
-        if (skipServerRefresh) {
-          flushSync(() => {
-            onAttendanceChunkSaved?.(chunks[i], status);
+      try {
+        for (let i = 0; i < chunks.length; i += 1) {
+          if (chunks.length > 1 && progressId !== undefined) {
+            toast.loading(`جاري التحضير… ${i + 1}/${chunks.length}`, { id: progressId });
+          }
+          const res = await submitAttendancePrepBulk(workDate, status, chunks[i], roundNo, {
+            /* منع revalidatePath أثناء التحضير المحلي — يتعارض مع تحديث الحالة ثم الانتقال (نفس السلوك لكل الأدوار) */
+            revalidate: skipServerRefresh ? false : i === chunks.length - 1,
           });
-        } else {
-          onAttendanceChunkSaved?.(chunks[i], status);
+          if (!res.ok) {
+            toast.error(res.error, { id: progressId });
+            if (skipServerRefresh) void router.refresh();
+            return;
+          }
+          if (skipServerRefresh) {
+            flushSync(() => {
+              onAttendanceChunkSaved?.(chunks[i], status);
+            });
+          } else {
+            onAttendanceChunkSaved?.(chunks[i], status);
+          }
         }
-      }
 
-      toast.success(
-        chunks.length > 1 ? `تم التحضير — ${chunks.length} دفعة (${withSite.length} عامل)` : "تم التحضير ✅",
-        { id: progressId },
-      );
-      setSelected([]);
-      if (!skipServerRefresh) {
-        void router.refresh();
+        toast.success(
+          chunks.length > 1 ? `تم التحضير — ${chunks.length} دفعة (${withSite.length} عامل)` : "تم التحضير ✅",
+          { id: progressId },
+        );
+        setSelected([]);
+        if (!skipServerRefresh) {
+          void router.refresh();
+        }
+        onAttendanceSessionComplete?.();
+        onPrepSuccessNavigate?.();
+      } finally {
+        setIsSaving(false);
+        if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = false;
       }
-      onAttendanceSessionComplete?.();
-      onPrepSuccessNavigate?.();
-    } finally {
-      setIsSaving(false);
-      if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = false;
-    }
+    });
   }
 
   function bulkButtons() {
@@ -218,35 +222,37 @@ export function AttendanceWorkersTable({
         toast.error("لا يمكن التحضير بدون موقع معتمد للعامل — حدّث الموقع من «العمال».");
         return;
       }
-      setIsSaving(true);
-      if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = true;
-      try {
-        const res = await submitAttendancePrepBulk(
-          workDate,
-          status,
-          [workerId],
-          roundNo,
-          skipServerRefresh ? { revalidate: false } : undefined,
-        );
-        if (!res.ok) {
-          toast.error(res.error);
-          if (skipServerRefresh) void router.refresh();
-          return;
-        }
-        toast.success("تم التحضير ✅");
-        if (skipServerRefresh) {
-          flushSync(() => {
+      await runLocked(async () => {
+        setIsSaving(true);
+        if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = true;
+        try {
+          const res = await submitAttendancePrepBulk(
+            workDate,
+            status,
+            [workerId],
+            roundNo,
+            skipServerRefresh ? { revalidate: false } : undefined,
+          );
+          if (!res.ok) {
+            toast.error(res.error);
+            if (skipServerRefresh) void router.refresh();
+            return;
+          }
+          toast.success("تم التحضير ✅");
+          if (skipServerRefresh) {
+            flushSync(() => {
+              onAttendanceChunkSaved?.([workerId], status);
+            });
+          } else {
             onAttendanceChunkSaved?.([workerId], status);
-          });
-        } else {
-          onAttendanceChunkSaved?.([workerId], status);
-          void router.refresh();
+            void router.refresh();
+          }
+          onPrepSuccessNavigate?.();
+        } finally {
+          setIsSaving(false);
+          if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = false;
         }
-        onPrepSuccessNavigate?.();
-      } finally {
-        setIsSaving(false);
-        if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = false;
-      }
+      });
     }
 
     if (!prepEligible) {

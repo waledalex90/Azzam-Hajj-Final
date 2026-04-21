@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { LogoutButton } from "@/components/layout/logout-button";
-import { SonnerToaster } from "@/components/ui/sonner-toaster";
+import { DashboardShell } from "@/components/providers/dashboard-shell";
 import { Card } from "@/components/ui/card";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 import { getSessionContext } from "@/lib/auth/session";
@@ -77,8 +77,7 @@ export default async function DashboardLayout({ children }: Props) {
               وضع التجربة المحلي مفعل: التعديلات هنا للعرض فقط.
             </Card>
           )}
-          <SonnerToaster />
-          {children}
+          <DashboardShell>{children}</DashboardShell>
         </div>
       </main>
     </div>

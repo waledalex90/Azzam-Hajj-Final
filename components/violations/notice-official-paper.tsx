@@ -10,15 +10,17 @@ type MetaProps = {
   timeDefault: string;
   noticeNo: string;
   readOnly?: boolean;
+  /** لتمرير التركيز عند التحقق من النموذج */
+  dateFieldWrapId?: string;
 };
 
 /** الصف العلوي: تاريخ، وقت، رقم إشعار، رقم (عرض فقط — نفس الرقم دون تكرار حقول النموذج) */
-export function NoticeOfficialMetaRow({ dateDefault, timeDefault, noticeNo, readOnly }: MetaProps) {
+export function NoticeOfficialMetaRow({ dateDefault, timeDefault, noticeNo, readOnly, dateFieldWrapId }: MetaProps) {
   return (
     <table className="np-table np-meta">
       <tbody>
         <tr>
-          <td className="np-td">
+          <td className="np-td" id={dateFieldWrapId}>
             <span className="np-inline-label">التاريخ:</span>
             <Input
               name="date"
@@ -150,12 +152,13 @@ type ViolProps = {
   types: ViolationTypeOption[];
   readOnly?: boolean;
   selectedIds?: number[];
+  violationsSectionId?: string;
 };
 
 /** قائمة المخالفات كالورقة الرسمية — مربع يمين النص */
-export function NoticeOfficialViolationList({ types, readOnly, selectedIds }: ViolProps) {
+export function NoticeOfficialViolationList({ types, readOnly, selectedIds, violationsSectionId }: ViolProps) {
   return (
-    <div className="np-violation-sheet">
+    <div className="np-violation-sheet" id={violationsSectionId}>
       <div className="np-section-title">تفاصيل المخالفة</div>
       <div className="np-violation-list">
         {types.map((t) => {

@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { NoticeFormShell } from "@/components/violations/notice-form-shell";
 import { NoticePrintToolbar } from "@/components/violations/notice-print-toolbar";
 import { NoticeAttachments } from "@/components/violations/notice-attachments";
 import { NoticeModeBar } from "@/components/violations/notice-mode-bar";
@@ -18,19 +17,14 @@ import {
   NoticeOfficialSiteRow,
   NoticeOfficialViolationList,
 } from "@/components/violations/notice-official-paper";
-import { getSessionContext } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
 import { requireScreen } from "@/lib/auth/require-screen";
 import { PERM } from "@/lib/permissions/keys";
 import {
   getInfractionNoticeOptions,
   getNoticeBundleForView,
   getRecentContractorNotices,
-  uploadContractorNoticeMediaFiles,
   type NoticeBundleView,
 } from "@/lib/data/violations";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { isDemoModeEnabled } from "@/lib/demo-mode";
 import { todayIsoDateInAppTimeZone } from "@/lib/utils/today";
 
 type Props = {
@@ -46,101 +40,6 @@ function toTimeValue(date: Date) {
 }
 
 export default async function InfractionNoticePage({ searchParams }: Props) {
-  async function saveNotice(formData: FormData) {
-    "use server";
-    if (isDemoModeEnabled()) {
-      redirect("/violations/notice?saved=1");
-    }
-
-    const workerId = Number(formData.get("workerId"));
-    const contractorId = Number(formData.get("contractorId"));
-    const selectedSite = String(formData.get("siteKey") || "");
-    const noticeNo = String(formData.get("noticeNo") || "");
-    const supervisorName = String(formData.get("supervisorName") || "").trim();
-    const delegateName = String(formData.get("delegateName") || "").trim();
-    const complexNo = String(formData.get("complexNo") || "").trim();
-    const notes = String(formData.get("extraNotes") || "").trim();
-    const date = String(formData.get("date") || "");
-    const time = String(formData.get("time") || "");
-    const violationTypeIds = formData
-      .getAll("violationTypeIds")
-      .map((value) => Number(value))
-      .filter((value) => Number.isFinite(value) && value > 0);
-
-    const mediaRaw = formData.getAll("mediaFiles");
-    const mediaFiles = mediaRaw.filter((f): f is File => typeof f === "object" && f !== null && "size" in f && f.size > 0);
-
-    if (!workerId || !contractorId || violationTypeIds.length === 0) return;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
-
-    const { appUser } = await getSessionContext();
-    if (!appUser || !hasPermission(appUser, PERM.VIOLATION_NOTICE)) return;
-
-    const supabase = createSupabaseAdminClient();
-    const options = await getInfractionNoticeOptions();
-    const { data: contractor } = await supabase
-      .from("contractors")
-      .select("name")
-      .eq("id", contractorId)
-      .single<{ name: string }>();
-
-    const siteIdFromKey =
-      selectedSite === "mina"
-        ? options.siteMapping.minaSiteId
-        : selectedSite === "arafat"
-          ? options.siteMapping.arafatSiteId
-          : selectedSite === "muzdalifah"
-            ? options.siteMapping.muzdalifahSiteId
-            : null;
-
-    if (!siteIdFromKey) return;
-
-    const occurredAt = new Date(`${date}T${time || "00:00"}:00`);
-    const selectedTypes = options.violationTypes.filter((item) => violationTypeIds.includes(item.id));
-    const typeNamesJoined = selectedTypes.map((item) => item.name_ar).join("، ");
-
-    const summaryBase =
-      `إشعار مخالفة رقم ${noticeNo}\n` +
-      `الموقع: ${selectedSite}\n` +
-      `رقم مجمع: ${complexNo || "-"}\n` +
-      `المقاول: ${contractor?.name ?? "-"}\n` +
-      `اسم مشرف المقاول: ${supervisorName || "-"}\n` +
-      `المندوب: ${delegateName || "-"}\n` +
-      `تفاصيل المخالفة: ${typeNamesJoined}\n` +
-      `ملاحظات: ${notes || "-"}`;
-
-    const mediaUrls = await uploadContractorNoticeMediaFiles(workerId, mediaFiles);
-
-    /** سجل لكل نوع مخالفة — يُحسب خصم كل نوع في مستخلص المقاول بعد الاعتماد */
-    const rowsToInsert = violationTypeIds.map((vid) => {
-      const typeItem = options.violationTypes.find((t) => t.id === vid);
-      const label = typeItem?.name_ar ?? `نوع #${vid}`;
-      return {
-        worker_id: workerId,
-        site_id: siteIdFromKey,
-        violation_type_id: vid,
-        description: `${summaryBase}\n---\nسجل الخصم: «${label}» (قيمة الخصم من إعدادات النوع عند اعتماد المخالفة).`,
-        occurred_at: occurredAt.toISOString(),
-        reported_by: appUser.id,
-        status: "pending_review" as const,
-        attachment_urls: mediaUrls,
-      };
-    });
-
-    if (rowsToInsert.length === 0) return;
-
-    const { error: insertError } = await supabase.from("worker_violations").insert(rowsToInsert);
-    if (insertError) {
-      console.error(insertError);
-      return;
-    }
-
-    revalidatePath("/violations");
-    revalidatePath("/dashboard");
-    revalidatePath("/violations/notice");
-    redirect("/violations/notice?saved=1");
-  }
-
   await requireScreen(PERM.VIOLATION_NOTICE);
 
   const params = await searchParams;
@@ -252,15 +151,9 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
             contractorNameForView={contractorNameForView ?? "—"}
           />
         ) : (
-          <form
-            id="notice-contractor-print"
-            action={saveNotice}
-            className="paper-form np-paper"
-            encType="multipart/form-data"
-            dir="rtl"
-          >
+          <NoticeFormShell showSavedBanner={params.saved === "1"}>
             <EditNoticeBody options={options} workersForSelect={workersForSelect} />
-          </form>
+          </NoticeFormShell>
         )}
       </Card>
 
@@ -888,6 +781,40 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           border: 1px solid #111;
           background: #f8f8f8;
         }
+        .notice-media-tile {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .np-field-error {
+          outline: 3px solid #b91c1c !important;
+          outline-offset: 2px;
+          background-color: #fef2f2 !important;
+        }
+        .notice-save-flash {
+          background-color: #15803d !important;
+          border-color: #14532d !important;
+          color: #fff !important;
+        }
+        @keyframes notice-indeterminate {
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(250%);
+          }
+        }
+        .notice-upload-progress-indeterminate {
+          width: 40%;
+          animation: notice-indeterminate 1.1s ease-in-out infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .notice-upload-progress-indeterminate {
+            animation: none;
+            width: 100%;
+            opacity: 0.85;
+          }
+        }
         .notes {
           border-top: 1px solid #111;
           margin-top: 10px;
@@ -1097,6 +1024,7 @@ function EditNoticeBody({
         dateDefault={todayIsoDateInAppTimeZone()}
         timeDefault=""
         noticeNo={String(options.noticeNo)}
+        dateFieldWrapId="notice-field-date"
       />
 
       <NoticeOfficialPaperFields
@@ -1106,7 +1034,7 @@ function EditNoticeBody({
         defaultSiteKey="mina"
       />
 
-      <NoticeOfficialViolationList types={options.violationTypes} />
+      <NoticeOfficialViolationList types={options.violationTypes} violationsSectionId="notice-field-violations" />
 
       <table className="np-table">
         <tbody>
@@ -1135,10 +1063,6 @@ function EditNoticeBody({
       <NoticeAttachments />
 
       <NoticeOfficialSignatures />
-
-      <div className="no-print save-wrap">
-        <Button type="submit">حفظ إشعار المخالفة</Button>
-      </div>
     </>
   );
 }

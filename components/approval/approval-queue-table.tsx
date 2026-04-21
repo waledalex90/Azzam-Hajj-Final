@@ -8,6 +8,7 @@ import { TableVirtuoso } from "react-virtuoso";
 
 import { approveApprovalChunk, fetchPendingApprovalIds } from "@/app/(dashboard)/approval/actions";
 import { CorrectionRequestDialog } from "@/components/attendance/correction-request-dialog";
+import { useRunWithGlobalLock } from "@/components/providers/global-action-lock-context";
 import type { AttendanceCheckRow } from "@/lib/types/db";
 
 type Decision = "confirm" | "reject";
@@ -45,6 +46,7 @@ export function ApprovalQueueTable({
   onChunkApproved,
 }: Props) {
   const router = useRouter();
+  const runLocked = useRunWithGlobalLock();
   const [isSaving, setIsSaving] = useState(false);
   const [pendingCheckIds, setPendingCheckIds] = useState<number[]>([]);
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
@@ -79,9 +81,10 @@ export function ApprovalQueueTable({
 
   async function runBulkApprove() {
     if (isSaving) return;
-    setIsSaving(true);
-    try {
-      if (bulkScope === "all") {
+    await runLocked(async () => {
+      setIsSaving(true);
+      try {
+        if (bulkScope === "all") {
         const listed = await fetchPendingApprovalIds({
           workDate,
           siteId: siteId ? Number(siteId) : undefined,
@@ -161,18 +164,20 @@ export function ApprovalQueueTable({
       setSelected(new Set());
       setRemoved(new Set());
       void router.refresh();
-    } finally {
-      setIsSaving(false);
-    }
+      } finally {
+        setIsSaving(false);
+      }
+    });
   }
 
   async function onDecision(checkId: number, decision: Decision) {
     if (isSaving) return;
-    setIsSaving(true);
-    setPendingCheckIds((prev) => Array.from(new Set([...prev, checkId])));
-    setRemoved((prev) => new Set(prev).add(checkId));
-    try {
-      const response = await fetch("/api/attendance/sync", {
+    await runLocked(async () => {
+      setIsSaving(true);
+      setPendingCheckIds((prev) => Array.from(new Set([...prev, checkId])));
+      setRemoved((prev) => new Set(prev).add(checkId));
+      try {
+        const response = await fetch("/api/attendance/sync", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -215,10 +220,11 @@ export function ApprovalQueueTable({
         });
       }
       void router.refresh();
-    } finally {
-      setPendingCheckIds((prev) => prev.filter((id) => id !== checkId));
-      setIsSaving(false);
-    }
+      } finally {
+        setPendingCheckIds((prev) => prev.filter((id) => id !== checkId));
+        setIsSaving(false);
+      }
+    });
   }
 
   return (

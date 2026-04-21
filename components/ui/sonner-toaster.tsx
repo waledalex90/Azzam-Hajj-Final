@@ -10,6 +10,7 @@ export function SonnerToaster() {
       richColors
       dir="rtl"
       closeButton
+      style={{ zIndex: 10050 }}
       toastOptions={{
         duration: 4200,
         classNames: {

@@ -19,3 +19,10 @@
     animation: none;
   }
 }
+
+/* على الشاشات الضيقة تقل حركة الدخول لتقليل التهنيج في Safari/Chrome */
+@media (max-width: 640px) {
+  .panel {
+    animation: none;
+  }
+}
