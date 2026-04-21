@@ -144,7 +144,6 @@ export async function GET(req: NextRequest) {
                 ...dayKeys,
                 "present_days",
                 "absent_days",
-                "half_days",
                 "attendance_day_equivalent",
               ];
               ensureHeader(head);
@@ -158,7 +157,6 @@ export async function GET(req: NextRequest) {
                   ...dayKeys.map((k) => r[k] ?? ""),
                   r.present_days,
                   r.absent_days,
-                  r.half_days,
                   r.attendance_day_equivalent,
                 ];
                 controller.enqueue(enc.encode(rowToCsvLine(cells) + "\n"));

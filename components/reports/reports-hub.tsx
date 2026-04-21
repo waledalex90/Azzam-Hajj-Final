@@ -726,7 +726,6 @@ export function ReportsHub() {
               <option value="all">الكل</option>
               <option value="present">حاضر</option>
               <option value="absent">غائب</option>
-              <option value="half">نصف يوم</option>
             </select>
           </div>
         )}
@@ -895,7 +894,6 @@ export function ReportsHub() {
                             </th>
                           ))}
                           <th className="px-2 py-2">حضور</th>
-                          <th className="px-2 py-2">نصف أيام</th>
                           <th className="px-2 py-2">غياب</th>
                           <th className="px-2 py-2">إجمالي أيام العمل</th>
                         </>
@@ -932,7 +930,6 @@ export function ReportsHub() {
                               </td>
                             ))}
                             <td className="px-2 py-1 text-center">{String(row.present_days ?? "")}</td>
-                            <td className="px-2 py-1 text-center">{String(row.half_days ?? "")}</td>
                             <td className="px-2 py-1 text-center">{String(row.absent_days ?? "")}</td>
                             <td className="px-2 py-1 text-center font-bold text-emerald-900">
                               {String(row.attendance_day_equivalent ?? "")}

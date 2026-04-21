@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { submitAttendanceCorrectionRequestFromReview } from "@/app/(dashboard)/attendance/review-actions";
 
-type Status = "present" | "absent" | "half";
+type Status = "present" | "absent";
 
 export function CorrectionRequestDialog({ checkId, disabled }: { checkId: number; disabled?: boolean }) {
   const dlg = useRef<HTMLDialogElement>(null);
@@ -59,7 +59,7 @@ export function CorrectionRequestDialog({ checkId, disabled }: { checkId: number
         className="max-w-md rounded border-2 border-slate-500 bg-white p-4 text-right shadow-lg backdrop:bg-black/40"
       >
         <p className="text-base font-extrabold">طلب تعديل حضور</p>
-        <p className="mt-1 text-xs text-slate-600">يُرسل للإدارة: السبب + الحالة المطلوبة (حاضر / غائب / نصف يوم).</p>
+        <p className="mt-1 text-xs text-slate-600">يُرسل للإدارة: السبب + الحالة المطلوبة (حاضر أو غائب فقط).</p>
         <label className="mt-3 block text-xs font-bold">السبب</label>
         <textarea
           value={reason}
@@ -78,7 +78,6 @@ export function CorrectionRequestDialog({ checkId, disabled }: { checkId: number
         >
           <option value="present">حاضر</option>
           <option value="absent">غائب</option>
-          <option value="half">نصف يوم</option>
         </select>
         <div className="mt-4 flex justify-end gap-2">
           <button

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { TableVirtuoso, Virtuoso } from "react-virtuoso";
 
+import { CancelHalfDayPrepButton } from "@/components/attendance/cancel-half-day-prep-button";
 import { CorrectionRequestDialog } from "@/components/attendance/correction-request-dialog";
 import type { AttendanceCheckRow } from "@/lib/types/db";
 
@@ -24,6 +25,12 @@ function reviewLabel(status: "pending" | "confirmed" | "rejected") {
   if (status === "confirmed") return "معتمد";
   if (status === "rejected") return "مرفوض";
   return "بانتظار الاعتماد";
+}
+
+function prepStatusLabel(status: AttendanceCheckRow["status"]) {
+  if (status === "present") return "حاضر";
+  if (status === "absent") return "غائب";
+  return "—";
 }
 
 const TABLE_H = "min(65vh,880px)";
@@ -107,8 +114,14 @@ export function AttendanceReviewTab({
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-600">الموقع: {row.sites?.name ?? "-"}</p>
-                <div className="mt-2">
+                <div className="mt-2 space-y-2">
+                  <p className="text-[11px] font-bold text-slate-600">
+                    التحضير: <span className="text-slate-900">{prepStatusLabel(row.status)}</span>
+                  </p>
                   <CorrectionRequestDialog checkId={row.id} disabled={!canCorrection} />
+                  {row.status === "half" && row.confirmation_status === "pending" ? (
+                    <CancelHalfDayPrepButton checkId={row.id} />
+                  ) : null}
                 </div>
               </div>
             )}
@@ -134,6 +147,7 @@ export function AttendanceReviewTab({
                 <th className="border border-slate-300 px-3 py-2 text-right font-bold">العامل</th>
                 <th className="border border-slate-300 px-3 py-2 text-right font-bold">الموقع</th>
                 <th className="border border-slate-300 px-3 py-2 text-right font-bold">الجولة</th>
+                <th className="border border-slate-300 px-3 py-2 text-right font-bold">التحضير</th>
                 <th className="border border-slate-300 px-3 py-2 text-right font-bold">الاعتماد</th>
                 <th className="border border-slate-300 px-3 py-2 text-right font-bold">إجراءات</th>
               </tr>
@@ -148,6 +162,9 @@ export function AttendanceReviewTab({
                 <td className="border border-slate-300 px-3 py-1 text-xs">
                   {row.attendance_rounds?.work_date ?? "-"} / #{row.attendance_rounds?.round_no ?? "-"}
                 </td>
+                <td className="border border-slate-300 px-3 py-1 text-xs font-bold">
+                  {prepStatusLabel(row.status)}
+                </td>
                 <td className="border border-slate-300 px-3 py-1">
                   <span
                     className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${reviewBadgeClass(
@@ -158,7 +175,12 @@ export function AttendanceReviewTab({
                   </span>
                 </td>
                 <td className="border border-slate-300 px-3 py-1 align-top">
-                  <CorrectionRequestDialog checkId={row.id} disabled={!canCorrection} />
+                  <div className="flex flex-col gap-2">
+                    <CorrectionRequestDialog checkId={row.id} disabled={!canCorrection} />
+                    {row.status === "half" && row.confirmation_status === "pending" ? (
+                      <CancelHalfDayPrepButton checkId={row.id} />
+                    ) : null}
+                  </div>
                 </td>
               </>
             )}

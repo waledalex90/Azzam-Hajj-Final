@@ -20,7 +20,7 @@ export async function revalidateAttendancePageCache(): Promise<void> {
   revalidatePath("/dashboard");
 }
 
-type Status = "present" | "absent" | "half";
+type Status = "present" | "absent";
 
 const CHUNK = 500;
 
@@ -39,8 +39,8 @@ export async function submitAttendancePrepBulk(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
     return { ok: false, error: "تاريخ غير صالح." };
   }
-  if (!["present", "absent", "half"].includes(status)) {
-    return { ok: false, error: "حالة غير صالحة." };
+  if (!["present", "absent"].includes(status)) {
+    return { ok: false, error: "الحضور مقتصر على حاضر أو غائب فقط." };
   }
   const ids = Array.from(new Set(workerIds.map((id) => Number(id)).filter(Boolean)));
   if (ids.length === 0) return { ok: false, error: "لم يُحدد أي عامل." };

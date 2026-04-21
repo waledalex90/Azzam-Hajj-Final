@@ -127,10 +127,6 @@ export default async function DashboardHomePage({ searchParams }: Props) {
             <p className="text-xs text-slate-500">غائب</p>
           </div>
           <div className="text-center">
-            <p className="text-xl font-extrabold text-amber-700">{attendanceStats.halfToday}</p>
-            <p className="text-xs text-slate-500">نصف يوم</p>
-          </div>
-          <div className="text-center">
             <p className="text-xl font-extrabold text-slate-800">{attendanceRate}%</p>
             <p className="text-xs text-slate-500">حاضر من المسجّل</p>
           </div>
@@ -182,7 +178,7 @@ export default async function DashboardHomePage({ searchParams }: Props) {
                 <span className="text-xs text-slate-600">
                   إجمالي {row.totalWorkers} — معلّق{" "}
                   <span className="font-extrabold text-amber-800">{row.pending}</span> — حاضر {row.present} / غائب{" "}
-                  {row.absent} / نصف {row.half}
+                  {row.absent}
                 </span>
               </div>
             ))

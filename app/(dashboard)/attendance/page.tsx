@@ -270,7 +270,7 @@ export default async function AttendancePage({ searchParams }: Props) {
           />
         ) : (
           <>
-            <div className="grid gap-3 sm:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-3">
               <Card className="text-center">
                 <p className="text-xs text-slate-500">معلّق اعتماد</p>
                 <p className="mt-1 text-2xl font-extrabold text-slate-700">{reviewRoundStats?.pending ?? 0}</p>
@@ -282,10 +282,6 @@ export default async function AttendancePage({ searchParams }: Props) {
               <Card className="text-center">
                 <p className="text-xs text-slate-500">غائب</p>
                 <p className="mt-1 text-2xl font-extrabold text-red-700">{reviewRoundStats?.absent ?? 0}</p>
-              </Card>
-              <Card className="text-center">
-                <p className="text-xs text-slate-500">نصف يوم</p>
-                <p className="mt-1 text-2xl font-extrabold text-amber-700">{reviewRoundStats?.half ?? 0}</p>
               </Card>
             </div>
             <Card className="border-dashed border-slate-200 bg-white/80">

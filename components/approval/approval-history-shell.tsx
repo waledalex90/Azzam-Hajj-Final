@@ -46,7 +46,7 @@ export function ApprovalHistoryShell({ initialRows, stats, canRequestCorrection 
         </p>
         {canRequestCorrection ? (
           <p className="mt-2 text-xs font-bold text-amber-900">
-            للسجلات المعتمدة: زر «طلب تعديل» يفتح السبب والحالة المطلوبة (حاضر / غائب / نصف يوم) ويُرسل للإدارة.
+            للسجلات المعتمدة: زر «طلب تعديل» يفتح السبب والحالة المطلوبة (حاضر أو غائب) ويُرسل للإدارة.
           </p>
         ) : null}
       </div>
@@ -85,7 +85,7 @@ export function ApprovalHistoryShell({ initialRows, stats, canRequestCorrection 
                 {row.attendance_rounds?.work_date ?? "-"} / #{row.attendance_rounds?.round_no ?? "-"}
               </td>
               <td className="border border-slate-300 px-3 py-2">
-                {row.status === "present" ? "حاضر" : row.status === "absent" ? "غائب" : "نصف يوم"}
+                {row.status === "present" ? "حاضر" : row.status === "absent" ? "غائب" : "—"}
               </td>
               <td className="border border-slate-300 px-3 py-2">
                 {canRequestCorrection ? <CorrectionRequestDialog checkId={row.id} /> : <span className="text-xs text-slate-400">—</span>}

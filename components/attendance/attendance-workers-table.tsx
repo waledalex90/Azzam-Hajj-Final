@@ -12,6 +12,7 @@ import type { WorkerRow } from "@/lib/types/db";
 import { workerHasSiteForPrep } from "@/lib/utils/worker-prep-eligibility";
 
 type AttendanceStatus = "present" | "absent" | "half";
+type PrepSubmitStatus = "present" | "absent";
 
 type Props = {
   rows: WorkerRow[];
@@ -21,7 +22,7 @@ type Props = {
   filteredWorkerIds?: number[];
   filteredTotalRows?: number;
   skipServerRefresh?: boolean;
-  onAttendanceChunkSaved?: (workerIds: number[], status: AttendanceStatus) => void;
+  onAttendanceChunkSaved?: (workerIds: number[], status: PrepSubmitStatus) => void;
   onAttendanceSessionComplete?: () => void;
   /** بعد نجاح التحضير (صف أو دفعة): الانتقال لتبويب المراجعة */
   onPrepSuccessNavigate?: () => void;
@@ -31,7 +32,7 @@ type Props = {
 function statusLabel(status?: AttendanceStatus) {
   if (status === "present") return "حاضر";
   if (status === "absent") return "غائب";
-  if (status === "half") return "نصف يوم";
+  if (status === "half") return "—";
   return "غير محدد";
 }
 
@@ -111,7 +112,7 @@ export function AttendanceWorkersTable({
     });
   }
 
-  async function runPrepBulk(status: AttendanceStatus) {
+  async function runPrepBulk(status: PrepSubmitStatus) {
     if (!hasSelection || isSaving) return;
     const ids =
       bulkScope === "all"
@@ -203,14 +204,6 @@ export function AttendanceWorkersTable({
         >
           تحضير المحدد كـ غائب
         </button>
-        <button
-          type="button"
-          onClick={() => void runPrepBulk("half")}
-          className="rounded border border-amber-700 bg-amber-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-          disabled={!hasSelection || isSaving}
-        >
-          تحضير المحدد كنصف يوم
-        </button>
       </div>
     );
   }
@@ -219,7 +212,7 @@ export function AttendanceWorkersTable({
     const worker = rowById.get(workerId);
     const prepEligible = worker != null && workerHasSiteForPrep(worker);
 
-    async function onStatusClick(status: AttendanceStatus) {
+    async function onStatusClick(status: PrepSubmitStatus) {
       if (isSaving) return;
       if (!prepEligible) {
         toast.error("لا يمكن التحضير بدون موقع معتمد للعامل — حدّث الموقع من «العمال».");
@@ -284,14 +277,6 @@ export function AttendanceWorkersTable({
           disabled={isSaving}
         >
           غائب
-        </button>
-        <button
-          type="button"
-          onClick={() => void onStatusClick("half")}
-          className="rounded border border-amber-700 bg-amber-600 px-2 py-1 text-xs font-bold text-white disabled:opacity-40"
-          disabled={isSaving}
-        >
-          نصف
         </button>
         <span
           className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${statusBadgeClass(statusMap[workerId])}`}

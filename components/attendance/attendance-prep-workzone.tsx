@@ -11,6 +11,7 @@ import { workerHasSiteForPrep } from "@/lib/utils/worker-prep-eligibility";
 import type { AttendanceDayStats, WorkerRow } from "@/lib/types/db";
 
 type AttendanceStatus = "present" | "absent" | "half";
+type PrepSubmitStatus = "present" | "absent";
 
 type Props = {
   initialDayStats: AttendanceDayStats;
@@ -26,14 +27,14 @@ type Props = {
 function applyPrepToStats(
   prev: AttendanceDayStats,
   count: number,
-  status: AttendanceStatus,
+  status: PrepSubmitStatus,
 ): AttendanceDayStats {
   return {
     ...prev,
     pending: Math.max(0, prev.pending - count),
     present: status === "present" ? prev.present + count : prev.present,
     absent: status === "absent" ? prev.absent + count : prev.absent,
-    half: status === "half" ? prev.half + count : prev.half,
+    half: prev.half,
   };
 }
 
@@ -84,7 +85,7 @@ export function AttendancePrepWorkzone({
   }, [workDate, roundNo, siteId, contractorId]);
 
   const onPrepDone = useCallback(
-    (ids: number[], status: AttendanceStatus) => {
+    (ids: number[], status: PrepSubmitStatus) => {
       const set = new Set(ids);
       let becameEmpty = false;
       flushSync(() => {
@@ -115,7 +116,7 @@ export function AttendancePrepWorkzone({
   const allDone = workers.length === 0;
 
   const statsBlock = (
-    <div className="grid gap-3 sm:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-3">
       <Card className="text-center">
         <p className="text-xs text-slate-500">معلّق</p>
         <p className="mt-1 text-2xl font-extrabold text-slate-700">{dayStats.pending}</p>
@@ -127,10 +128,6 @@ export function AttendancePrepWorkzone({
       <Card className="text-center">
         <p className="text-xs text-slate-500">غائب</p>
         <p className="mt-1 text-2xl font-extrabold text-red-700">{dayStats.absent}</p>
-      </Card>
-      <Card className="text-center">
-        <p className="text-xs text-slate-500">نصف يوم</p>
-        <p className="mt-1 text-2xl font-extrabold text-amber-700">{dayStats.half}</p>
       </Card>
     </div>
   );

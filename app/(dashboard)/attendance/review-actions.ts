@@ -12,7 +12,7 @@ export type ReviewCorrectionResult = { ok: true } | { ok: false; error: string }
 export async function submitAttendanceCorrectionRequestFromReview(input: {
   checkId: number;
   reason: string;
-  requestedStatus: "present" | "absent" | "half";
+  requestedStatus: "present" | "absent";
 }): Promise<ReviewCorrectionResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser: actor } = await getSessionContext();
@@ -23,13 +23,12 @@ export async function submitAttendanceCorrectionRequestFromReview(input: {
   const checkId = Number(input.checkId);
   const requestedStatus = input.requestedStatus;
   const reasonBase = String(input.reason || "").trim() || "طلب تعديل حضور — مراجعة تحضير اليوم";
-  const statusLabel =
-    requestedStatus === "present" ? "حاضر" : requestedStatus === "absent" ? "غائب" : "نصف يوم";
+  const statusLabel = requestedStatus === "present" ? "حاضر" : "غائب";
   const reason = `${reasonBase}\n[الحالة المطلوبة: ${statusLabel}]`;
 
   if (!checkId) return { ok: false, error: "سجل غير صالح." };
-  if (!["present", "absent", "half"].includes(requestedStatus)) {
-    return { ok: false, error: "حالة غير صالحة." };
+  if (!["present", "absent"].includes(requestedStatus)) {
+    return { ok: false, error: "الحالة المطلوبة حاضر أو غائب فقط." };
   }
 
   const supabase = createSupabaseAdminClient();

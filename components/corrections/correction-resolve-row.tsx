@@ -17,7 +17,7 @@ export function CorrectionResolveRow({ requestId, workerLabel, metaLine, reason 
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
-  async function apply(status: "present" | "absent" | "half") {
+  async function apply(status: "present" | "absent") {
     if (busy) return;
     setBusy(true);
     try {
@@ -56,14 +56,6 @@ export function CorrectionResolveRow({ requestId, workerLabel, metaLine, reason 
           className="rounded-lg bg-red-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
         >
           تغيير لـ: غائب
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void apply("half")}
-          className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
-        >
-          تغيير لـ: نصف
         </button>
       </div>
     </div>

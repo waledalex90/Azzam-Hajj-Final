@@ -207,7 +207,7 @@ export default async function CorrectionsPage({ searchParams }: Props) {
             ? `${check.workers.name} (${check.workers.id_number})`
             : `سجل #${req.attendance_id ?? "—"}`;
           const metaLine = `${check.siteName ?? "—"} | ${check.workDate ?? "—"} / #${check.roundNo ?? "—"} | الحالة الحالية: ${
-            check.status === "present" ? "حاضر" : check.status === "absent" ? "غائب" : "نصف يوم"
+            check.status === "present" ? "حاضر" : check.status === "absent" ? "غائب" : "—"
           }`;
           return (
             <CorrectionResolveRow

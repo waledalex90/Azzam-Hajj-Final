@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       if (
         !body?.workDate ||
         !body.status ||
-        !["present", "absent", "half"].includes(body.status) ||
+        !["present", "absent"].includes(body.status) ||
         !Array.isArray(body.workerIds)
       ) {
         return NextResponse.json({ error: "Invalid payload data", code: "400" }, { status: 400 });

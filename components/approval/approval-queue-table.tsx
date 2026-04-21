@@ -321,7 +321,7 @@ export function ApprovalQueueTable({
                   {row.attendance_rounds?.work_date ?? "-"} / #{row.attendance_rounds?.round_no ?? "-"}
                 </td>
                 <td className="border border-slate-300 px-3 py-1">
-                  {row.status === "present" ? "حاضر" : row.status === "absent" ? "غائب" : "نصف يوم"}
+                  {row.status === "present" ? "حاضر" : row.status === "absent" ? "غائب" : "—"}
                 </td>
                 <td className="border border-slate-300 px-3 py-1 align-top">
                   <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-start">

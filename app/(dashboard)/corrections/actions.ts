@@ -13,15 +13,15 @@ export type CorrectionActionResult = { ok: true } | { ok: false; error: string }
 
 export async function resolveCorrectionRequest(
   requestId: number,
-  status: "present" | "absent" | "half",
+  status: "present" | "absent",
 ): Promise<CorrectionActionResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser } = await getSessionContext();
   if (!appUser || (!hasPermission(appUser, PERM.APPROVAL) && !isAdminOrHrRole(appUser.role))) {
     return { ok: false, error: "لا توجد صلاحية لاعتماد طلب التعديل (موارد/أدمن أو من لديه اعتماد)." };
   }
-  if (!requestId || !["present", "absent", "half"].includes(status)) {
-    return { ok: false, error: "بيانات غير صالحة." };
+  if (!requestId || !["present", "absent"].includes(status)) {
+    return { ok: false, error: "الحالة حاضر أو غائب فقط." };
   }
 
   const supabase = createSupabaseAdminClient();
@@ -40,7 +40,7 @@ export async function resolveCorrectionRequest(
 
   const checkId = reqRow.attendance_id;
 
-  const statusAr = status === "present" ? "حاضر" : status === "absent" ? "غائب" : "نصف يوم";
+  const statusAr = status === "present" ? "حاضر" : "غائب";
   const { error: upCheck } = await supabase
     .from("attendance_checks")
     .update({

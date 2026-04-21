@@ -34,8 +34,7 @@ function HorizontalAttendanceMatrixTableInner({
     <div className="space-y-2" dir="rtl">
       <p className="text-[11px] text-slate-600">
         وسوم الخلايا: <span className="font-bold text-emerald-800">P</span> حضور،{" "}
-        <span className="font-bold text-rose-800">A</span> غياب،{" "}
-        <span className="font-bold text-amber-800">H</span> نصف يوم
+        <span className="font-bold text-rose-800">A</span> غياب
       </p>
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <div style={{ height: TABLE_H }}>
@@ -78,7 +77,6 @@ function HorizontalAttendanceMatrixTableInner({
                   </th>
                 ))}
                 <th className="border border-slate-200 px-1 py-2 text-center font-bold">حضور</th>
-                <th className="border border-slate-200 px-1 py-2 text-center font-bold">نصف أيام</th>
                 <th className="border border-slate-200 px-1 py-2 text-center font-bold">غياب</th>
                 <th className="border border-slate-200 px-1 py-2 text-center font-bold">إجمالي أيام العمل</th>
               </tr>
@@ -107,9 +105,6 @@ function HorizontalAttendanceMatrixTableInner({
                 ))}
                 <td className="border border-slate-200 px-1 py-1.5 text-center">
                   {String(row.present_days ?? "")}
-                </td>
-                <td className="border border-slate-200 px-1 py-1.5 text-center">
-                  {String(row.half_days ?? "")}
                 </td>
                 <td className="border border-slate-200 px-1 py-1.5 text-center">
                   {String(row.absent_days ?? "")}
