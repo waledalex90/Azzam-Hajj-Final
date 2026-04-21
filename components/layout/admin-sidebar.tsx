@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SpaLink } from "@/components/navigation/spa-link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { clsx } from "clsx";
@@ -105,7 +105,7 @@ export function AdminSidebar({ user }: Props) {
           const active = isActive(pathname, item.href);
           const Icon = item.icon;
           return (
-            <Link
+            <SpaLink
               key={item.href}
               href={item.href}
               className={clsx(
@@ -117,7 +117,7 @@ export function AdminSidebar({ user }: Props) {
             >
               <span>{item.label}</span>
               <Icon className="h-4 w-4" />
-            </Link>
+            </SpaLink>
           );
         })}
       </nav>

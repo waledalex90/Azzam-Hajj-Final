@@ -14,6 +14,7 @@ import { parsePage } from "@/lib/utils/pagination";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 import { requireScreen } from "@/lib/auth/require-screen";
 import { PERM } from "@/lib/permissions/keys";
+import { resolveViolationListDateRange } from "@/lib/utils/today";
 
 type Props = {
   searchParams: Promise<{
@@ -79,8 +80,7 @@ export default async function ViolationsPage({ searchParams }: Props) {
   const siteId = params.siteId ? Number(params.siteId) : undefined;
   const status = params.status;
   const workerQ = params.workerQ?.trim();
-  const dateFrom = params.dateFrom?.trim();
-  const dateTo = params.dateTo?.trim();
+  const { dateFrom, dateTo } = resolveViolationListDateRange(params.dateFrom, params.dateTo);
   const shiftRound =
     params.shiftRound === "1" ? 1 : params.shiftRound === "2" ? 2 : undefined;
   const workerSearch = params.workerSearch?.trim();
@@ -131,8 +131,8 @@ export default async function ViolationsPage({ searchParams }: Props) {
             placeholder="بحث عامل (اسم / هوية)"
             className="min-h-12"
           />
-          <Input name="dateFrom" type="date" defaultValue={dateFrom ?? ""} placeholder="اختر التاريخ" />
-          <Input name="dateTo" type="date" defaultValue={dateTo ?? ""} placeholder="اختر التاريخ" />
+          <Input name="dateFrom" type="date" defaultValue={dateFrom} placeholder="اختر التاريخ" />
+          <Input name="dateTo" type="date" defaultValue={dateTo} placeholder="اختر التاريخ" />
           <select
             name="shiftRound"
             defaultValue={params.shiftRound ?? ""}

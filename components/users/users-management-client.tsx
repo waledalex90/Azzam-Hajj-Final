@@ -1,6 +1,8 @@
 "use client";
 
+import type { ComponentProps, ReactNode } from "react";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -20,11 +22,21 @@ import {
   resetAppUserPasswordAction,
   updateAppUserAction,
 } from "@/lib/actions/user-role-management";
-async function submitUpdateAppUser(fd: FormData): Promise<void> {
-  void (await updateAppUserAction(fd));
-}
-async function submitResetPassword(fd: FormData): Promise<void> {
-  void (await resetAppUserPasswordAction(fd));
+
+function FormSubmitButton({
+  children,
+  pendingLabel,
+  ...props
+}: Omit<ComponentProps<typeof Button>, "type" | "pending" | "children"> & {
+  children: ReactNode;
+  pendingLabel: string;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" pending={pending} {...props}>
+      {pending ? pendingLabel : children}
+    </Button>
+  );
 }
 
 export type UserRow = {
@@ -331,7 +343,28 @@ function UserRowEditor({
   canEdit: boolean;
   deleteAction: (fd: FormData) => Promise<void>;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  async function submitUpdate(fd: FormData) {
+    const r = await updateAppUserAction(fd);
+    if (!r.ok) {
+      toast.error(r.error ?? "فشل حفظ التعديلات");
+      return;
+    }
+    toast.success("تم حفظ تعديلات المستخدم");
+    router.refresh();
+  }
+
+  async function submitResetPassword(fd: FormData) {
+    const r = await resetAppUserPasswordAction(fd);
+    if (!r.ok) {
+      toast.error(r.error ?? "فشل إعادة تعيين كلمة المرور");
+      return;
+    }
+    toast.success("تم إعادة تعيين كلمة المرور");
+    router.refresh();
+  }
 
   const siteLabel =
     u.allowed_site_ids && u.allowed_site_ids.length > 0
@@ -367,9 +400,13 @@ function UserRowEditor({
             </Button>
             <form action={deleteAction}>
               <input type="hidden" name="userId" value={u.id} />
-              <Button type="submit" variant="secondary" className="h-8 px-2 text-xs text-red-800">
+              <FormSubmitButton
+                variant="secondary"
+                className="h-8 px-2 text-xs text-red-800"
+                pendingLabel="جاري الحذف…"
+              >
                 حذف
-              </Button>
+              </FormSubmitButton>
             </form>
           </div>
         </td>
@@ -377,7 +414,7 @@ function UserRowEditor({
       {open && (
         <tr className="border-t border-slate-100 bg-slate-50">
           <td colSpan={6} className="px-3 py-4">
-            <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" action={submitUpdateAppUser}>
+            <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" action={submitUpdate}>
               <input type="hidden" name="userId" value={u.id} />
               <div>
                 <label className="text-xs font-bold">الاسم</label>
@@ -417,9 +454,9 @@ function UserRowEditor({
                 />
               </div>
               <div className="sm:col-span-2 lg:col-span-4">
-                <Button type="submit" className="min-h-10 px-4 py-2 text-sm">
+                <FormSubmitButton className="min-h-10 px-4 py-2 text-sm" pendingLabel="جاري الحفظ…">
                   حفظ التعديل
-                </Button>
+                </FormSubmitButton>
               </div>
             </form>
             <form
@@ -431,9 +468,13 @@ function UserRowEditor({
                 <label className="text-xs font-bold">كلمة مرور جديدة</label>
                 <Input name="newPassword" type="password" minLength={6} required className="mt-1 w-48" />
               </div>
-              <Button type="submit" variant="secondary" className="min-h-10 px-4 py-2 text-sm">
+              <FormSubmitButton
+                variant="secondary"
+                className="min-h-10 px-4 py-2 text-sm"
+                pendingLabel="جاري التحديث…"
+              >
                 إعادة تعيين كلمة المرور
-              </Button>
+              </FormSubmitButton>
             </form>
           </td>
         </tr>

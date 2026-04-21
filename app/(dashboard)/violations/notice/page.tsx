@@ -31,6 +31,7 @@ import {
 } from "@/lib/data/violations";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { todayIsoDateInAppTimeZone } from "@/lib/utils/today";
 
 type Props = {
   searchParams: Promise<{ saved?: string; viewId?: string }>;
@@ -1093,7 +1094,7 @@ function EditNoticeBody({
       <NoticeOfficialHeader />
 
       <NoticeOfficialMetaRow
-        dateDefault=""
+        dateDefault={todayIsoDateInAppTimeZone()}
         timeDefault=""
         noticeNo={String(options.noticeNo)}
       />

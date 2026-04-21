@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { SpaLink } from "@/components/navigation/spa-link";
 import {
   createWorkerTransferRequest,
   destinationApproveTransfer,
@@ -123,7 +122,7 @@ export default async function TransfersPage({ searchParams }: Props) {
         )}
         <div className="mt-3 flex flex-wrap gap-2 border-b border-slate-200 pb-2 text-sm">
           {TABS.filter((t) => (t.id === "hr" ? showHrTab : true)).map((t) => (
-            <Link
+            <SpaLink
               key={t.id}
               href={`/transfers?tab=${t.id}`}
               className={`rounded-t-lg px-3 py-2 font-extrabold transition-colors ${
@@ -133,7 +132,7 @@ export default async function TransfersPage({ searchParams }: Props) {
               }`}
             >
               {t.label}
-            </Link>
+            </SpaLink>
           ))}
         </div>
         {params.error && (

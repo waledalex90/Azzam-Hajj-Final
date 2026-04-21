@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { TabPanelTransition } from "@/components/ui/tab-panel-transition";
 import { Input } from "@/components/ui/input";
 import type { ReportFilters } from "@/lib/reports/queries";
+import { todayIsoDateInAppTimeZone } from "@/lib/utils/today";
 import type { PaginationMeta } from "@/lib/types/db";
 
 import { HorizontalAttendanceMatrixTable } from "./horizontal-attendance-matrix";
@@ -123,8 +124,8 @@ const TABS: { id: ReportsTab; label: string }[] = [
 
 export function ReportsHub() {
   const [tab, setTab] = useState<ReportsTab>("attendance_log");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFrom, setDateFrom] = useState(todayIsoDateInAppTimeZone);
+  const [dateTo, setDateTo] = useState(todayIsoDateInAppTimeZone);
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [siteIds, setSiteIds] = useState<number[]>([]);

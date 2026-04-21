@@ -10,13 +10,13 @@ import { getSessionContext } from "@/lib/auth/session";
 import { getAdminDashboardData, getDashboardStats } from "@/lib/data/dashboard";
 import { getTransferAlertCounts } from "@/lib/data/transfer-requests";
 import { PERM } from "@/lib/permissions/keys";
+import { resolveWorkDateFromSearchParam } from "@/lib/utils/today";
 
 type Props = { searchParams: Promise<{ date?: string }> };
 
 export default async function DashboardHomePage({ searchParams }: Props) {
   const params = await searchParams;
-  const filterDate =
-    params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : null;
+  const filterDate = resolveWorkDateFromSearchParam(params.date);
 
   const { appUser } = await getSessionContext();
   if (appUser && !hasPermission(appUser, PERM.DASHBOARD)) {
@@ -26,8 +26,8 @@ export default async function DashboardHomePage({ searchParams }: Props) {
   const siteScope = appUser ? await resolveAllowedSiteIdsForSession(appUser) : undefined;
 
   const [attendanceStats, dashboardData] = await Promise.all([
-    getDashboardStats(filterDate ?? undefined, siteScope),
-    getAdminDashboardData(filterDate ?? undefined, siteScope),
+    getDashboardStats(filterDate, siteScope),
+    getAdminDashboardData(filterDate, siteScope),
   ]);
 
   const transferAlerts = appUser
@@ -104,10 +104,10 @@ export default async function DashboardHomePage({ searchParams }: Props) {
       <Card className="border border-emerald-100 bg-emerald-50/40">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-extrabold text-slate-900">
-            حضور — {filterDate ?? "لم يُحدد التاريخ"}
+            حضور — {filterDate}
           </h2>
           <div className="flex flex-wrap items-center gap-2">
-            <DashboardDateFilter currentDate={filterDate ?? ""} />
+            <DashboardDateFilter currentDate={filterDate} />
             <Compass className="h-4 w-4 text-emerald-600" />
           </div>
         </div>

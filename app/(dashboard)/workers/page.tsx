@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 
+import { SpaLink } from "@/components/navigation/spa-link";
 import { Card } from "@/components/ui/card";
 import { TabPanelTransition } from "@/components/ui/tab-panel-transition";
 import { Input } from "@/components/ui/input";
@@ -384,22 +385,22 @@ export default async function WorkersPage({ searchParams }: Props) {
           <p className="text-xs text-slate-500">الرئيسية / الموظفين</p>
         </div>
         <div className="flex items-center gap-4 border-b border-slate-200 text-sm">
-          <Link
+          <SpaLink
             href="/workers?tab=list"
             className={`pb-2 font-bold transition-colors ${
               tab === "list" ? "border-b-2 border-[#14532d] text-[#14532d]" : "text-slate-600 hover:text-slate-800"
             }`}
           >
             قائمة الموظفين
-          </Link>
-          <Link
+          </SpaLink>
+          <SpaLink
             href="/workers?tab=create"
             className={`pb-2 font-bold transition-colors ${
               tab === "create" ? "border-b-2 border-[#14532d] text-[#14532d]" : "text-slate-600 hover:text-slate-800"
             }`}
           >
             إضافة موظف جديد
-          </Link>
+          </SpaLink>
         </div>
       </Card>
 

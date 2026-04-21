@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { SpaLink } from "@/components/navigation/spa-link";
 import { unstable_noStore as noStore } from "next/cache";
 import { Card } from "@/components/ui/card";
 import { AttendanceFilterToolbar } from "@/components/attendance/attendance-filter-toolbar";
@@ -24,6 +24,7 @@ import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
 import { PERM } from "@/lib/permissions/keys";
 import type { AttendanceDayStats } from "@/lib/types/db";
 import { buildPaginationMeta } from "@/lib/utils/pagination";
+import { resolveWorkDateFromSearchParam } from "@/lib/utils/today";
 
 const emptyStats: AttendanceDayStats = {
   total: 0,
@@ -71,8 +72,7 @@ export default async function AttendancePage({ searchParams }: Props) {
     }
   }
   const contractorId = params.contractorId ? Number(params.contractorId) : undefined;
-  const workDate =
-    params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : "";
+  const workDate = resolveWorkDateFromSearchParam(params.date);
 
   const roundNo = normalizeShiftRound(params.shift);
 
@@ -95,68 +95,64 @@ export default async function AttendancePage({ searchParams }: Props) {
   let reviewRoundStats: ReturnType<typeof summarizeAttendanceChecksForRound> | null = null;
 
   try {
-    if (!workDate) {
-      [sites, contractors] = await Promise.all([getSiteOptionsLive(), getContractorOptionsLive()]);
-    } else {
-      [sites, contractors, dayStats] = await Promise.all([
-        getSiteOptionsLive(),
-        getContractorOptionsLive(),
-        activeTab === "workers"
-          ? getAttendancePrepTabStats(
-              workDate,
-              Number.isFinite(siteId) ? siteId : undefined,
-              Number.isFinite(contractorId) ? contractorId : undefined,
-              undefined,
-              roundNo,
-              allowedSiteIds,
-            )
-          : getAttendanceDayStats(
-              workDate,
-              Number.isFinite(siteId) ? siteId : undefined,
-              Number.isFinite(contractorId) ? contractorId : undefined,
-              undefined,
-              allowedSiteIds,
-            ),
-      ]);
+    [sites, contractors, dayStats] = await Promise.all([
+      getSiteOptionsLive(),
+      getContractorOptionsLive(),
+      activeTab === "workers"
+        ? getAttendancePrepTabStats(
+            workDate,
+            Number.isFinite(siteId) ? siteId : undefined,
+            Number.isFinite(contractorId) ? contractorId : undefined,
+            undefined,
+            roundNo,
+            allowedSiteIds,
+          )
+        : getAttendanceDayStats(
+            workDate,
+            Number.isFinite(siteId) ? siteId : undefined,
+            Number.isFinite(contractorId) ? contractorId : undefined,
+            undefined,
+            allowedSiteIds,
+          ),
+    ]);
 
-      prepWorkers =
-        activeTab === "workers"
-          ? await getAllPendingPrepWorkers({
-              siteId: Number.isFinite(siteId) ? siteId : undefined,
-              allowedSiteIds,
-              contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
-              search: undefined,
-              workDate,
-              roundNo,
-            })
-          : null;
+    prepWorkers =
+      activeTab === "workers"
+        ? await getAllPendingPrepWorkers({
+            siteId: Number.isFinite(siteId) ? siteId : undefined,
+            allowedSiteIds,
+            contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
+            search: undefined,
+            workDate,
+            roundNo,
+          })
+        : null;
 
-      initialStatusMap =
-        activeTab === "workers" && prepWorkers && prepWorkers.rows.length > 0
-          ? await getAttendanceLatestStatusMap(
-              workDate,
-              prepWorkers.rows.map((item) => item.id),
-              roundNo,
-            )
-          : {};
+    initialStatusMap =
+      activeTab === "workers" && prepWorkers && prepWorkers.rows.length > 0
+        ? await getAttendanceLatestStatusMap(
+            workDate,
+            prepWorkers.rows.map((item) => item.id),
+            roundNo,
+          )
+        : {};
 
-      const reviewedPage =
-        activeTab === "review"
-          ? await getAttendanceChecksPage({
-              page: 1,
-              pageSize: FULL_LOAD,
-              workDate,
-              siteId: Number.isFinite(siteId) ? siteId : undefined,
-              allowedSiteIds,
-              search: undefined,
-              roundNo,
-            })
-          : null;
+    const reviewedPage =
+      activeTab === "review"
+        ? await getAttendanceChecksPage({
+            page: 1,
+            pageSize: FULL_LOAD,
+            workDate,
+            siteId: Number.isFinite(siteId) ? siteId : undefined,
+            allowedSiteIds,
+            search: undefined,
+            roundNo,
+          })
+        : null;
 
-      reviewedRows = reviewedPage?.rows ?? [];
-      reviewRoundStats =
-        activeTab === "review" ? summarizeAttendanceChecksForRound(reviewedRows) : null;
-    }
+    reviewedRows = reviewedPage?.rows ?? [];
+    reviewRoundStats =
+      activeTab === "review" ? summarizeAttendanceChecksForRound(reviewedRows) : null;
   } catch {
     sites = [];
     contractors = [];
@@ -193,7 +189,7 @@ export default async function AttendancePage({ searchParams }: Props) {
         </p>
 
         <div className="mt-3 flex items-center gap-2 border-b border-slate-200 text-sm">
-          <Link
+          <SpaLink
             href={`/attendance?${attendanceQuery("workers")}`}
             className={`rounded-t-xl px-3 py-2 font-extrabold transition-colors ${
               activeTab === "workers"
@@ -202,8 +198,8 @@ export default async function AttendancePage({ searchParams }: Props) {
             }`}
           >
             الموظفون والتحضير
-          </Link>
-          <Link
+          </SpaLink>
+          <SpaLink
             href={`/attendance?${attendanceQuery("review")}`}
             className={`rounded-t-xl px-3 py-2 font-extrabold transition-colors ${
               activeTab === "review"
@@ -212,7 +208,7 @@ export default async function AttendancePage({ searchParams }: Props) {
             }`}
           >
             مراجعة تحضير اليوم
-          </Link>
+          </SpaLink>
         </div>
 
         <p className="mt-2 text-xs text-slate-600">
@@ -250,14 +246,7 @@ export default async function AttendancePage({ searchParams }: Props) {
       </Card>
 
       <TabPanelTransition key={activeTab}>
-        {!workDate ? (
-          <Card className="border-amber-200 bg-amber-50/60 p-6 text-center">
-            <p className="text-base font-extrabold text-amber-950">اختر تاريخ العمل</p>
-            <p className="mt-2 text-sm text-amber-900/90">
-              استخدم حقل التاريخ أعلاه مع placeholder «اختر التاريخ» لبدء التحضير أو المراجعة.
-            </p>
-          </Card>
-        ) : activeTab === "workers" ? (
+        {activeTab === "workers" ? (
           <AttendancePrepWorkzone
             key={`prep-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}`}
             initialDayStats={dayStats}

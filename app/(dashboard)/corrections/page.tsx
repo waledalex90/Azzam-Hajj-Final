@@ -8,6 +8,7 @@ import { getSiteOptions } from "@/lib/data/attendance";
 import { parsePage } from "@/lib/utils/pagination";
 import { requireScreen } from "@/lib/auth/require-screen";
 import { PERM } from "@/lib/permissions/keys";
+import { todayIsoDateInAppTimeZone } from "@/lib/utils/today";
 
 type Props = {
   searchParams: Promise<{
@@ -15,6 +16,8 @@ type Props = {
     date?: string;
     siteId?: string;
     q?: string;
+    /** عند القيمة 1 تُعرض الطلبات المعلّقة لكل أيام العمل (بدون تصفية بيوم). */
+    allDates?: string;
   }>;
 };
 
@@ -32,9 +35,11 @@ export default async function CorrectionsPage({ searchParams }: Props) {
   const params = await searchParams;
   const page = parsePage(params.page, 1);
   const siteId = params.siteId ? Number(params.siteId) : undefined;
-  /** بدون تاريخ في الرابط = عرض كل الطلبات المعلّقة مهما كان يوم العمل. */
-  const dateFilter =
+  const validDateParam =
     params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : undefined;
+  /** «كل الأيام» تُفعَّل فقط مع allDates=1 وبدون تاريخ صريح في الرابط (عند اختيار يوم من النموذج يُلغى العرض الشامل). */
+  const showAllDates = params.allDates === "1" && !validDateParam;
+  const dateFilter = showAllDates ? undefined : (validDateParam ?? todayIsoDateInAppTimeZone());
   const q = params.q?.trim().toLowerCase();
 
   const supabase = createSupabaseAdminClient();
@@ -146,16 +151,32 @@ export default async function CorrectionsPage({ searchParams }: Props) {
       <Card>
         <h1 className="text-lg font-extrabold text-slate-900">طلبات التعديل</h1>
         <p className="mt-1 text-xs text-slate-600">
-          تُعرض كل طلبات التعديل المعلّقة (من المراقب الفني وغيره) بغض النظر عن تاريخ العمل. اختر الحالة الجديدة عند
-          الموافقة لتحديث سجل الحضور وإغلاق الطلب.
+          افتراضياً تُصفّى طلبات التعديل المعلّقة على{" "}
+          <span className="font-extrabold text-slate-800">يوم العمل الحالي</span> (بتوقيت السعودية). للاطلاع على كل
+          الأيام استخدم «كل الأيام» أدناه. عند الموافقة تُحدَّث حالة الحضور وتُغلق الطلب.
+        </p>
+        <p className="mt-2 text-xs">
+          {showAllDates ? (
+            <a href="/corrections" className="font-bold text-[#14532d] underline decoration-[#14532d]/40 underline-offset-2">
+              عرض يوم اليوم فقط (الافتراضي)
+            </a>
+          ) : (
+            <a
+              href="/corrections?allDates=1"
+              className="font-bold text-[#14532d] underline decoration-[#14532d]/40 underline-offset-2"
+            >
+              عرض طلبات كل الأيام
+            </a>
+          )}
         </p>
         <form className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4" method="get">
+          {showAllDates ? <input type="hidden" name="allDates" value="1" /> : null}
           <div className="sm:col-span-2 lg:col-span-1">
-            <label className="block text-xs font-bold text-slate-600">تصفية اختيارية بيوم العمل</label>
+            <label className="block text-xs font-bold text-slate-600">تصفية بيوم العمل</label>
             <Input
               type="date"
               name="date"
-              defaultValue={params.date ?? ""}
+              defaultValue={showAllDates ? "" : (dateFilter ?? "")}
               placeholder="اختر التاريخ"
               className="mt-1"
             />
@@ -229,7 +250,8 @@ export default async function CorrectionsPage({ searchParams }: Props) {
         totalPages={totalPages}
         basePath="/corrections"
         query={{
-          date: dateFilter,
+          date: showAllDates ? undefined : dateFilter,
+          allDates: showAllDates ? "1" : undefined,
           siteId: params.siteId,
           q: params.q?.trim() || undefined,
         }}

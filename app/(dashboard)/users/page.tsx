@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { clsx } from "clsx";
 
+import { SpaLink } from "@/components/navigation/spa-link";
+
 import { Card } from "@/components/ui/card";
 import { TabPanelTransition } from "@/components/ui/tab-panel-transition";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -127,7 +129,7 @@ export default async function UsersManagementPage({ searchParams }: Props) {
 
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
         {canUsers && (
-          <Link
+          <SpaLink
             href="/users"
             className={clsx(
               "rounded-lg px-4 py-2 text-sm font-extrabold transition-colors",
@@ -137,10 +139,10 @@ export default async function UsersManagementPage({ searchParams }: Props) {
             )}
           >
             المستخدمون
-          </Link>
+          </SpaLink>
         )}
         {canRoles && (
-          <Link
+          <SpaLink
             href="/users?tab=roles"
             className={clsx(
               "rounded-lg px-4 py-2 text-sm font-extrabold transition-colors",
@@ -150,7 +152,7 @@ export default async function UsersManagementPage({ searchParams }: Props) {
             )}
           >
             الأدوار والصلاحيات
-          </Link>
+          </SpaLink>
         )}
       </div>
 

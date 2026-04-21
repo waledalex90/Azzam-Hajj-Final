@@ -1,11 +1,12 @@
 .panel {
-  animation: uxTabEnter 200ms ease-out both;
+  animation: uxTabEnter 95ms ease-out both;
+  will-change: opacity, transform;
 }
 
 @keyframes uxTabEnter {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(3px);
   }
   to {
     opacity: 1;
