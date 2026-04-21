@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { saveInfractionNoticeAction } from "@/app/(dashboard)/violations/notice/actions";
 import { Button } from "@/components/ui/button";
 import { NOTICE_FORM_ID } from "@/components/violations/notice-print-toolbar";
 import { compressImageFileForUpload } from "@/lib/utils/image-compress-client";
+
+const NOTICE_SAVED_TOAST_KEY = "noticeSavedToast";
 
 function clearFieldErrors(form: HTMLFormElement) {
   form.querySelectorAll(".np-field-error").forEach((el) => el.classList.remove("np-field-error"));
@@ -73,19 +74,19 @@ type Props = {
 };
 
 export function NoticeFormShell({ children, showSavedBanner }: Props) {
-  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const savedToastRef = useRef(false);
+  const legacySavedToastRef = useRef(false);
 
   useEffect(() => {
-    if (!showSavedBanner) return;
-    if (sessionStorage.getItem("noticeSkipSavedToast") === "1") {
-      sessionStorage.removeItem("noticeSkipSavedToast");
+    if (sessionStorage.getItem(NOTICE_SAVED_TOAST_KEY) === "1") {
+      sessionStorage.removeItem(NOTICE_SAVED_TOAST_KEY);
+      toast.success("تم حفظ إشعار المخالفة بنجاح", { duration: 4500, id: "notice-saved-reload" });
       return;
     }
-    if (savedToastRef.current) return;
-    savedToastRef.current = true;
-    toast.success("تم حفظ إشعار المخالفة بنجاح", { duration: 4500, id: "notice-saved" });
+    if (!showSavedBanner) return;
+    if (legacySavedToastRef.current) return;
+    legacySavedToastRef.current = true;
+    toast.success("تم حفظ إشعار المخالفة بنجاح", { duration: 4500, id: "notice-saved-legacy" });
   }, [showSavedBanner]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -100,18 +101,19 @@ export function NoticeFormShell({ children, showSavedBanner }: Props) {
       const res = await saveInfractionNoticeAction(fd);
       if (!res.ok) {
         toast.error(res.error, { duration: 8000 });
+        setIsSubmitting(false);
         return;
       }
       btn?.classList.add("notice-save-flash");
       window.setTimeout(() => btn?.classList.remove("notice-save-flash"), 900);
-      toast.success("تم حفظ إشعار المخالفة بنجاح", { duration: 4000, id: "notice-saved-ok" });
-      sessionStorage.setItem("noticeSkipSavedToast", "1");
-      router.push("/violations/notice?saved=1");
-      router.refresh();
+      sessionStorage.setItem(NOTICE_SAVED_TOAST_KEY, "1");
+      /* إعادة تحميل كاملة: نموذج نظيف بدون حالة React أو حقول عالقة */
+      window.setTimeout(() => {
+        window.location.assign("/violations/notice");
+      }, 280);
     } catch (err) {
       console.error(err);
       toast.error("تعذّر إكمال الحفظ", { duration: 6000 });
-    } finally {
       setIsSubmitting(false);
     }
   }

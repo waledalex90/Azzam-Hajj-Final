@@ -838,6 +838,161 @@ export default async function InfractionNoticePage({ searchParams }: Props) {
           margin-top: 12px;
           text-align: center;
         }
+
+        /* ——— موبايل فقط: شاشة وليس طباعة ——— */
+        @media screen and (max-width: 640px) {
+          .notice-form-top-mobile {
+            margin: 0 -2px 6px;
+            padding: 0 2px 4px;
+          }
+          .notice-form-top-mobile .np-table {
+            margin-bottom: 6px;
+          }
+          .notice-form-top-mobile .np-header {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 8px;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+          }
+          .notice-form-top-mobile .np-logo-img {
+            max-width: 120px;
+          }
+          .paper-form {
+            padding: 10px 8px !important;
+          }
+          /* صف التاريخ / الإشعار: شبكة عمودين مرتبة */
+          .notice-form-top-mobile .np-meta {
+            display: block;
+          }
+          .notice-form-top-mobile .np-meta tbody {
+            display: block;
+          }
+          .notice-form-top-mobile .np-meta tr {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-areas:
+              "notice date"
+              "numdup time";
+            gap: 6px 8px;
+          }
+          .notice-form-top-mobile .np-meta .np-td {
+            width: 100% !important;
+            display: block;
+            padding: 6px !important;
+            vertical-align: top;
+          }
+          .notice-form-top-mobile .np-meta .np-td:nth-child(1) {
+            grid-area: date;
+          }
+          .notice-form-top-mobile .np-meta .np-td:nth-child(2) {
+            grid-area: time;
+          }
+          .notice-form-top-mobile .np-meta .np-td:nth-child(3) {
+            grid-area: notice;
+          }
+          .notice-form-top-mobile .np-meta .np-td:nth-child(4) {
+            grid-area: numdup;
+          }
+          .notice-form-top-mobile .np-inline-label {
+            display: block;
+            font-size: 11px !important;
+            font-weight: 700;
+            color: #64748b;
+            white-space: normal;
+            margin-bottom: 4px;
+          }
+          .notice-form-top-mobile .np-field,
+          .notice-form-top-mobile .np-field-plain,
+          .notice-form-top-mobile .np-paper .np-field {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            font-size: 15px !important;
+            font-weight: 700 !important;
+            color: #0f172a !important;
+            box-sizing: border-box;
+          }
+          /* الموقع (حبوب) + مجمع */
+          .notice-form-top-mobile .np-site {
+            display: block;
+          }
+          .notice-form-top-mobile .np-site tbody,
+          .notice-form-top-mobile .np-site tr {
+            display: block;
+          }
+          .notice-form-top-mobile .np-site .np-site-cell {
+            display: block;
+            padding: 6px !important;
+          }
+          .notice-form-top-mobile .np-site-radios {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 6px;
+            margin: 6px 0;
+          }
+          .notice-form-top-mobile .np-site-pill {
+            width: 100%;
+            justify-content: flex-start;
+          }
+          .notice-form-top-mobile .np-complex-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 4px;
+            margin-inline-start: 0;
+            margin-top: 8px;
+          }
+          .notice-form-top-mobile .np-complex-input {
+            width: 100% !important;
+            max-width: none !important;
+          }
+          /* مقاول | مشرف: عمودان ثم تكديس عند الضيق */
+          .notice-form-top-mobile .np-personnel {
+            display: block;
+          }
+          .notice-form-top-mobile .np-personnel tbody {
+            display: block;
+          }
+          .notice-form-top-mobile .np-personnel tr {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 8px;
+          }
+          .notice-form-top-mobile .np-personnel .np-td {
+            display: block;
+            width: 100% !important;
+            padding: 6px !important;
+          }
+          .notice-form-top-mobile .np-block-label {
+            font-size: 11px;
+            color: #64748b;
+            margin-bottom: 4px;
+          }
+          .notice-form-top-mobile .np-personnel .np-field-plain {
+            min-height: 38px;
+            font-size: 14px !important;
+            color: #0f172a !important;
+          }
+          .notice-form-top-mobile .np-personnel + .np-table {
+            display: block;
+          }
+          .notice-form-top-mobile .np-personnel + .np-table tbody,
+          .notice-form-top-mobile .np-personnel + .np-table tr {
+            display: block;
+          }
+          .notice-form-top-mobile .np-personnel + .np-table .np-td {
+            padding: 6px !important;
+          }
+        }
+        @media screen and (max-width: 380px) {
+          .notice-form-top-mobile .np-personnel tr {
+            grid-template-columns: 1fr;
+          }
+        }
+
         @media (max-width: 900px) {
           .paper-title h2 {
             font-size: 34px;
@@ -1018,21 +1173,23 @@ function EditNoticeBody({
 }) {
   return (
     <>
-      <NoticeOfficialHeader />
+      <div className="notice-form-top-mobile">
+        <NoticeOfficialHeader />
 
-      <NoticeOfficialMetaRow
-        dateDefault={todayIsoDateInAppTimeZone()}
-        timeDefault=""
-        noticeNo={String(options.noticeNo)}
-        dateFieldWrapId="notice-field-date"
-      />
+        <NoticeOfficialMetaRow
+          dateDefault={todayIsoDateInAppTimeZone()}
+          timeDefault=""
+          noticeNo={String(options.noticeNo)}
+          dateFieldWrapId="notice-field-date"
+        />
 
-      <NoticeOfficialPaperFields
-        workers={workersForSelect}
-        contractors={options.contractors}
-        siteMapping={options.siteMapping}
-        defaultSiteKey="mina"
-      />
+        <NoticeOfficialPaperFields
+          workers={workersForSelect}
+          contractors={options.contractors}
+          siteMapping={options.siteMapping}
+          defaultSiteKey="mina"
+        />
+      </div>
 
       <NoticeOfficialViolationList types={options.violationTypes} violationsSectionId="notice-field-violations" />
 
