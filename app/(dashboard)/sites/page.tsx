@@ -42,6 +42,22 @@ export default async function SitesPage() {
     revalidatePath("/dashboard");
   }
 
+  async function updateSiteName(formData: FormData) {
+    "use server";
+    if (isDemoModeEnabled()) return;
+    const siteId = Number(formData.get("siteId"));
+    const name = String(formData.get("name") || "").trim();
+    if (!siteId || !name) return;
+
+    const supabase = createSupabaseAdminClient();
+    await supabase.from("sites").update({ name }).eq("id", siteId);
+    revalidatePath("/sites");
+    revalidatePath("/dashboard");
+    revalidatePath("/workers");
+    revalidatePath("/attendance");
+    revalidatePath("/approval");
+  }
+
   const supabase = createSupabaseAdminClient();
   const [{ data: sites }, contractors] = await Promise.all([
     supabase.from("sites").select("id, name, is_active").order("id", { ascending: false }),
@@ -73,12 +89,27 @@ export default async function SitesPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {(sites ?? []).map((site) => (
-          <Card key={site.id} className="flex items-center justify-between">
-            <div>
-              <p className="font-extrabold text-slate-900">{site.name}</p>
+          <Card key={site.id} className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1 space-y-2">
+              <form action={updateSiteName} className="flex flex-wrap items-center gap-2">
+                <input type="hidden" name="siteId" value={site.id} />
+                <Input
+                  name="name"
+                  defaultValue={site.name}
+                  placeholder="اسم الموقع"
+                  className="min-h-12 min-w-[12rem] flex-1 text-base font-extrabold text-slate-900"
+                  aria-label={`تعديل اسم الموقع ${site.id}`}
+                />
+                <button
+                  type="submit"
+                  className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-bold text-white transition hover:bg-slate-700"
+                >
+                  حفظ الاسم
+                </button>
+              </form>
               <p className="text-xs text-slate-500">#{site.id}</p>
             </div>
-            <form action={toggleSite}>
+            <form action={toggleSite} className="shrink-0 self-end sm:self-start">
               <input type="hidden" name="siteId" value={site.id} />
               <input type="hidden" name="isActive" value={String(site.is_active)} />
               <button
