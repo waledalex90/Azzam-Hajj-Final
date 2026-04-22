@@ -17,7 +17,7 @@ import {
   isTechnicalObserver,
   resolveAllowedSiteIdsForSession,
 } from "@/lib/auth/transfer-access";
-import { requireScreen } from "@/lib/auth/require-screen";
+import { requireAnyScreen } from "@/lib/auth/require-screen";
 import { PERM } from "@/lib/permissions/keys";
 import { getSiteOptions } from "@/lib/data/attendance";
 import {
@@ -56,7 +56,7 @@ function statusLabel(s: WorkerTransferRequestRow["status"]) {
 }
 
 export default async function TransfersPage({ searchParams }: Props) {
-  const appUser = await requireScreen(PERM.TRANSFERS);
+  const appUser = await requireAnyScreen([PERM.VIEW_TRANSFERS, PERM.MANAGE_TRANSFERS]);
   const params = await searchParams;
   const tab = TABS.some((t) => t.id === params.tab) ? params.tab! : "new";
   const q = params.q?.trim();

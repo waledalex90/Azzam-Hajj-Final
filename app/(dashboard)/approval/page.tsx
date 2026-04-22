@@ -58,11 +58,12 @@ function approvalQueryString(params: {
 export default async function ApprovalPage({ searchParams }: Props) {
   noStore();
   const mountKey = randomUUID();
-  const appUser = await requireScreen(PERM.APPROVAL);
+  const appUser = await requireScreen(PERM.APPROVE_ATTENDANCE);
   const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
   const canCorrection = canRequestAttendanceCorrection(appUser);
   const canResetAttendance = Boolean(
-    appUser && (hasPermission(appUser, PERM.PREP) || hasPermission(appUser, PERM.APPROVAL)),
+    appUser &&
+      (hasPermission(appUser, PERM.EDIT_ATTENDANCE) || hasPermission(appUser, PERM.APPROVE_ATTENDANCE)),
   );
 
   const params = await searchParams;

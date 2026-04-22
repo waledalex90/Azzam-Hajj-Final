@@ -10,6 +10,7 @@ import { WorkersUploadForm } from "@/components/workers/workers-upload-form";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getContractorOptions, getSiteOptions } from "@/lib/data/attendance";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { hasPermission } from "@/lib/auth/permissions";
 import { requireScreen } from "@/lib/auth/require-screen";
 import { getSessionContext } from "@/lib/auth/session";
 import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
@@ -46,7 +47,10 @@ function normalizeText(value: unknown) {
 }
 
 export default async function WorkersPage({ searchParams }: Props) {
-  const appUser = await requireScreen(PERM.WORKERS);
+  const appUser = await requireScreen(PERM.VIEW_WORKERS);
+  const canEditWorkers = hasPermission(appUser, PERM.EDIT_WORKERS);
+  const canImportWorkers = hasPermission(appUser, PERM.IMPORT_WORKERS);
+  const canViewSensitive = hasPermission(appUser, PERM.VIEW_WORKERS_SENSITIVE_DATA);
   const siteScope = await resolveAllowedSiteIdsForSession(appUser);
 
   async function createWorker(formData: FormData) {
@@ -55,6 +59,7 @@ export default async function WorkersPage({ searchParams }: Props) {
 
     const { appUser } = await getSessionContext();
     if (!appUser) return;
+    if (!hasPermission(appUser, PERM.EDIT_WORKERS)) return;
     const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
 
     const name = normalizeText(formData.get("name"));
@@ -101,6 +106,10 @@ export default async function WorkersPage({ searchParams }: Props) {
     if (!appUser) {
       throw new Error("انتهت الجلسة — أعد تسجيل الدخول.");
     }
+    if (!hasPermission(appUser, PERM.EDIT_WORKERS)) {
+      throw new Error("لا تملك صلاحية تعديل الموظفين.");
+    }
+    const allowSensitive = hasPermission(appUser, PERM.VIEW_WORKERS_SENSITIVE_DATA);
     const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
 
     const workerId = Number(formData.get("workerId"));
@@ -144,30 +153,38 @@ export default async function WorkersPage({ searchParams }: Props) {
       }
     }
 
-    const { data: exists } = await supabase
-      .from("workers")
-      .select("id")
-      .eq("id_number", idNumber)
-      .neq("id", workerId)
-      .maybeSingle();
-    if (exists?.id) {
-      throw new Error("رقم الهوية مستخدم لموظف آخر — غيّر الرقم أو راجع السجلات.");
+    if (allowSensitive) {
+      const { data: exists } = await supabase
+        .from("workers")
+        .select("id")
+        .eq("id_number", idNumber)
+        .neq("id", workerId)
+        .maybeSingle();
+      if (exists?.id) {
+        throw new Error("رقم الهوية مستخدم لموظف آخر — غيّر الرقم أو راجع السجلات.");
+      }
+    } else {
+      const { data: curId } = await supabase.from("workers").select("id_number").eq("id", workerId).maybeSingle();
+      if (curId && curId.id_number !== idNumber) {
+        throw new Error("لا تملك صلاحية تعديل رقم الهوية أو البيانات المالية/الإقامة.");
+      }
     }
 
-    const { error: updateError } = await supabase
-      .from("workers")
-      .update({
-        name,
-        id_number: idNumber,
-        job_title: jobTitle,
-        payment_type: paymentType,
-        basic_salary: Number.isFinite(basicSalary) ? basicSalary : null,
-        iqama_expiry: /^\d{4}-\d{2}-\d{2}$/.test(iqamaExpiryRaw) ? iqamaExpiryRaw : null,
-        current_site_id: siteId,
-        contractor_id: contractorId,
-        shift_round,
-      })
-      .eq("id", workerId);
+    const patch: Record<string, unknown> = {
+      name,
+      job_title: jobTitle,
+      payment_type: paymentType,
+      current_site_id: siteId,
+      contractor_id: contractorId,
+      shift_round,
+    };
+    if (allowSensitive) {
+      patch.id_number = idNumber;
+      patch.basic_salary = Number.isFinite(basicSalary) ? basicSalary : null;
+      patch.iqama_expiry = /^\d{4}-\d{2}-\d{2}$/.test(iqamaExpiryRaw) ? iqamaExpiryRaw : null;
+    }
+
+    const { error: updateError } = await supabase.from("workers").update(patch).eq("id", workerId);
     if (updateError) {
       throw new Error(updateError.message || "فشل حفظ التعديل في قاعدة البيانات.");
     }
@@ -182,6 +199,7 @@ export default async function WorkersPage({ searchParams }: Props) {
     if (isDemoModeEnabled()) return;
     const { appUser } = await getSessionContext();
     if (!appUser) return;
+    if (!hasPermission(appUser, PERM.EDIT_WORKERS)) return;
     const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
 
     const workerId = Number(formData.get("workerId"));
@@ -206,6 +224,7 @@ export default async function WorkersPage({ searchParams }: Props) {
     if (isDemoModeEnabled()) return;
     const { appUser } = await getSessionContext();
     if (!appUser) return;
+    if (!hasPermission(appUser, PERM.EDIT_WORKERS)) return;
     const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
 
     const workerId = Number(formData.get("workerId"));
@@ -228,6 +247,7 @@ export default async function WorkersPage({ searchParams }: Props) {
     if (isDemoModeEnabled()) return;
     const { appUser } = await getSessionContext();
     if (!appUser) return;
+    if (!hasPermission(appUser, PERM.EDIT_WORKERS)) return;
     const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
 
     const workerId = Number(formData.get("workerId"));
@@ -247,6 +267,8 @@ export default async function WorkersPage({ searchParams }: Props) {
 
   const params = await searchParams;
   const tab = params.tab === "create" ? "create" : "list";
+  const showCreateTab = canEditWorkers || canImportWorkers;
+  const effectiveTab = tab === "create" && !showCreateTab ? "list" : tab;
   const editId = Number(params.editId) || null;
   let siteId = params.siteId ? Number(params.siteId) : undefined;
   if (siteScope !== undefined) {
@@ -388,43 +410,52 @@ export default async function WorkersPage({ searchParams }: Props) {
           <SpaLink
             href="/workers?tab=list"
             className={`pb-2 font-bold transition-colors ${
-              tab === "list" ? "border-b-2 border-[#14532d] text-[#14532d]" : "text-slate-600 hover:text-slate-800"
+              effectiveTab === "list"
+                ? "border-b-2 border-[#14532d] text-[#14532d]"
+                : "text-slate-600 hover:text-slate-800"
             }`}
           >
             قائمة الموظفين
           </SpaLink>
-          <SpaLink
-            href="/workers?tab=create"
-            className={`pb-2 font-bold transition-colors ${
-              tab === "create" ? "border-b-2 border-[#14532d] text-[#14532d]" : "text-slate-600 hover:text-slate-800"
-            }`}
-          >
-            إضافة موظف جديد
-          </SpaLink>
+          {showCreateTab ? (
+            <SpaLink
+              href="/workers?tab=create"
+              className={`pb-2 font-bold transition-colors ${
+                effectiveTab === "create"
+                  ? "border-b-2 border-[#14532d] text-[#14532d]"
+                  : "text-slate-600 hover:text-slate-800"
+              }`}
+            >
+              إضافة موظف جديد
+            </SpaLink>
+          ) : null}
         </div>
       </Card>
 
-      <TabPanelTransition key={tab}>
-      {tab === "create" ? (
+      <TabPanelTransition key={effectiveTab}>
+      {effectiveTab === "create" ? (
         <>
-          <Card className="space-y-3">
-            <h2 className="font-extrabold text-slate-900">استيراد من Excel</h2>
-            <p className="text-xs text-slate-500">
-              استخدم الشيت الجاهز. يجب أن يطابق اسم <span className="font-bold">الموقع</span> الاسم المسجّل في النظام حرفيًا. يتم
-              الإضافة أو التحديث حسب رقم الهوية (Upsert).
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href="/api/workers-template"
-                className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-600"
-              >
-                تحميل ملف Excel عربي
-              </Link>
-            </div>
-            <WorkersUploadForm />
-          </Card>
+          {canImportWorkers ? (
+            <Card className="space-y-3">
+              <h2 className="font-extrabold text-slate-900">استيراد من Excel</h2>
+              <p className="text-xs text-slate-500">
+                استخدم الشيت الجاهز. يجب أن يطابق اسم <span className="font-bold">الموقع</span> الاسم المسجّل في النظام حرفيًا.
+                يتم الإضافة أو التحديث حسب رقم الهوية (Upsert).
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href="/api/workers-template"
+                  className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-600"
+                >
+                  تحميل ملف Excel عربي
+                </Link>
+              </div>
+              <WorkersUploadForm />
+            </Card>
+          ) : null}
 
-          <Card>
+          {canEditWorkers ? (
+            <Card>
             <h2 className="font-extrabold text-slate-900">تسجيل موظف جديد</h2>
             <form action={createWorker} className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               <Input name="name" placeholder="الاسم الرباعي" required />
@@ -471,7 +502,8 @@ export default async function WorkersPage({ searchParams }: Props) {
                 </button>
               </div>
             </form>
-          </Card>
+            </Card>
+          ) : null}
         </>
       ) : (
         <>
@@ -535,7 +567,7 @@ export default async function WorkersPage({ searchParams }: Props) {
             sites={sites}
             contractors={contractors}
             queryBase={queryBase}
-            editId={editId}
+            editId={canEditWorkers ? editId : null}
             showStopped={showStopped}
             showDeleted={showDeleted}
             deletedCount={deletedRes.count ?? 0}
@@ -543,6 +575,8 @@ export default async function WorkersPage({ searchParams }: Props) {
             toggleActive={toggleActive}
             softDeleteWorker={softDeleteWorker}
             restoreWorker={restoreWorker}
+            canEditWorkers={canEditWorkers}
+            canViewSensitive={canViewSensitive}
           />
         </>
       )}

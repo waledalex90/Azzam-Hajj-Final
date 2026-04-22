@@ -1,30 +1,30 @@
 import type { AppUser } from "@/lib/types/db";
-import { hasPermission } from "@/lib/auth/permissions";
+import { hasAnyPermission, hasPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
 
 /** ترتيب يطابق الشريط الجانبي — أول شاشة مسموحة بعد تسجيل الدخول */
-const LANDING_ORDER: Array<{ path: string; perm: string }> = [
-  { path: "/dashboard", perm: PERM.DASHBOARD },
-  { path: "/workers", perm: PERM.WORKERS },
-  { path: "/sites", perm: PERM.SITES },
-  { path: "/contractors", perm: PERM.CONTRACTORS },
-  { path: "/attendance", perm: PERM.PREP },
-  { path: "/approval", perm: PERM.APPROVAL },
-  { path: "/transfers", perm: PERM.TRANSFERS },
-  { path: "/reports", perm: PERM.REPORTS },
-  { path: "/corrections", perm: PERM.CORRECTIONS_SCREEN },
-  { path: "/violations/notice", perm: PERM.VIOLATION_NOTICE },
-  { path: "/violations", perm: PERM.VIOLATIONS },
-  { path: "/users", perm: PERM.USERS_MANAGE },
+const LANDING_ORDER: Array<{ path: string; anyOf: string[] }> = [
+  { path: "/dashboard", anyOf: [PERM.VIEW_DASHBOARD] },
+  { path: "/workers", anyOf: [PERM.VIEW_WORKERS] },
+  { path: "/sites", anyOf: [PERM.VIEW_SITES] },
+  { path: "/contractors", anyOf: [PERM.VIEW_CONTRACTORS] },
+  { path: "/attendance", anyOf: [PERM.VIEW_ATTENDANCE, PERM.EDIT_ATTENDANCE] },
+  { path: "/approval", anyOf: [PERM.APPROVE_ATTENDANCE] },
+  { path: "/transfers", anyOf: [PERM.VIEW_TRANSFERS, PERM.MANAGE_TRANSFERS] },
+  { path: "/reports", anyOf: [PERM.VIEW_REPORTS] },
+  { path: "/corrections", anyOf: [PERM.VIEW_CORRECTIONS_QUEUE, PERM.PROCESS_CORRECTIONS] },
+  { path: "/violations/notice", anyOf: [PERM.CREATE_VIOLATION_NOTICE] },
+  { path: "/violations", anyOf: [PERM.VIEW_VIOLATIONS, PERM.MANAGE_VIOLATIONS] },
+  { path: "/users", anyOf: [PERM.MANAGE_USERS, PERM.MANAGE_ROLES] },
 ];
 
 /**
  * أول مسار مسموح للمستخدم. إن لم توجد أي صلاحية شاشة — الرئيسية كملاذ أخير (لا يُفضّل).
  */
 export function getDefaultLandingPath(appUser: AppUser): string {
-  for (const { path, perm } of LANDING_ORDER) {
-    if (hasPermission(appUser, perm)) return path;
+  for (const { path, anyOf } of LANDING_ORDER) {
+    if (hasAnyPermission(appUser, anyOf)) return path;
   }
-  if (hasPermission(appUser, PERM.ROLES_MANAGE)) return "/users?tab=roles";
+  if (hasPermission(appUser, PERM.MANAGE_ROLES)) return "/users?tab=roles";
   return "/dashboard";
 }

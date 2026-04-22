@@ -9,7 +9,7 @@ import { isDemoModeEnabled } from "@/lib/demo-mode";
 import { resolveStoredLoginEmail } from "@/lib/auth/resolve-login-email";
 import { env } from "@/lib/env";
 import { PERM, PERMISSION_CATALOG } from "@/lib/permissions/keys";
-import { isValidRoleSlug } from "@/lib/permissions/role-slug";
+import { isValidRoleSlug, slugifyRoleLabel } from "@/lib/permissions/role-slug";
 import * as XLSX from "xlsx";
 
 const LEGACY_SLUGS = new Set(["admin", "hr", "technical_observer", "field_observer"]);
@@ -59,24 +59,33 @@ function parseSiteIdsFromExcelRow(r: Record<string, unknown>): number[] {
   return [...new Set(merged)].sort((a, b) => a - b);
 }
 
-function slugify(raw: string): string {
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9_]/g, "");
+async function allocateUniqueRoleSlug(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  base: string,
+): Promise<string> {
+  let candidate = base;
+  let n = 2;
+  for (;;) {
+    const { data } = await admin.from("user_roles").select("slug").eq("slug", candidate).maybeSingle();
+    if (!data) return candidate;
+    candidate = `${base}_${n}`;
+    n += 1;
+    if (n > 500) {
+      throw new Error("تعذر إيجاد معرّف فريد للدور.");
+    }
+  }
 }
 
 async function assertUsersManage() {
   const { appUser } = await getSessionContext();
-  if (!appUser || !hasPermission(appUser, PERM.USERS_MANAGE)) {
+  if (!appUser || !hasPermission(appUser, PERM.MANAGE_USERS)) {
     throw new Error("forbidden");
   }
 }
 
 async function assertRolesManage() {
   const { appUser } = await getSessionContext();
-  if (!appUser || !hasPermission(appUser, PERM.ROLES_MANAGE)) {
+  if (!appUser || !hasPermission(appUser, PERM.MANAGE_ROLES)) {
     throw new Error("forbidden");
   }
 }
@@ -286,14 +295,24 @@ export async function createRoleAction(formData: FormData) {
 
   const slugInput = String(formData.get("slug") || "").trim();
   const nameAr = String(formData.get("name_ar") || "").trim();
-  const slug = slugify(slugInput || nameAr);
-  if (!slug || !nameAr) {
-    return { ok: false as const, error: "اسم الدور والمعرّف مطلوبان." };
+  if (!nameAr) {
+    return { ok: false as const, error: "اسم الدور مطلوب." };
+  }
+  const baseSlug = slugifyRoleLabel(slugInput || nameAr);
+  if (!isValidRoleSlug(baseSlug)) {
+    return { ok: false as const, error: "تعذر اشتقاق معرّف صالح من الاسم. أدخل معرّفاً إنجليزياً بصيغة صحيحة." };
   }
 
   const perms = PERMISSION_CATALOG.map((p) => p.key).filter((key) => formData.get(`perm_${key}`) === "on");
 
   const supabase = createSupabaseAdminClient();
+  let slug: string;
+  try {
+    slug = await allocateUniqueRoleSlug(supabase, baseSlug);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false as const, error: msg };
+  }
   const { error } = await supabase.from("user_roles").insert({
     slug,
     name_ar: nameAr,
@@ -318,22 +337,51 @@ export async function updateRoleAction(formData: FormData): Promise<RoleMutation
   if (isDemoModeEnabled()) return { ok: true };
   try {
     await assertRolesManage();
-    const slug = String(formData.get("slug") || "").trim();
+    const oldSlug = String(formData.get("old_slug") || "").trim();
+    const slugInput = String(formData.get("slug") || "").trim();
     const nameAr = String(formData.get("name_ar") || "").trim();
-    if (!slug || !nameAr) {
-      return { ok: false, error: "اسم الدور مطلوب." };
+    if (!oldSlug || !nameAr) {
+      return { ok: false, error: "اسم الدور أو المعرّف الأصلي ناقص." };
     }
 
     const perms = PERMISSION_CATALOG.map((p) => p.key).filter((key) => formData.get(`perm_${key}`) === "on");
 
-    const supabase = createSupabaseAdminClient();
-    const { error } = await supabase
-      .from("user_roles")
-      .update({ name_ar: nameAr, permissions: perms })
-      .eq("slug", slug);
+    const newSlug = slugifyRoleLabel(slugInput || nameAr);
+    if (!isValidRoleSlug(newSlug)) {
+      return {
+        ok: false,
+        error:
+          "معرّف الدور غير صالح. استخدم حرفاً إنجليزياً صغيراً أولاً ثم أحرفاً صغيرة وأرقاماً وشرطة سفلية فقط.",
+      };
+    }
 
-    if (error) {
-      return { ok: false, error: error.message };
+    const supabase = createSupabaseAdminClient();
+
+    if (newSlug !== oldSlug) {
+      const { data: clash } = await supabase.from("user_roles").select("slug").eq("slug", newSlug).maybeSingle();
+      if (clash) {
+        return { ok: false, error: "المعرّف الجديد مستخدم بالفعل لدور آخر." };
+      }
+      const { error: usersErr } = await supabase.from("app_users").update({ role: newSlug }).eq("role", oldSlug);
+      if (usersErr) {
+        return { ok: false, error: usersErr.message };
+      }
+      const { error } = await supabase
+        .from("user_roles")
+        .update({ slug: newSlug, name_ar: nameAr, permissions: perms })
+        .eq("slug", oldSlug);
+      if (error) {
+        await supabase.from("app_users").update({ role: oldSlug }).eq("role", newSlug);
+        return { ok: false, error: error.message };
+      }
+    } else {
+      const { error } = await supabase
+        .from("user_roles")
+        .update({ name_ar: nameAr, permissions: perms })
+        .eq("slug", oldSlug);
+      if (error) {
+        return { ok: false, error: error.message };
+      }
     }
     revalidatePath("/users");
     revalidatePath("/roles");

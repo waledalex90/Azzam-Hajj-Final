@@ -19,7 +19,7 @@ export default async function DashboardHomePage({ searchParams }: Props) {
   const filterDate = resolveWorkDateFromSearchParam(params.date);
 
   const { appUser } = await getSessionContext();
-  if (appUser && !hasPermission(appUser, PERM.DASHBOARD)) {
+  if (appUser && !hasPermission(appUser, PERM.VIEW_DASHBOARD)) {
     redirect(getDefaultLandingPath(appUser));
   }
 

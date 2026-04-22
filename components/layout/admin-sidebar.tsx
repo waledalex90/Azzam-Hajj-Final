@@ -23,7 +23,7 @@ import {
 import { BrandLogo } from "@/components/branding/brand-logo";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { AppUser } from "@/lib/types/db";
-import { hasPermission } from "@/lib/auth/permissions";
+import { hasAnyPermission, hasPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
 
 type Props = {
@@ -31,23 +31,48 @@ type Props = {
 };
 
 const menuItems = [
-  { href: "/dashboard", label: "الرئيسية", icon: Home, perm: PERM.DASHBOARD },
-  { href: "/workers", label: "الموظفين", icon: Users, perm: PERM.WORKERS },
-  { href: "/sites", label: "المواقع", icon: MapPin, perm: PERM.SITES },
-  { href: "/contractors", label: "المقاولين", icon: Building2, perm: PERM.CONTRACTORS },
-  { href: "/attendance", label: "تسجيل الحضور", icon: ClipboardList, perm: PERM.PREP },
-  { href: "/approval", label: "اعتماد الحضور", icon: BadgeCheck, perm: PERM.APPROVAL },
-  { href: "/transfers", label: "نقل الموظفين", icon: Truck, perm: PERM.TRANSFERS },
-  { href: "/reports", label: "التقارير", icon: FileBarChart2, perm: PERM.REPORTS },
-  { href: "/corrections", label: "طلبات التعديل", icon: BellRing, perm: PERM.CORRECTIONS_SCREEN },
-  { href: "/violations/notice", label: "إشعار المخالفة", icon: FileWarning, perm: PERM.VIOLATION_NOTICE },
+  { href: "/dashboard", label: "الرئيسية", icon: Home, anyOf: [PERM.VIEW_DASHBOARD] as const },
+  { href: "/workers", label: "الموظفين", icon: Users, anyOf: [PERM.VIEW_WORKERS] as const },
+  { href: "/sites", label: "المواقع", icon: MapPin, anyOf: [PERM.VIEW_SITES] as const },
+  { href: "/contractors", label: "المقاولين", icon: Building2, anyOf: [PERM.VIEW_CONTRACTORS] as const },
+  {
+    href: "/attendance",
+    label: "تسجيل الحضور",
+    icon: ClipboardList,
+    anyOf: [PERM.VIEW_ATTENDANCE, PERM.EDIT_ATTENDANCE] as const,
+  },
+  { href: "/approval", label: "اعتماد الحضور", icon: BadgeCheck, anyOf: [PERM.APPROVE_ATTENDANCE] as const },
+  {
+    href: "/transfers",
+    label: "نقل الموظفين",
+    icon: Truck,
+    anyOf: [PERM.VIEW_TRANSFERS, PERM.MANAGE_TRANSFERS] as const,
+  },
+  { href: "/reports", label: "التقارير", icon: FileBarChart2, anyOf: [PERM.VIEW_REPORTS] as const },
+  {
+    href: "/corrections",
+    label: "طلبات التعديل",
+    icon: BellRing,
+    anyOf: [PERM.VIEW_CORRECTIONS_QUEUE, PERM.PROCESS_CORRECTIONS] as const,
+  },
+  {
+    href: "/violations/notice",
+    label: "إشعار المخالفة",
+    icon: FileWarning,
+    anyOf: [PERM.CREATE_VIOLATION_NOTICE] as const,
+  },
   {
     href: "/users",
     label: "المستخدمون والأدوار",
     icon: UserSquare2,
-    anyPerms: [PERM.USERS_MANAGE, PERM.ROLES_MANAGE] as const,
+    anyPerms: [PERM.MANAGE_USERS, PERM.MANAGE_ROLES] as const,
   },
-  { href: "/violations", label: "المخالفات", icon: UserCog, perm: PERM.VIOLATIONS },
+  {
+    href: "/violations",
+    label: "المخالفات",
+    icon: UserCog,
+    anyOf: [PERM.VIEW_VIOLATIONS, PERM.MANAGE_VIOLATIONS] as const,
+  },
 ] as const;
 
 function isActive(pathname: string, href: string) {
@@ -96,30 +121,30 @@ export function AdminSidebar({ user }: Props) {
             if ("anyPerms" in item && item.anyPerms) {
               return item.anyPerms.some((p) => hasPermission(user, p));
             }
-            if ("perm" in item && item.perm) {
-              return hasPermission(user, item.perm);
+            if ("anyOf" in item && item.anyOf) {
+              return hasAnyPermission(user, [...item.anyOf]);
             }
             return true;
           })
           .map((item) => {
-          const active = isActive(pathname, item.href);
-          const Icon = item.icon;
-          return (
-            <SpaLink
-              key={item.href}
-              href={item.href}
-              className={clsx(
-                "flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
-                active
-                  ? "bg-emerald-50 text-emerald-700 shadow-sm"
-                  : "text-slate-700 hover:bg-slate-50 hover:text-slate-900",
-              )}
-            >
-              <span>{item.label}</span>
-              <Icon className="h-4 w-4" />
-            </SpaLink>
-          );
-        })}
+            const active = isActive(pathname, item.href);
+            const Icon = item.icon;
+            return (
+              <SpaLink
+                key={item.href}
+                href={item.href}
+                className={clsx(
+                  "flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
+                  active
+                    ? "bg-emerald-50 text-emerald-700 shadow-sm"
+                    : "text-slate-700 hover:bg-slate-50 hover:text-slate-900",
+                )}
+              >
+                <span>{item.label}</span>
+                <Icon className="h-4 w-4" />
+              </SpaLink>
+            );
+          })}
       </nav>
     </aside>
   );

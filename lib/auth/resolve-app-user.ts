@@ -4,52 +4,39 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { fetchAppUserRowForSession } from "@/lib/data/app-users-queries";
 import type { AppUser } from "@/lib/types/db";
 import { LEGACY_ROLE_LABELS } from "@/lib/constants/roles";
-import { PERM } from "@/lib/permissions/keys";
 
-/** شاشات عامة + تشغيل — تُستخدم عند عدم وجود صف في user_roles */
+/** مفاتيح قديمة (ما قبل التجزئة) — تُوسَّع فعلياً عبر LEGACY_GRANTS عند التحقق */
 const SCREEN_PERMS: string[] = [
-  PERM.DASHBOARD,
-  PERM.WORKERS,
-  PERM.SITES,
-  PERM.CONTRACTORS,
-  PERM.TRANSFERS,
-  PERM.REPORTS,
-  PERM.CORRECTIONS_SCREEN,
-  PERM.VIOLATION_NOTICE,
-  PERM.VIOLATIONS,
+  "dashboard",
+  "workers",
+  "sites",
+  "contractors",
+  "transfers",
+  "reports",
+  "corrections_screen",
+  "violation_notice",
+  "violations",
 ];
 
-const OPS_PERMS: string[] = [
-  PERM.PREP,
-  PERM.APPROVAL,
-  PERM.CORRECTION_REQUEST,
-  PERM.WORKERS_IMPORT,
-];
+const OPS_PERMS: string[] = ["prep", "approval", "correction_request", "workers_import"];
 
 /** إذا لم يُوجد صف في user_roles بعد (قبل تشغيل الـ migration). */
 const LEGACY_PERMISSIONS: Record<string, string[]> = {
-  admin: [...SCREEN_PERMS, ...OPS_PERMS, PERM.USERS_MANAGE, PERM.ROLES_MANAGE],
-  hr: [...SCREEN_PERMS, ...OPS_PERMS, PERM.USERS_MANAGE],
+  admin: [...SCREEN_PERMS, ...OPS_PERMS, "users_manage", "roles_manage"],
+  hr: [...SCREEN_PERMS, ...OPS_PERMS, "users_manage"],
   /** اعتماد الحضور وطلب التعديل — للمراقب الفني وليس الميداني */
   technical_observer: [
-    PERM.DASHBOARD,
-    PERM.PREP,
-    PERM.APPROVAL,
-    PERM.CORRECTION_REQUEST,
-    PERM.CORRECTIONS_SCREEN,
-    PERM.WORKERS,
-    PERM.SITES,
-    PERM.REPORTS,
+    "dashboard",
+    "prep",
+    "approval",
+    "correction_request",
+    "corrections_screen",
+    "workers",
+    "sites",
+    "reports",
   ],
   /** تحضير فقط في الميدان؛ بدون اعتماد ولا طلب تعديل */
-  field_observer: [
-    PERM.PREP,
-    PERM.WORKERS,
-    PERM.SITES,
-    PERM.VIOLATIONS,
-    PERM.VIOLATION_NOTICE,
-    PERM.TRANSFERS,
-  ],
+  field_observer: ["prep", "workers", "sites", "violations", "violation_notice", "transfers"],
 };
 
 function parsePermissionsFromRow(raw: unknown): string[] {

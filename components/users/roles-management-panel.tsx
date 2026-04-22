@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useActionState, useEffect, useState } from "react";
+import { Fragment, useActionState, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -8,8 +8,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { PERMISSION_CATALOG } from "@/lib/permissions/keys";
-import { isValidRoleSlug } from "@/lib/permissions/role-slug";
+import { PERMISSION_CATALOG, type PermissionCatalogEntry } from "@/lib/permissions/keys";
+import { isValidRoleSlug, slugifyRoleLabel } from "@/lib/permissions/role-slug";
 import {
   createRoleFormAction,
   deleteRoleFormStateAction,
@@ -25,6 +25,48 @@ function permKeys(row: RoleRow): Set<string> {
     return new Set((raw as string[]).filter((k) => typeof k === "string"));
   }
   return new Set();
+}
+
+function catalogByGroup(): Map<string, PermissionCatalogEntry[]> {
+  const m = new Map<string, PermissionCatalogEntry[]>();
+  for (const p of PERMISSION_CATALOG) {
+    const list = m.get(p.group);
+    if (list) list.push(p);
+    else m.set(p.group, [p]);
+  }
+  return m;
+}
+
+function PermissionChecklist({ selected }: { selected: Set<string> }) {
+  const groups = useMemo(() => [...catalogByGroup().entries()], []);
+  return (
+    <div className="space-y-4">
+      {groups.map(([group, items]) => (
+        <div key={group}>
+          <p className="text-xs font-extrabold text-slate-800">{group}</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {items.map((p) => (
+              <label
+                key={p.key}
+                className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  name={`perm_${p.key}`}
+                  defaultChecked={selected.has(p.key)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-bold text-slate-800">{p.label}</span>
+                  <span className="mr-2 block font-mono text-[11px] text-slate-500">{p.key}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function RoleEditForm({
@@ -51,32 +93,31 @@ function RoleEditForm({
 
   return (
     <form action={formAction} className="space-y-4 border-t border-slate-200 bg-slate-50/80 p-4 text-right">
-      <input type="hidden" name="slug" value={role.slug} />
+      <input type="hidden" name="old_slug" value={role.slug} />
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="text-xs font-bold text-slate-600">اسم الدور (عربي)</label>
           <Input name="name_ar" required defaultValue={role.name_ar} className="mt-1" />
         </div>
         <div>
-          <label className="text-xs font-bold text-slate-600">المعرّف (slug) — للقراءة فقط</label>
-          <Input readOnly value={role.slug} className="mt-1 bg-slate-100 font-mono text-xs text-slate-700" />
+          <label className="text-xs font-bold text-slate-600">المعرّف (slug)</label>
+          <Input
+            name="slug"
+            required
+            defaultValue={role.slug}
+            className="mt-1 font-mono text-xs text-slate-800"
+            dir="ltr"
+            spellCheck={false}
+          />
+          <p className="mt-1 text-[10px] text-slate-500">
+            يمكنك تصحيح المعرّف هنا؛ عند تغييره يُحدَّث تلقائياً تعيين كل المستخدمين المرتبطين بالمعرّف القديم.
+          </p>
         </div>
       </div>
       <div>
-        <p className="text-xs font-bold text-slate-600">الصلاحيات</p>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {PERMISSION_CATALOG.map((p) => (
-            <label
-              key={p.key}
-              className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-            >
-              <input type="checkbox" name={`perm_${p.key}`} defaultChecked={selected.has(p.key)} className="mt-0.5" />
-              <span>
-                <span className="font-bold text-slate-800">{p.label}</span>
-                <span className="mr-2 block text-[11px] text-slate-500">{p.key}</span>
-              </span>
-            </label>
-          ))}
+        <p className="text-xs font-bold text-slate-600">الصلاحيات (مفاتيح جزئية)</p>
+        <div className="mt-2">
+          <PermissionChecklist selected={selected} />
         </div>
       </div>
       {state && !state.ok ? (
@@ -147,9 +188,68 @@ function DeleteRoleButton({ slug, mode }: { slug: string; mode: "cleanup" | "nor
   );
 }
 
+function AddRoleForm() {
+  const [nameAr, setNameAr] = useState("");
+  const [slug, setSlug] = useState("");
+  const slugTouched = useRef(false);
+
+  const onNameChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setNameAr(v);
+    if (!slugTouched.current) {
+      setSlug(slugifyRoleLabel(v));
+    }
+  };
+
+  const onSlugChange = (e: ChangeEvent<HTMLInputElement>) => {
+    slugTouched.current = true;
+    setSlug(slugifyRoleLabel(e.target.value));
+  };
+
+  return (
+    <form action={createRoleFormAction} className="mt-4 space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="text-xs font-bold text-slate-600">اسم الدور (عربي)</label>
+          <Input
+            name="name_ar"
+            placeholder="مثال: مشرف موقع"
+            className="mt-1"
+            required
+            value={nameAr}
+            onChange={onNameChange}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-slate-600">المعرّف (slug)</label>
+          <Input
+            name="slug"
+            placeholder="يُشتق تلقائياً من الاسم — يمكنك تعديله"
+            className="mt-1 font-mono text-xs"
+            dir="ltr"
+            spellCheck={false}
+            value={slug}
+            onChange={onSlugChange}
+          />
+        </div>
+      </div>
+      <div>
+        <p className="text-xs font-bold text-slate-600">الصلاحيات (مفاتيح جزئية)</p>
+        <div className="mt-2">
+          <PermissionChecklist selected={new Set()} />
+        </div>
+      </div>
+      <Button type="submit" className="bg-slate-900 font-extrabold text-white hover:bg-slate-800">
+        حفظ الدور الجديد
+      </Button>
+    </form>
+  );
+}
+
 export function RolesManagementPanel({ roles }: { roles: RoleRow[] | null }) {
   const list = roles ?? [];
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
+  const rolesKey = useMemo(() => list.map((r) => r.slug).sort().join("|"), [list]);
 
   return (
     <div className="space-y-4">
@@ -157,40 +257,9 @@ export function RolesManagementPanel({ roles }: { roles: RoleRow[] | null }) {
         <h2 className="text-base font-extrabold text-slate-900">إضافة دور جديد</h2>
         <p className="mt-1 text-xs text-slate-600">
           أي دور جديد يظهر فوراً في قوائم تعيين المستخدمين. تعديل صلاحيات الدور يؤثر على جميع من يحملون هذا الدور عند
-          تسجيل الدخول التالي.
+          تسجيل الدخول التالي. عند كتابة الاسم العربي يُقترح معرّف إنجليزي تلقائياً (حروف صغيرة وشرطات سفلية).
         </p>
-        <form action={createRoleFormAction} className="mt-4 space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="text-xs font-bold text-slate-600">المعرّف (slug)</label>
-              <Input name="slug" placeholder="مثال: site_supervisor" className="mt-1" />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-600">اسم الدور (عربي)</label>
-              <Input name="name_ar" placeholder="مثال: مشرف موقع" className="mt-1" required />
-            </div>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-slate-600">الصلاحيات</p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {PERMISSION_CATALOG.map((p) => (
-                <label
-                  key={p.key}
-                  className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                >
-                  <input type="checkbox" name={`perm_${p.key}`} className="mt-0.5" />
-                  <span>
-                    <span className="font-bold text-slate-800">{p.label}</span>
-                    <span className="mr-2 block text-[11px] text-slate-500">{p.key}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <Button type="submit" className="bg-slate-900 font-extrabold text-white hover:bg-slate-800">
-            حفظ الدور الجديد
-          </Button>
-        </form>
+        <AddRoleForm key={rolesKey} />
       </Card>
 
       <Card className="overflow-hidden p-0">

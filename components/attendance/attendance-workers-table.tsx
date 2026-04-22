@@ -28,6 +28,8 @@ type Props = {
   /** بعد نجاح التحضير (صف أو دفعة): الانتقال لتبويب المراجعة */
   onPrepSuccessNavigate?: () => void;
   suppressEmptyMessage?: boolean;
+  /** عرض القائمة دون أزرار التحضير (صلاحية view_attendance فقط) */
+  readOnly?: boolean;
 };
 
 function statusLabel(status?: AttendanceStatus) {
@@ -61,6 +63,7 @@ export function AttendanceWorkersTable({
   onAttendanceSessionComplete,
   onPrepSuccessNavigate,
   suppressEmptyMessage = false,
+  readOnly = false,
 }: Props) {
   const router = useRouter();
   const runLocked = useRunWithGlobalLock();
@@ -190,6 +193,11 @@ export function AttendanceWorkersTable({
   }
 
   function bulkButtons() {
+    if (readOnly) {
+      return (
+        <p className="text-xs font-bold text-slate-600">وضع العرض فقط — لا تملك صلاحية تعديل الحضور.</p>
+      );
+    }
     return (
       <div className="flex flex-wrap items-center gap-2">
         <button
@@ -266,6 +274,16 @@ export function AttendanceWorkersTable({
       );
     }
 
+    if (readOnly) {
+      return (
+        <span
+          className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${statusBadgeClass(statusMap[workerId])}`}
+        >
+          {statusLabel(statusMap[workerId])}
+        </span>
+      );
+    }
+
     return (
       <div className="flex flex-wrap items-center gap-1">
         <button
@@ -305,19 +323,25 @@ export function AttendanceWorkersTable({
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-300 bg-slate-50 p-3">
         <div className="flex flex-wrap items-center gap-4">
-          <label className="inline-flex items-center gap-2 text-sm font-bold text-slate-700">
-            <input type="checkbox" checked={pageAllSelected} onChange={toggleAllPage} disabled={isSaving} />
-            تحديد المعروض ({allIds.length})
-          </label>
-          <span className="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
-            المحدد: {selected.length}
-          </span>
+          {!readOnly ? (
+            <>
+              <label className="inline-flex items-center gap-2 text-sm font-bold text-slate-700">
+                <input type="checkbox" checked={pageAllSelected} onChange={toggleAllPage} disabled={isSaving} />
+                تحديد المعروض ({allIds.length})
+              </label>
+              <span className="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
+                المحدد: {selected.length}
+              </span>
+            </>
+          ) : (
+            <span className="text-sm font-bold text-slate-700">المعلّقون ({allIds.length})</span>
+          )}
           {isSaving && skipServerRefresh && <span className="text-xs font-bold text-amber-800">جاري الحفظ…</span>}
         </div>
         {bulkButtons()}
       </div>
 
-      {hasSelection && (
+      {!readOnly && hasSelection && (
         <div className="border-b border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
           <p className="mb-2 font-bold">نطاق التحضير</p>
           <div className="flex flex-wrap gap-3">
@@ -352,15 +376,17 @@ export function AttendanceWorkersTable({
           fixedItemHeight={132}
           itemContent={(_index, worker) => (
             <div className="border-b border-slate-200 p-2">
-              <label className="mb-1 inline-flex items-center gap-2 text-xs font-bold text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={selected.includes(worker.id)}
-                  onChange={() => toggle(worker.id)}
-                  disabled={isSaving || !workerHasSiteForPrep(worker)}
-                />
-                تحديد
-              </label>
+              {!readOnly ? (
+                <label className="mb-1 inline-flex items-center gap-2 text-xs font-bold text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(worker.id)}
+                    onChange={() => toggle(worker.id)}
+                    disabled={isSaving || !workerHasSiteForPrep(worker)}
+                  />
+                  تحديد
+                </label>
+              ) : null}
               <p className="font-bold text-slate-800">{worker.name}</p>
               <p className="text-xs text-slate-500">{worker.id_number}</p>
               <p className="mt-1 text-xs text-slate-500">
@@ -390,9 +416,11 @@ export function AttendanceWorkersTable({
           }}
           fixedHeaderContent={() => (
             <tr className="bg-slate-100">
-              <th className="border border-slate-300 px-2 py-2 text-right font-bold">
-                <input type="checkbox" checked={pageAllSelected} onChange={toggleAllPage} disabled={isSaving} />
-              </th>
+              {!readOnly ? (
+                <th className="border border-slate-300 px-2 py-2 text-right font-bold">
+                  <input type="checkbox" checked={pageAllSelected} onChange={toggleAllPage} disabled={isSaving} />
+                </th>
+              ) : null}
               <th className="border border-slate-300 px-3 py-2 text-right font-bold">#</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold">الاسم</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold">الهوية</th>
@@ -402,14 +430,16 @@ export function AttendanceWorkersTable({
           )}
           itemContent={(_index, worker) => (
             <>
-              <td className="border border-slate-300 px-2 py-1">
-                <input
-                  type="checkbox"
-                  checked={selected.includes(worker.id)}
-                  onChange={() => toggle(worker.id)}
-                  disabled={isSaving || !workerHasSiteForPrep(worker)}
-                />
-              </td>
+              {!readOnly ? (
+                <td className="border border-slate-300 px-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(worker.id)}
+                    onChange={() => toggle(worker.id)}
+                    disabled={isSaving || !workerHasSiteForPrep(worker)}
+                  />
+                </td>
+              ) : null}
               <td className="border border-slate-300 px-3 py-1">{worker.id}</td>
               <td className="border border-slate-300 px-3 py-1 font-bold text-slate-800">{worker.name}</td>
               <td className="border border-slate-300 px-3 py-1">{worker.id_number}</td>

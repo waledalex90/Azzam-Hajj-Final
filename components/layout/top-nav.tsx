@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { BrandLogo } from "@/components/branding/brand-logo";
-import { hasPermission } from "@/lib/auth/permissions";
+import { hasAnyPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
 import type { AppUser } from "@/lib/types/db";
 
@@ -10,9 +10,13 @@ type Props = {
 };
 
 const links = [
-  { href: "/dashboard", label: "الرئيسية", perm: PERM.DASHBOARD },
-  { href: "/attendance", label: "التحضير", perm: PERM.PREP },
-  { href: "/violations", label: "المخالفات", perm: PERM.VIOLATIONS },
+  { href: "/dashboard", label: "الرئيسية", anyOf: [PERM.VIEW_DASHBOARD] as const },
+  { href: "/attendance", label: "التحضير", anyOf: [PERM.VIEW_ATTENDANCE, PERM.EDIT_ATTENDANCE] as const },
+  {
+    href: "/violations",
+    label: "المخالفات",
+    anyOf: [PERM.VIEW_VIOLATIONS, PERM.MANAGE_VIOLATIONS] as const,
+  },
 ] as const;
 
 export function TopNav({ user }: Props) {
@@ -28,7 +32,7 @@ export function TopNav({ user }: Props) {
         </div>
         <nav className="hidden items-center gap-4 text-sm font-bold text-[#14532d] sm:flex">
           {links
-            .filter((item) => hasPermission(user, item.perm))
+            .filter((item) => hasAnyPermission(user, [...item.anyOf]))
             .map((item) => (
               <Link
                 key={item.href}

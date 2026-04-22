@@ -26,8 +26,8 @@ export default async function UsersManagementPage({ searchParams }: Props) {
     const params = await searchParams;
     const tab = params.tab === "roles" ? "roles" : "users";
 
-    const canUsers = Boolean(appUser && hasPermission(appUser, PERM.USERS_MANAGE));
-    const canRoles = Boolean(appUser && hasPermission(appUser, PERM.ROLES_MANAGE));
+    const canUsers = Boolean(appUser && hasPermission(appUser, PERM.MANAGE_USERS));
+    const canRoles = Boolean(appUser && hasPermission(appUser, PERM.MANAGE_ROLES));
 
     if (!canUsers && !canRoles) {
       return (

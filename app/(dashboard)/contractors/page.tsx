@@ -12,7 +12,7 @@ type Props = {
 };
 
 export default async function ContractorsPage({ searchParams }: Props) {
-  await requireScreen(PERM.CONTRACTORS);
+  await requireScreen(PERM.VIEW_CONTRACTORS);
 
   async function createContractor(formData: FormData) {
     "use server";

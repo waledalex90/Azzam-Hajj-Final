@@ -4,8 +4,7 @@ import dynamic from "next/dynamic";
 
 import { Card } from "@/components/ui/card";
 
-/** تقسيم الحزمة: التقارير ثقيلة (جدول + معاينة) — لا تُحمَّل حتى فتح الصفحة */
-export const ReportsHubLazy = dynamic(
+const ReportsHubDynamic = dynamic<{ canExportReports?: boolean }>(
   () => import("@/components/reports/reports-hub").then((m) => m.ReportsHub),
   {
     ssr: false,
@@ -14,3 +13,8 @@ export const ReportsHubLazy = dynamic(
     ),
   },
 );
+
+/** تقسيم الحزمة: التقارير ثقيلة — لا تُحمَّل حتى فتح الصفحة */
+export function ReportsHubLazy({ canExportReports }: { canExportReports: boolean }) {
+  return <ReportsHubDynamic canExportReports={canExportReports} />;
+}

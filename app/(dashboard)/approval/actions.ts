@@ -31,7 +31,7 @@ export type FetchPendingIdsResult = { ok: true; ids: number[] } | { ok: false; e
 export async function approveApprovalChunk(checkIds: number[]): Promise<ActionResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser } = await getSessionContext();
-  if (!appUser || !hasPermission(appUser, PERM.APPROVAL)) {
+  if (!appUser || !hasPermission(appUser, PERM.APPROVE_ATTENDANCE)) {
     return { ok: false, error: "لا توجد صلاحية للاعتماد." };
   }
   const ids = Array.from(new Set(checkIds.map((id) => Number(id)).filter(Boolean)));
@@ -79,7 +79,7 @@ export async function fetchPendingApprovalIds(input: {
 }): Promise<FetchPendingIdsResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser } = await getSessionContext();
-  if (!appUser || !hasPermission(appUser, PERM.APPROVAL)) {
+  if (!appUser || !hasPermission(appUser, PERM.APPROVE_ATTENDANCE)) {
     return { ok: false, error: "لا توجد صلاحية للاعتماد." };
   }
   const workDate = String(input.workDate || "");

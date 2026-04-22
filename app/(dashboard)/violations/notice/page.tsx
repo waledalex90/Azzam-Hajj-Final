@@ -40,7 +40,7 @@ function toTimeValue(date: Date) {
 }
 
 export default async function InfractionNoticePage({ searchParams }: Props) {
-  await requireScreen(PERM.VIOLATION_NOTICE);
+  await requireScreen(PERM.CREATE_VIOLATION_NOTICE);
 
   const params = await searchParams;
   const viewIdNum = params.viewId ? Number(params.viewId) : NaN;

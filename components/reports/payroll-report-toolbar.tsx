@@ -38,6 +38,7 @@ export function PayrollReportToolbar({
   month,
   locked,
   onAfterMutation,
+  canExportReports = true,
 }: {
   filters: ReportFilters;
   dateFrom: string;
@@ -46,6 +47,7 @@ export function PayrollReportToolbar({
   month: number;
   locked: boolean;
   onAfterMutation: () => void;
+  canExportReports?: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -183,18 +185,22 @@ export function PayrollReportToolbar({
         >
           {busy === "unlock" ? "…" : "إلغاء قفل"}
         </button>
-        <a
-          href={`/api/payroll/export?${exportQuery()}&format=xlsx`}
-          className="rounded-md border border-emerald-700 bg-emerald-50 px-2 py-1.5 text-[11px] font-bold text-emerald-900"
-        >
-          Excel
-        </a>
-        <a
-          href={`/api/payroll/export?${exportQuery()}&format=pdf`}
-          className="rounded-md border border-emerald-700 bg-emerald-50 px-2 py-1.5 text-[11px] font-bold text-emerald-900"
-        >
-          PDF
-        </a>
+        {canExportReports ? (
+          <>
+            <a
+              href={`/api/payroll/export?${exportQuery()}&format=xlsx`}
+              className="rounded-md border border-emerald-700 bg-emerald-50 px-2 py-1.5 text-[11px] font-bold text-emerald-900"
+            >
+              Excel
+            </a>
+            <a
+              href={`/api/payroll/export?${exportQuery()}&format=pdf`}
+              className="rounded-md border border-emerald-700 bg-emerald-50 px-2 py-1.5 text-[11px] font-bold text-emerald-900"
+            >
+              PDF
+            </a>
+          </>
+        ) : null}
       </div>
     </div>
   );

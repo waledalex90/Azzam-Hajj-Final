@@ -18,7 +18,7 @@ import { AttendanceReviewTab } from "@/components/attendance/attendance-review-t
 import { AttendanceRscRefreshLockProvider } from "@/components/attendance/attendance-rsc-refresh-lock";
 import { AttendanceSyncBridge } from "@/components/attendance/attendance-sync-bridge";
 import { TabPanelTransition } from "@/components/ui/tab-panel-transition";
-import { requireScreen } from "@/lib/auth/require-screen";
+import { requireAnyScreen } from "@/lib/auth/require-screen";
 import { canRequestAttendanceCorrection, hasPermission } from "@/lib/auth/permissions";
 import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
 import { PERM } from "@/lib/permissions/keys";
@@ -55,11 +55,12 @@ export const maxDuration = 120;
 
 export default async function AttendancePage({ searchParams }: Props) {
   noStore();
-  const appUser = await requireScreen(PERM.PREP);
+  const appUser = await requireAnyScreen([PERM.VIEW_ATTENDANCE, PERM.EDIT_ATTENDANCE]);
   const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
   const canCorrection = canRequestAttendanceCorrection(appUser);
   /** اعتماد/طابور إداري: المراقب الفني؛ الميداني يرى نفس القائمة للاطلاع فقط (من نُقِل بعد تحضيره). */
-  const canManageReviewQueue = hasPermission(appUser, PERM.APPROVAL);
+  const canManageReviewQueue = hasPermission(appUser, PERM.APPROVE_ATTENDANCE);
+  const canEditPrep = hasPermission(appUser, PERM.EDIT_ATTENDANCE);
 
   const params = await searchParams;
   const activeTab = params.tab === "review" ? "review" : "workers";
@@ -256,6 +257,7 @@ export default async function AttendancePage({ searchParams }: Props) {
             roundNo={roundNo}
             siteId={params.siteId}
             contractorId={params.contractorId}
+            readOnlyPrep={!canEditPrep}
           />
         ) : (
           <>

@@ -6,7 +6,7 @@ import { CorrectionResolveRow } from "@/components/corrections/correction-resolv
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getSiteOptions } from "@/lib/data/attendance";
 import { parsePage } from "@/lib/utils/pagination";
-import { requireScreen } from "@/lib/auth/require-screen";
+import { requireAnyScreen } from "@/lib/auth/require-screen";
 import { PERM } from "@/lib/permissions/keys";
 import { todayIsoDateInAppTimeZone } from "@/lib/utils/today";
 
@@ -31,7 +31,7 @@ function toIsoDateOnly(value: string | null | undefined): string | null {
 }
 
 export default async function CorrectionsPage({ searchParams }: Props) {
-  await requireScreen(PERM.CORRECTIONS_SCREEN);
+  await requireAnyScreen([PERM.VIEW_CORRECTIONS_QUEUE, PERM.PROCESS_CORRECTIONS]);
   const params = await searchParams;
   const page = parsePage(params.page, 1);
   const siteId = params.siteId ? Number(params.siteId) : undefined;

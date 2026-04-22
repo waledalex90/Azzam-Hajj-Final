@@ -42,7 +42,7 @@ export async function saveInfractionNoticeAction(formData: FormData): Promise<Sa
   }
 
   const { appUser } = await getSessionContext();
-  if (!appUser || !hasPermission(appUser, PERM.VIOLATION_NOTICE)) {
+  if (!appUser || !hasPermission(appUser, PERM.CREATE_VIOLATION_NOTICE)) {
     return { ok: false, error: "لا تملك صلاحية إشعار المخالفة." };
   }
 

@@ -28,7 +28,7 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "غير مسجّل", steps }, { status: 401 });
   }
   const allowed =
-    hasPermission(appUser, PERM.USERS_MANAGE) || hasPermission(appUser, PERM.ROLES_MANAGE);
+    hasPermission(appUser, PERM.MANAGE_USERS) || hasPermission(appUser, PERM.MANAGE_ROLES);
   if (!allowed) {
     return NextResponse.json({ ok: false, error: "لا صلاحية", steps }, { status: 403 });
   }

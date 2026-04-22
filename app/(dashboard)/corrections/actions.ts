@@ -17,7 +17,10 @@ export async function resolveCorrectionRequest(
 ): Promise<CorrectionActionResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser } = await getSessionContext();
-  if (!appUser || (!hasPermission(appUser, PERM.APPROVAL) && !isAdminOrHrRole(appUser.role))) {
+  if (
+    !appUser ||
+    (!hasPermission(appUser, PERM.PROCESS_CORRECTIONS) && !isAdminOrHrRole(appUser.role))
+  ) {
     return { ok: false, error: "لا توجد صلاحية لاعتماد طلب التعديل (موارد/أدمن أو من لديه اعتماد)." };
   }
   if (!requestId || !["present", "absent"].includes(status)) {

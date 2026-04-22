@@ -37,6 +37,8 @@ type RowProps = {
   toggleActive: (formData: FormData) => Promise<void>;
   softDeleteWorker: (formData: FormData) => Promise<void>;
   restoreWorker: (formData: FormData) => Promise<void>;
+  canEditWorkers: boolean;
+  canViewSensitive: boolean;
 };
 
 type EditFormProps = {
@@ -45,10 +47,18 @@ type EditFormProps = {
   sites: SiteOpt[];
   contractors: ContractorOpt[];
   updateWorker: (formData: FormData) => Promise<void>;
+  canViewSensitive: boolean;
 };
 
 /** Native <select> inside react-virtuoso + overflow clips/breaks dropdowns — keep edit form outside the list. */
-function WorkersDockedEditForm({ worker, queryBase, sites, contractors, updateWorker }: EditFormProps) {
+function WorkersDockedEditForm({
+  worker,
+  queryBase,
+  sites,
+  contractors,
+  updateWorker,
+  canViewSensitive,
+}: EditFormProps) {
   return (
     <Card className="relative z-10 border-emerald-200 bg-emerald-50/30 shadow-md">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-emerald-100 pb-3">
@@ -68,16 +78,31 @@ function WorkersDockedEditForm({ worker, queryBase, sites, contractors, updateWo
         ) : null}
         <input type="hidden" name="workerId" value={worker.id} />
         <Input name="name" defaultValue={worker.name} required />
-        <Input name="idNumber" defaultValue={worker.id_number} required />
+        <Input
+          name="idNumber"
+          defaultValue={worker.id_number}
+          required
+          readOnly={!canViewSensitive}
+          className={!canViewSensitive ? "bg-slate-100" : undefined}
+          title={!canViewSensitive ? "بيانات الهوية/الإقامة والراتب تتطلب صلاحية عرض البيانات الحساسة" : undefined}
+        />
         <Input name="jobTitle" defaultValue={worker.job_title ?? ""} placeholder="المسمى الوظيفي" />
         <Input
           name="basicSalary"
           type="number"
           step="0.01"
-          defaultValue={worker.basic_salary ?? ""}
-          placeholder="الراتب"
+          defaultValue={canViewSensitive ? (worker.basic_salary ?? "") : ""}
+          placeholder={canViewSensitive ? "الراتب" : "—"}
+          readOnly={!canViewSensitive}
+          className={!canViewSensitive ? "bg-slate-100" : undefined}
         />
-        <Input name="iqamaExpiry" type="date" defaultValue={worker.iqama_expiry ?? ""} />
+        <Input
+          name="iqamaExpiry"
+          type="date"
+          defaultValue={canViewSensitive ? (worker.iqama_expiry ?? "") : ""}
+          readOnly={!canViewSensitive}
+          className={!canViewSensitive ? "bg-slate-100" : undefined}
+        />
         <select
           name="paymentType"
           defaultValue={worker.payment_type}
@@ -140,7 +165,10 @@ const WorkerListRowCard = memo(function WorkerListRowCard({
   toggleActive,
   softDeleteWorker,
   restoreWorker,
+  canEditWorkers,
+  canViewSensitive,
 }: RowProps) {
+  const idLine = canViewSensitive ? worker.id_number : "••••••••";
   return (
     <div className="pb-3">
       <Card className={isEditing ? "ring-2 ring-emerald-500 ring-offset-2" : undefined}>
@@ -163,12 +191,12 @@ const WorkerListRowCard = memo(function WorkerListRowCard({
               )}
             </p>
             <p className="text-xs text-slate-500">
-              {worker.id_number} | {worker.sites?.name ?? "بدون موقع"} | {worker.contractors?.name ?? "بدون مقاول"}
+              {idLine} | {worker.sites?.name ?? "بدون موقع"} | {worker.contractors?.name ?? "بدون مقاول"}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {!worker.is_deleted && (
+            {canEditWorkers && !worker.is_deleted ? (
               <form action={toggleActive}>
                 <input type="hidden" name="workerId" value={worker.id} />
                 <input type="hidden" name="isActive" value={String(worker.is_active)} />
@@ -181,33 +209,36 @@ const WorkerListRowCard = memo(function WorkerListRowCard({
                   {worker.is_active ? "نشط" : "موقوف"}
                 </button>
               </form>
-            )}
+            ) : null}
 
-            <Link
-              href={buildWorkersHref({
-                ...queryBase,
-                editId: isEditing ? undefined : String(worker.id),
-              })}
-              className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-700"
-            >
-              {isEditing ? "إلغاء التعديل" : "تعديل"}
-            </Link>
+            {canEditWorkers ? (
+              <Link
+                href={buildWorkersHref({
+                  ...queryBase,
+                  editId: isEditing ? undefined : String(worker.id),
+                })}
+                className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-700"
+              >
+                {isEditing ? "إلغاء التعديل" : "تعديل"}
+              </Link>
+            ) : null}
 
-            {worker.is_deleted ? (
+            {canEditWorkers && worker.is_deleted ? (
               <form action={restoreWorker}>
                 <input type="hidden" name="workerId" value={worker.id} />
                 <button type="submit" className="rounded bg-[#0f766e] px-3 py-1 text-xs font-bold text-white">
                   استرجاع
                 </button>
               </form>
-            ) : (
+            ) : null}
+            {canEditWorkers && !worker.is_deleted ? (
               <form action={softDeleteWorker}>
                 <input type="hidden" name="workerId" value={worker.id} />
                 <button type="submit" className="rounded bg-red-600 px-3 py-1 text-xs font-bold text-white">
                   حذف
                 </button>
               </form>
-            )}
+            ) : null}
           </div>
         </div>
       </Card>
@@ -228,6 +259,8 @@ type Props = {
   toggleActive: (formData: FormData) => Promise<void>;
   softDeleteWorker: (formData: FormData) => Promise<void>;
   restoreWorker: (formData: FormData) => Promise<void>;
+  canEditWorkers?: boolean;
+  canViewSensitive?: boolean;
 };
 
 const LIST_H = "min(72vh, 920px)";
@@ -245,6 +278,8 @@ export function WorkersListClient({
   toggleActive,
   softDeleteWorker,
   restoreWorker,
+  canEditWorkers = true,
+  canViewSensitive = true,
 }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -277,9 +312,11 @@ export function WorkersListClient({
         toggleActive={toggleActive}
         softDeleteWorker={softDeleteWorker}
         restoreWorker={restoreWorker}
+        canEditWorkers={canEditWorkers}
+        canViewSensitive={canViewSensitive}
       />
     ),
-    [editId, queryBase, toggleActive, softDeleteWorker, restoreWorker],
+    [editId, queryBase, toggleActive, softDeleteWorker, restoreWorker, canEditWorkers, canViewSensitive],
   );
 
   return (
@@ -356,6 +393,7 @@ export function WorkersListClient({
           sites={sites}
           contractors={contractors}
           updateWorker={updateWorker}
+          canViewSensitive={canViewSensitive}
         />
       ) : null}
 

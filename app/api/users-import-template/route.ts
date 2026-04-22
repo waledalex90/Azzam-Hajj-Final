@@ -14,7 +14,7 @@ const DATA_ROWS = 500;
 
 export async function GET() {
   const { appUser } = await getSessionContext();
-  if (!appUser || !hasPermission(appUser, PERM.USERS_MANAGE)) {
+  if (!appUser || !hasPermission(appUser, PERM.MANAGE_USERS)) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 

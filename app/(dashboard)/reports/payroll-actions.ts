@@ -14,7 +14,7 @@ import {
 
 function canManagePayrollLock(user: AppUser | null | undefined) {
   if (!user) return false;
-  return hasPermission(user, PERM.APPROVAL) || hasPermission(user, PERM.USERS_MANAGE);
+  return hasPermission(user, PERM.APPROVE_ATTENDANCE) || hasPermission(user, PERM.MANAGE_USERS);
 }
 
 export async function getPayrollLockStateAction(f: ReportFilters): Promise<boolean> {

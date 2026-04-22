@@ -20,7 +20,7 @@ export async function cancelHalfDayAttendancePrep(formData: FormData): Promise<C
   }
 
   const { appUser } = await getSessionContext();
-  if (!appUser || !hasPermission(appUser, PERM.PREP)) {
+  if (!appUser || !hasPermission(appUser, PERM.EDIT_ATTENDANCE)) {
     return { ok: false, error: "لا تملك صلاحية التحضير." };
   }
 
@@ -111,7 +111,7 @@ export async function returnAttendanceToPreparation(formData: FormData) {
   if (!checkId || isDemoModeEnabled()) return;
 
   const { appUser } = await getSessionContext();
-  if (!appUser || !hasPermission(appUser, PERM.PREP)) {
+  if (!appUser || !hasPermission(appUser, PERM.EDIT_ATTENDANCE)) {
     throw new Error("لا تملك صلاحية التحضير.");
   }
 

@@ -50,7 +50,7 @@ export async function POST(request: Request) {
 
   try {
     if (mode === "attendance_submit") {
-      if (!appUser || !hasPermission(appUser, PERM.PREP)) {
+      if (!appUser || !hasPermission(appUser, PERM.EDIT_ATTENDANCE)) {
         return NextResponse.json({ error: "Forbidden", code: "403" }, { status: 403 });
       }
       if (
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
         idempotencyKey: body.idempotencyKey,
       });
     } else {
-      if (!appUser || !hasPermission(appUser, PERM.APPROVAL)) {
+      if (!appUser || !hasPermission(appUser, PERM.APPROVE_ATTENDANCE)) {
         return NextResponse.json({ error: "Forbidden", code: "403" }, { status: 403 });
       }
       if (!body?.decision || !["confirm", "reject"].includes(body.decision) || !Array.isArray(body.checkIds)) {

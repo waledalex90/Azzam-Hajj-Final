@@ -22,6 +22,7 @@ type Props = {
   roundNo: number;
   siteId?: string;
   contractorId?: string;
+  readOnlyPrep?: boolean;
 };
 
 function applyPrepToStats(
@@ -46,6 +47,7 @@ export function AttendancePrepWorkzone({
   roundNo,
   siteId,
   contractorId,
+  readOnlyPrep = false,
 }: Props) {
   const router = useRouter();
   const [dayStats, setDayStats] = useState(initialDayStats);
@@ -203,6 +205,7 @@ export function AttendancePrepWorkzone({
         filteredTotalRows={scopeIds.length}
         skipServerRefresh
         onAttendanceChunkSaved={onPrepDone}
+        readOnly={readOnlyPrep}
       />
     </>
   );

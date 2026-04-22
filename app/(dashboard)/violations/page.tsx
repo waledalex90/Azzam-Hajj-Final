@@ -32,7 +32,7 @@ type Props = {
 const PAGE_SIZE = 20;
 
 export default async function ViolationsPage({ searchParams }: Props) {
-  await requireScreen(PERM.VIOLATIONS);
+  await requireScreen(PERM.VIEW_VIOLATIONS);
 
   async function createViolation(formData: FormData) {
     "use server";
@@ -46,7 +46,7 @@ export default async function ViolationsPage({ searchParams }: Props) {
     if (!workerId || !violationTypeId) return;
 
     const { appUser } = await getSessionContext();
-    if (!appUser || !hasPermission(appUser, PERM.VIOLATIONS)) return;
+    if (!appUser || !hasPermission(appUser, PERM.MANAGE_VIOLATIONS)) return;
 
     const supabase = createSupabaseAdminClient();
     let finalSiteId = Number.isFinite(siteIdRaw) && siteIdRaw > 0 ? siteIdRaw : null;

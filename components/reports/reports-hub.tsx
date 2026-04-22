@@ -122,7 +122,7 @@ const TABS: { id: ReportsTab; label: string }[] = [
   { id: "workers", label: "بيانات العاملين" },
 ];
 
-export function ReportsHub() {
+export function ReportsHub({ canExportReports = true }: { canExportReports?: boolean } = {}) {
   const [tab, setTab] = useState<ReportsTab>("attendance_log");
   const [dateFrom, setDateFrom] = useState(todayIsoDateInAppTimeZone);
   const [dateTo, setDateTo] = useState(todayIsoDateInAppTimeZone);
@@ -613,15 +613,18 @@ export function ReportsHub() {
             >
               تطبيق الفلاتر
             </button>
-            <button
-              type="button"
-              className="rounded-lg border border-emerald-700 bg-emerald-50 px-5 py-2.5 text-sm font-bold text-emerald-900"
-              onClick={() => void handleExportCsv()}
-            >
-              تصدير CSV كامل
-            </button>
+            {canExportReports ? (
+              <button
+                type="button"
+                className="rounded-lg border border-emerald-700 bg-emerald-50 px-5 py-2.5 text-sm font-bold text-emerald-900"
+                onClick={() => void handleExportCsv()}
+              >
+                تصدير CSV كامل
+              </button>
+            ) : null}
             <span className="text-[11px] text-slate-500">
-              المعاينة صفحات من الخادم (≤50 موظف/صفحة)؛ التصدير على دفعات حتى 1000 سطر.
+              المعاينة صفحات من الخادم (≤50 موظف/صفحة)
+              {canExportReports ? "؛ التصدير على دفعات حتى 1000 سطر." : "؛ التصدير غير متاح لصلاحيتك."}
             </span>
           </div>
         </Card>
@@ -777,13 +780,15 @@ export function ReportsHub() {
           >
             تطبيق الفلاتر
           </button>
-          <button
-            type="button"
-            className="rounded-lg border border-emerald-700 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-900"
-            onClick={() => void handleExportCsv()}
-          >
-            تصدير CSV كامل
-          </button>
+          {canExportReports ? (
+            <button
+              type="button"
+              className="rounded-lg border border-emerald-700 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-900"
+              onClick={() => void handleExportCsv()}
+            >
+              تصدير CSV كامل
+            </button>
+          ) : null}
         </div>
       </Card>
       )}
@@ -827,6 +832,7 @@ export function ReportsHub() {
               year={year}
               month={month}
               locked={payrollLocked}
+              canExportReports={canExportReports}
               onAfterMutation={() => {
                 void refresh();
                 void (async () => {

@@ -1,14 +1,38 @@
 import type { AppUser } from "@/lib/types/db";
 
-import { PERM } from "@/lib/permissions/keys";
+import { LEGACY_GRANTS, PERM } from "@/lib/permissions/keys";
+
+/** مجموعة الصلاحيات الفعّالة: المخزَّنة + المشتقة من مفاتيح قديمة */
+export function effectivePermissionSet(user: AppUser | null | undefined): Set<string> {
+  const raw = user?.permissions ?? [];
+  const set = new Set<string>();
+  for (const p of raw) {
+    const key = String(p).trim();
+    if (!key) continue;
+    set.add(key);
+    const extra = LEGACY_GRANTS[key];
+    if (extra) {
+      for (const e of extra) set.add(e);
+    }
+  }
+  return set;
+}
 
 export function hasPermission(user: AppUser | null | undefined, permission: string): boolean {
   if (!user?.permissions?.length) return false;
-  return user.permissions.includes(permission);
+  return effectivePermissionSet(user).has(permission);
 }
 
-/** طلب تعديل على سجل حضور: من له صلاحية طلب التعديل أو الاعتماد (شاشة الاعتماد / المراجعة). */
+export function hasAnyPermission(user: AppUser | null | undefined, permissions: string[]): boolean {
+  if (!permissions.length) return false;
+  const eff = effectivePermissionSet(user);
+  return permissions.some((p) => eff.has(p));
+}
+
+/** طلب تعديل على سجل حضور */
 export function canRequestAttendanceCorrection(user: AppUser | null | undefined): boolean {
   if (!user) return false;
-  return hasPermission(user, PERM.CORRECTION_REQUEST) || hasPermission(user, PERM.APPROVAL);
+  return (
+    hasPermission(user, PERM.REQUEST_ATTENDANCE_CORRECTION) || hasPermission(user, PERM.APPROVE_ATTENDANCE)
+  );
 }

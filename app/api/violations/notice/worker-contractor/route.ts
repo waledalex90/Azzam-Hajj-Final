@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: Request) {
   const { appUser } = await getSessionContext();
-  if (!appUser || !hasPermission(appUser, PERM.VIOLATION_NOTICE)) {
+  if (!appUser || !hasPermission(appUser, PERM.CREATE_VIOLATION_NOTICE)) {
     return NextResponse.json({ error: "غير مصرّح" }, { status: 403 });
   }
 

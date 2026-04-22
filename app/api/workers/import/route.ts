@@ -107,7 +107,7 @@ export async function POST(request: Request) {
   const supabase = createSupabaseAdminClient();
   const appUser = await loadAppUserWithRole(user.id);
 
-  if (!appUser || !hasPermission(appUser, PERM.WORKERS_IMPORT)) {
+  if (!appUser || !hasPermission(appUser, PERM.IMPORT_WORKERS)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
