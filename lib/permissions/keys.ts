@@ -44,7 +44,8 @@ export type PermissionKey = (typeof PERM)[keyof typeof PERM];
 /** قيم قديمة في JSON — كل قيمة توسِّع إلى مفاتيح جزئية (للتوافق مع البيانات المخزَّنة قبل التجزئة). */
 export const LEGACY_GRANTS: Record<string, readonly string[]> = {
   prep: [PERM.VIEW_ATTENDANCE, PERM.EDIT_ATTENDANCE],
-  approval: [PERM.VIEW_ATTENDANCE, PERM.APPROVE_ATTENDANCE],
+  /** اعتماد الحضور + معالجة طلبات التعديل (السلوك السابق لـ corrections/actions) */
+  approval: [PERM.VIEW_ATTENDANCE, PERM.APPROVE_ATTENDANCE, PERM.PROCESS_CORRECTIONS],
   correction_request: [PERM.REQUEST_ATTENDANCE_CORRECTION],
   workers_import: [PERM.IMPORT_WORKERS, PERM.EDIT_WORKERS],
   users_manage: [PERM.MANAGE_USERS],
