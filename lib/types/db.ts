@@ -10,9 +10,10 @@ export type AppUser = {
   /** مصفوفة صلاحيات من user_roles.permissions */
   permissions: string[];
   /**
-   * معرفات المواقع من `app_users.allowed_site_ids`.
-   * - `undefined` = العمود غير مُحمَّل (ترقية قديمة) — يُكمَّل من `app_user_sites`.
-   * - `[]` = مُعرَّف صراحةً: لا مواقع مسموحة من العمود (لا نستخدم جدول المواقع القديم).
+   * من `app_users.allowed_site_ids`
+   * - `undefined` = عمود غير مُحمَّل (ترقية قديمة) — الاعتماد على `app_user_sites` عند الدمج.
+   * - `[]` = اختيار **كل المواقع** في شاشة المستخدمين → لا قيد على الاستعلامات (لغير `field_observer`)؛
+   *   انظر `resolveAllowedSiteIdsForSession`.
    */
   allowedSiteIds?: number[];
 };

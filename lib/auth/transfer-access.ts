@@ -79,11 +79,18 @@ export function isSiteRestrictionExemptRole(role: string): boolean {
  * - `undefined` = غير مقيّد (كل المواقع) — إدارة / فني / موارد عادةً.
  * - `[]` = مقيّد لكن لا يوجد موقع مسموح (لا بيانات).
  * - `[…ids]` = هذه المواقع فقط.
+ *
+ * في واجهة «إدارة المستخدم»، خيار **كل المواقع** يحفظ `allowed_site_ids = []` صراحةً — لا يعني
+ * حظرًا بل «بدون قيد مواقع». إن كان `getEffective` فارغة ولم يعفَ الدور بالاسم، نُعامل ذلك كـ
+ * «كل المواقع» للمستخدمين الذين ليسوا مراقبين ميدانيين (ويدعم أدوار HR بـ slug مخصّص).
  */
 export async function resolveAllowedSiteIdsForSession(appUser: AppUser): Promise<number[] | undefined> {
   const raw = await getEffectiveSiteIdsForAppUser(appUser);
   if (raw.length > 0) return raw;
   if (isSiteRestrictionExemptRole(appUser.role)) return undefined;
+  if (appUser.allowedSiteIds !== undefined && appUser.allowedSiteIds.length === 0 && !isFieldObserver(appUser.role)) {
+    return undefined;
+  }
   return [];
 }
 
