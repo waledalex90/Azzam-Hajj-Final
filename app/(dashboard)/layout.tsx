@@ -65,7 +65,7 @@ export default async function DashboardLayout({ children }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 lg:flex">
+    <div className="min-h-screen bg-[#080808] lg:flex">
       <AdminSidebar user={appUser} />
       <main className="flex-1 p-4 lg:p-6">
         <div className="mx-auto w-full max-w-[1200px] space-y-4">
@@ -73,7 +73,7 @@ export default async function DashboardLayout({ children }: Props) {
             <LogoutButton />
           </div>
           {demoMode && (
-            <Card className="no-print border-amber-300 bg-amber-50 text-amber-900">
+            <Card className="no-print border-amber-500/30 bg-amber-950/40 text-amber-100">
               وضع التجربة المحلي مفعل: التعديلات هنا للعرض فقط.
             </Card>
           )}

@@ -9,6 +9,7 @@ import {
   type ReportsTab,
 } from "@/app/(dashboard)/reports/actions";
 import { getPayrollLockStateAction } from "@/app/(dashboard)/reports/payroll-actions";
+import { BrandLogo } from "@/components/branding/brand-logo";
 import { SearchableSelect } from "@/components/filters/searchable-select";
 import { Card } from "@/components/ui/card";
 import { TabPanelTransition } from "@/components/ui/tab-panel-transition";
@@ -504,7 +505,13 @@ export function ReportsHub({
   return (
     <div className="space-y-4">
       <Card className="space-y-3 p-4">
-        <h1 className="text-lg font-extrabold text-slate-900">محرك التقارير</h1>
+        <div className="flex flex-col items-center gap-3 border-b border-[#d4af37]/15 pb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <BrandLogo preset="reports" />
+          <div className="text-center sm:text-right">
+            <h1 className="text-lg font-extrabold text-slate-900">محرك التقارير</h1>
+            <p className="text-xs text-slate-500">شركة عزام</p>
+          </div>
+        </div>
         <p className="text-sm text-slate-600">
           فلاتر متعددة من الخادم؛ معاينة على دفعات (حتى 1000 صف لمسير الرواتب)، وتصدير CSV كامل من السيرفر.
           {tab === "payroll" && (
@@ -531,8 +538,8 @@ export function ReportsHub({
               }}
               className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
                 tab === t.id
-                  ? "bg-[#14532d] text-white shadow-md ring-2 ring-[#14532d]/30"
-                  : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                  ? "bg-[#c9a227] text-[#0a0a0a] shadow-md ring-2 ring-[#d4af37]/40"
+                  : "bg-[#1a1508] text-[#b8a878] ring-1 ring-[#2a2110] hover:bg-[#221c10]"
               }`}
             >
               {t.label}

@@ -13,10 +13,10 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const variants: Record<ButtonVariant, string> = {
   primary:
-    "bg-[#14532d] text-white shadow-md ring-2 ring-[#14532d]/35 hover:bg-[#166534] hover:shadow-lg focus-visible:outline-none focus-visible:ring-[#166534]/50",
-  secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200/90 shadow-sm border border-slate-200/80",
-  danger: "bg-red-700 text-white hover:bg-red-800 shadow-sm hover:shadow-md",
-  ghost: "bg-transparent text-slate-600 hover:bg-slate-100 hover:text-[#14532d]",
+    "bg-[#c9a227] text-[#0a0a0a] shadow-md ring-2 ring-[#d4af37]/40 hover:bg-[#d4af37] hover:shadow-lg focus-visible:outline-none focus-visible:ring-[#d4af37]/50",
+  secondary: "bg-[#1a1914] text-[#e8d4a8] hover:bg-[#222018] shadow-sm border border-[#3d3420]",
+  danger: "bg-red-800 text-white hover:bg-red-900 shadow-sm hover:shadow-md",
+  ghost: "bg-transparent text-[#b8a878] hover:bg-[#1a1508] hover:text-[#f6e8b8]",
 };
 
 export function Button({ variant = "primary", className, children, pending, disabled, ...props }: Props) {

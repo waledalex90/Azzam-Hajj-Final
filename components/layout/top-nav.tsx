@@ -21,23 +21,23 @@ const links = [
 
 export function TopNav({ user }: Props) {
   return (
-    <header className="sticky top-0 z-10 border-b border-[#d8c99a] bg-white/95 backdrop-blur">
+    <header className="sticky top-0 z-10 border-b border-[#d4af37]/25 bg-[#0a0a0a]/95 backdrop-blur">
       <div className="container-mobile flex min-h-16 items-center justify-between gap-3 py-2.5">
         <div className="flex items-center gap-3">
           <BrandLogo />
           <div>
-            <p className="text-sm font-extrabold text-[#14532d]">نظام عزام للحج</p>
-            <p className="text-xs text-[#5b4a1f]">{user.roleLabel}</p>
+            <p className="text-sm font-extrabold text-[#f6e8b8]">نظام عزام للحج</p>
+            <p className="text-xs text-[#b8a050]">{user.roleLabel}</p>
           </div>
         </div>
-        <nav className="hidden items-center gap-4 text-sm font-bold text-[#14532d] sm:flex">
+        <nav className="hidden items-center gap-4 text-sm font-bold text-[#d4af37] sm:flex">
           {links
             .filter((item) => hasAnyPermission(user, [...item.anyOf]))
             .map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-md px-2 py-1 hover:bg-[#f8f3df]"
+                className="rounded-md px-2 py-1 text-[#e8d4a8] transition hover:bg-[#1a1508] hover:text-[#f6e8b8]"
               >
                 {item.label}
               </Link>

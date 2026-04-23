@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --primary: #166534;
-  --primary-dark: #14532d;
+  --background: #0a0a0a;
+  --foreground: #e8d4a8;
+  --primary: #c9a227;
+  --primary-dark: #b88b2f;
   --gold: #d4af37;
   --gold-soft: #f6e5a8;
   --luxury-black: #0b0b0c;
@@ -12,7 +12,9 @@
   --luxury-gold: #d4af37;
   --luxury-gold-deep: #b88b2f;
   --danger: #b91c1c;
-  --muted: #64748b;
+  --muted: #9a8a60;
+  --royal-surface: #111113;
+  --royal-border: rgba(212, 175, 55, 0.25);
 }
 
 @theme inline {
@@ -28,6 +30,26 @@ body {
   font-weight: 500;
 }
 
+/* نصوص فوق الخلفية الداكنة */
+html.theme-royal .text-slate-900 {
+  color: #faf6e8 !important;
+}
+html.theme-royal .text-slate-800 {
+  color: #f2ecd8 !important;
+}
+html.theme-royal .text-slate-700 {
+  color: #e0d4b8 !important;
+}
+html.theme-royal .text-slate-600 {
+  color: #c4b89a !important;
+}
+html.theme-royal .text-slate-500 {
+  color: #9a8a60 !important;
+}
+html.theme-royal .text-emerald-900 {
+  color: #a8a050 !important;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -41,9 +63,9 @@ textarea {
 
 select {
   border-radius: 0.75rem;
-  border-color: #e2e8f0;
-  background: #ffffff;
-  color: #0f172a;
+  border-color: rgba(212, 175, 55, 0.28);
+  background: #141416;
+  color: #f0e8d4;
 }
 
 a {
@@ -60,16 +82,17 @@ a {
 }
 
 .card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--royal-surface);
+  border: 1px solid var(--royal-border);
   border-radius: 1.1rem;
-  box-shadow: 0 8px 28px rgb(15 23 42 / 0.06);
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.5);
+  color: #ede8d8;
   transition: box-shadow 180ms ease, border-color 180ms ease;
 }
 
 .card:hover {
-  border-color: #d9e4dc;
-  box-shadow: 0 12px 30px rgb(15 23 42 / 0.08);
+  border-color: rgba(212, 175, 55, 0.38);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.55);
 }
 
 .status-present {
@@ -85,7 +108,7 @@ a {
 }
 
 .launch-screen {
-  background: linear-gradient(180deg, #f1f5f9 0%, #f8fafc 45%, #eef2f7 100%);
+  background: radial-gradient(ellipse 120% 80% at 50% 0%, #1a1508 0%, #0a0a0a 45%, #030304 100%);
   animation: launchFadeIn 240ms ease-out;
 }
 
@@ -94,20 +117,25 @@ a {
   display: grid;
   place-items: center;
   padding: 1.5rem;
-  background: transparent;
+  background: linear-gradient(
+    180deg,
+    rgb(0 0 0 / 0.2) 0%,
+    rgb(212 175 55 / 0.04) 50%,
+    rgb(0 0 0 / 0.35) 100%
+  );
 }
 
 .launch-screen__logo-wrap {
   text-align: center;
-  color: #0f172a;
+  color: #f6e8b8;
   animation: launchFloatIn 420ms ease-out;
 }
 
 .launch-screen__icon {
-  border-radius: 1rem;
-  box-shadow: 0 12px 40px rgb(15 23 42 / 0.08);
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  background: transparent;
 }
 
 .launch-screen__title {
@@ -115,13 +143,13 @@ a {
   font-size: 1.65rem;
   font-weight: 800;
   letter-spacing: 0.2px;
-  color: #0f172a;
+  color: #f6e8b8;
 }
 
 .launch-screen__subtitle {
   margin-top: 0.3rem;
   font-size: 0.9rem;
-  color: #475569;
+  color: #c4a85a;
   opacity: 0.95;
 }
 
