@@ -32,7 +32,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0a0a",
+  themeColor: "#f8fafc",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -44,8 +44,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="rtl" className={`theme-royal ${tajawal.variable} h-full antialiased`}>
-      <body className={`${uxInteractions.root} min-h-full flex flex-col bg-[#0a0a0a] text-[#e8d4a8]`}>
+    <html lang="ar" dir="rtl" className={`${tajawal.variable} h-full antialiased`}>
+      <body className={`${uxInteractions.root} min-h-full flex flex-col bg-slate-50 text-slate-900`}>
         {children}
         <PwaReloadOnUpdate />
         <IosInstallHint />

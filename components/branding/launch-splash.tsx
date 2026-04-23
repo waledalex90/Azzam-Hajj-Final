@@ -9,7 +9,7 @@ export function LaunchSplash() {
             <BrandLogo priority preset="launch" />
           </div>
           <p className="launch-screen__title">نظام عزام للحج</p>
-          <p className="launch-screen__subtitle">النسخة الملكية - هوية أسود وذهب</p>
+          <p className="launch-screen__subtitle">تسجيل حضور وإدارة الموسم — واجهة خفيفة</p>
         </div>
       </div>
     </main>

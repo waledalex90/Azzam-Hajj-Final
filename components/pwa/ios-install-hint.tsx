@@ -44,17 +44,17 @@ export function IosInstallHint() {
     <div
       role="region"
       aria-label="إضافة التطبيق للشاشة الرئيسية"
-      className="fixed bottom-0 left-0 right-0 z-[100] border-t border-[#d4af37]/40 bg-[#0b0b0c] px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] text-center text-sm text-[#f8fafc] shadow-[0_-8px_32px_rgba(0,0,0,0.35)]"
+      className="fixed bottom-0 left-0 right-0 z-[100] border-t border-slate-200 bg-white px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] text-center text-sm text-slate-800 shadow-[0_-4px_24px_rgba(15,23,42,0.08)]"
     >
-      <p className="font-extrabold text-[#f6e5a8]">تثبيت التطبيق على الآيفون</p>
-      <p className="mt-1.5 leading-relaxed text-[13px] text-slate-200">
-        اضغط زر <span className="font-bold text-white">مشاركة Share</span> أسفل شريط سفاري، ثم اختر{" "}
-        <span className="font-bold text-[#d4af37]">إضافة إلى الشاشة الرئيسية</span>.
+      <p className="font-extrabold text-emerald-900">تثبيت التطبيق على الآيفون</p>
+      <p className="mt-1.5 leading-relaxed text-[13px] text-slate-600">
+        اضغط زر <span className="font-bold text-slate-900">مشاركة Share</span> أسفل شريط سفاري، ثم اختر{" "}
+        <span className="font-bold text-emerald-800">إضافة إلى الشاشة الرئيسية</span>.
       </p>
       <button
         type="button"
         onClick={dismiss}
-        className="mt-2 text-xs font-bold text-[#d4af37] underline decoration-[#d4af37]/50 underline-offset-2"
+        className="mt-2 text-xs font-bold text-emerald-800 underline decoration-emerald-800/50 underline-offset-2"
       >
         فهمت، إخفاء
       </button>
