@@ -1,5 +1,8 @@
 /**
- * توليد أيقونات PWA / Apple بنفس مظهر شعار الواجهة: خلفية #0b0b0c + حد ذهبي + azzam-logo.png
+ * توليد أيقونات PWA / Apple + ملفات PNG جاهزة للتحميل (ويندوز/هاتف) في public/brand:
+ *   - azzam-luxury-badge-1024.png  — مربع عالي الدقة
+ *   - azzam-luxury-badge-256.png   — أيقونات صغيرة / اختصارات
+ * نفس المظهر: #0b0b0c + حد ذهبي + azzam-logo.png
  * يشغّل عند `npm run build:icons` أو من `prebuild` مع البناء.
  */
 import sharp from "sharp";
@@ -11,6 +14,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 const logoPath = join(root, "public/brand/azzam-logo.png");
 const iconsDir = join(root, "public/icons");
+const brandDir = join(root, "public/brand");
 
 const W = 512;
 const LOGO_W = 456;
@@ -42,6 +46,7 @@ function buildSvgDataUri(logoB64) {
 
 async function main() {
   mkdirSync(iconsDir, { recursive: true });
+  mkdirSync(brandDir, { recursive: true });
   const logoB64 = readFileSync(logoPath).toString("base64");
   const svgOut = buildSvgDataUri(logoB64);
   writeFileSync(join(iconsDir, "azzam-app-icon.svg"), svgOut, "utf8");
@@ -60,6 +65,19 @@ async function main() {
   await sharp(full512).png().toFile(join(iconsDir, "azzam-pwa-512.png"));
   await sharp(full512).resize(192, 192).png().toFile(join(iconsDir, "azzam-pwa-192.png"));
   await sharp(full512).resize(180, 180).png().toFile(join(iconsDir, "apple-touch-icon.png"));
+
+  // نسخ للمشروع: تحميل يدوي — ويندوز (اختصار سطح مكتب، مجلد) + هاتف (مشاركة، خلفية، إلخ)
+  const hq = await sharp(full512)
+    .resize(1024, 1024, { kernel: sharp.kernel.lanczos3 })
+    .png({ compressionLevel: 9, effort: 7 })
+    .toBuffer();
+  writeFileSync(join(brandDir, "azzam-luxury-badge-1024.png"), hq);
+  writeFileSync(
+    join(brandDir, "azzam-luxury-badge-256.png"),
+    await sharp(hq).resize(256, 256, { kernel: sharp.kernel.lanczos3 }).png({ compressionLevel: 9 }).toBuffer(),
+  );
+  // نسخة باسم ثابت سهل النسخ
+  writeFileSync(join(brandDir, "azzam-luxury-badge.png"), hq);
 }
 
 main().catch((e) => {
