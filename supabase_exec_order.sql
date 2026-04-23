@@ -1,0 +1,30 @@
+-- ============================================================================
+-- ترتيب تنفيذ ملفات SQL على Supabase (مرجع — لا يُنفَّذ كاستعلام؛ تعليقات فقط)
+-- ============================================================================
+--
+-- [مشروع جديد / قاعدة فارغة]
+--   1) ../supabase_azzam_hajj_bootstrap.sql
+--      (يُنشئ الجداول + app_users.role كنص + دوال app + RLS + submit_attendance_bulk بأربعة معاملات)
+--   2) supabase_user_roles.sql
+--      (جدول user_roles + بذور الأدوار)
+--   3) supabase_bulk_attendance_patch.sql
+--      (اختياري: إن أردت سلوك submit_attendance_checks «الميداني» كما في الإنتاج الحالي)
+--
+-- [مشروع قائم / Production — لتفادي: enum app_role، 42P13، 42725]
+--   1) supabase_migration_app_users_role_to_text.sql
+--      (begin … commit) — كامل دفعة واحدة إن أمكن. إن ظهر 42P13: نفّذ أولاً:
+--        drop function if exists app.current_user_role() cascade;
+--      ثم أعد الأجزاء من الملف من إنشاء app.current_user_role() فما بعد.
+--   2) supabase_user_roles.sql
+--      (إن لم يكن جدول user_roles مُنشأ)
+--   3) supabase_shift_round_rpc.sql
+--      (فقط إن كان bootstrap الجديد غير مُدمَّج بعد: يحذف bulk ثلاثية ويضع رباعية)
+--   4) final_fix.sql
+--      (غالباً داخل الترحيل 1 — يعرّف public.submit بثلاثة معاملات بنداء app(...,1))
+--
+-- [ملفات مكررة عمداً]
+--   - supabase_shift_round_rpc: نسخة ترقية؛ المنطق نفسه داخل bootstrap بعد التحديث.
+--   - final_fix: يظل مفيداً لاستدعاءات public RPC ثلاثية من العملاء.
+-- ============================================================================
+
+select 1 as read_the_comments_above;

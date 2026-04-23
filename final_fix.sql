@@ -1,5 +1,6 @@
--- Final fix: expose bulk attendance RPC from public schema
--- Run this in Supabase SQL Editor on the production project.
+-- public.submit_attendance_bulk_checks (3 معاملات) → ينادي app برباعي مع وردية=1
+-- مُدمَج عادة في supabase_migration_app_users_role_to_text.sql وsupabase_azzam_hajj_bootstrap.sql
+-- انظر supabase_exec_order.sql
 
 create or replace function public.submit_attendance_bulk_checks(
   p_work_date date,

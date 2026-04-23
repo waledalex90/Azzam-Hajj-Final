@@ -1,5 +1,6 @@
 -- Dynamic roles: جدول user_roles + سياسات قراءة للمستخدمين المسجلين.
 -- شغّل هذا الملف مرة واحدة في SQL Editor في مشروع Supabase (Production).
+-- ترتيب التشغيل مع بقية الملفات: انظر supabase_exec_order.sql
 
 create table if not exists public.user_roles (
   id uuid primary key default gen_random_uuid(),

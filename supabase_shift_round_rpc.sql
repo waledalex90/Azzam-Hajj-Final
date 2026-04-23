@@ -1,6 +1,6 @@
--- تشغيله في Supabase SQL Editor: يضيف دعم الوردية (round_no) لـ bulk attendance.
+-- ترقية مشروع **قائم** فقط: دعم الوردية (round_no) لـ bulk. لقاعدة جديدة: انظر `supabase_azzam_hajj_bootstrap.sql` (نفس الدالة مُدمَجة).
 -- 1 = صباحي، 2 = مسائي.
--- يستبدل app.submit_attendance_bulk_checks و public.submit_attendance_bulk_checks.
+-- يستبدل app.submit_attendance_bulk_checks و public (مع drop للنسخة بثلاثة معاملات).
 
 -- يمنع تداخلاً مع نسخة (date,jsonb,text) القديمة: نداء 3-معاملات يلتبس مع default للمعامل الرابع
 drop function if exists app.submit_attendance_bulk_checks(date, jsonb, text);

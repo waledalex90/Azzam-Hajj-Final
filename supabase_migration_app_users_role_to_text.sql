@@ -1,7 +1,8 @@
 ﻿-- MIGRATION: app_users.role text + helpers/RPC/RLS بعد DROP app.current_user_role (أدوار ديناميكية user_roles.slug)
--- نفّذ الملف كاملاً في Supabase → SQL Editor. يعالج: invalid input value for enum app_role
+-- نفّذ الملف كاملاً في Supabase → SQL Editor (دفعة واحدة داخل begin/commit). يعالج: enum app_role + غموض bulk 42725.
+-- المرجع العام: supabase_exec_order.sql
 --
--- إذا ظهر 42P13 (cannot change return type): نفّذ أولاً ثم أعد تشغيل من "create function app.current_user_role":
+-- إذا ظهر 42P13 (cannot change return type): نفّذ أولاً ثم أعد التشغيل من "create function app.current_user_role":
 --   drop function if exists app.current_user_role() cascade;
 begin;
 

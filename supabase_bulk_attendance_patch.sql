@@ -1,4 +1,6 @@
--- Bulk, set-based attendance save functions
+-- Patch: دفعة `submit_attendance_checks` (جولة=جولة) مع دعم المراقب الميداني في التسجيل.
+-- لا يضيف `submit_attendance_bulk_checks` — مُدمَج في supabase_azzam_hajj_bootstrap.sql (4 معاملات) و`supabase_shift_round_rpc.sql`.
+-- شغّل بعد `supabase_azzam_hajj_bootstrap` على مشروع **قائم** إن كنت تستبدل نسخة submit قديمة.
 create or replace function app.submit_attendance_checks(
   p_round_id bigint,
   p_payload jsonb
