@@ -11,7 +11,7 @@ language sql
 security definer
 set search_path = public
 as $$
-  select * from app.submit_attendance_bulk_checks(p_work_date, p_payload, p_notes);
+  select * from app.submit_attendance_bulk_checks(p_work_date, p_payload, p_notes, 1);
 $$;
 
 grant execute on function public.submit_attendance_bulk_checks(date, jsonb, text)

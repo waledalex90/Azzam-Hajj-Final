@@ -2,6 +2,9 @@
 -- 1 = صباحي، 2 = مسائي.
 -- يستبدل app.submit_attendance_bulk_checks و public.submit_attendance_bulk_checks.
 
+-- يمنع تداخلاً مع نسخة (date,jsonb,text) القديمة: نداء 3-معاملات يلتبس مع default للمعامل الرابع
+drop function if exists app.submit_attendance_bulk_checks(date, jsonb, text);
+
 create or replace function app.submit_attendance_bulk_checks(
   p_work_date date,
   p_payload jsonb,
