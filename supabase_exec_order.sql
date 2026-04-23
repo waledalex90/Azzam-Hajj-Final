@@ -3,7 +3,7 @@
 -- ============================================================================
 --
 -- [مشروع جديد / قاعدة فارغة]
---   1) ../supabase_azzam_hajj_bootstrap.sql
+--   1) supabase_azzam_hajj_bootstrap.sql
 --      (يُنشئ الجداول + app_users.role كنص + دوال app + RLS + submit_attendance_bulk بأربعة معاملات)
 --   2) supabase_user_roles.sql
 --      (جدول user_roles + بذور الأدوار)
