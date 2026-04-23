@@ -49,7 +49,7 @@ export function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-4 text-right">
       <div className="space-y-2">
-        <label className="text-sm font-extrabold text-slate-800" htmlFor="login-id">
+        <label className="text-sm font-extrabold text-[#e8d4a8]" htmlFor="login-id">
           اسم الدخول أو الكود
         </label>
         <Input
@@ -61,16 +61,16 @@ export function LoginForm() {
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
           placeholder={`مثال: ahmed أو بريد كامل`}
-          className="border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#166534] focus:ring-[#dcfce7]"
+          className="border-[#3d3420] bg-[#11100c] text-[#f5ecd8] placeholder:text-[#6a6048] focus:border-[#c9a227] focus:ring-[#c9a227]/20"
         />
-        <p className="text-[11px] leading-relaxed text-slate-500">
+        <p className="text-[11px] leading-relaxed text-[#9a8a60]">
           إذا لم يكن البريد كاملاً (بدون @)، يُكمَّل تلقائياً:{" "}
-          <span className="font-mono font-bold text-slate-600">@{domainHint}</span>
+          <span className="font-mono font-bold text-[#c4a85a]">@{domainHint}</span>
         </p>
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-extrabold text-slate-800" htmlFor="password">
+        <label className="text-sm font-extrabold text-[#e8d4a8]" htmlFor="password">
           كلمة المرور
         </label>
         <Input
@@ -81,12 +81,12 @@ export function LoginForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="********"
-          className="border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#166534] focus:ring-[#dcfce7]"
+          className="border-[#3d3420] bg-[#11100c] text-[#f5ecd8] placeholder:text-[#6a6048] focus:border-[#c9a227] focus:ring-[#c9a227]/20"
         />
       </div>
 
       {error && (
-        <p className="rounded-xl border border-red-200 bg-red-50 p-2 text-sm text-red-700">
+        <p className="rounded-xl border border-red-500/40 bg-red-950/50 p-2 text-sm text-red-200">
           {error}
         </p>
       )}

@@ -65,7 +65,7 @@ export default async function DashboardLayout({ children }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 lg:flex">
+    <div className="min-h-screen bg-[#080808] lg:flex">
       <AdminSidebar user={appUser} />
       <main className="flex-1 p-4 lg:p-6">
         <div className="mx-auto w-full max-w-[1200px] space-y-4">

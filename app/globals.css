@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --primary: #166534;
-  --primary-dark: #14532d;
+  --background: #0a0a0a;
+  --foreground: #e8d4a8;
+  --primary: #c9a227;
+  --primary-dark: #b88b2f;
   --gold: #d4af37;
   --gold-soft: #f6e5a8;
   --luxury-black: #0b0b0c;
@@ -12,7 +12,9 @@
   --luxury-gold: #d4af37;
   --luxury-gold-deep: #b88b2f;
   --danger: #b91c1c;
-  --muted: #64748b;
+  --muted: #9a8a60;
+  --card-bg: #111113;
+  --card-border: rgba(212, 175, 55, 0.22);
 }
 
 @theme inline {
@@ -26,6 +28,26 @@ body {
   color: var(--foreground);
   font-family: var(--font-tajawal), Arial, Helvetica, sans-serif;
   font-weight: 500;
+}
+
+/* ——— هوية «أسود & ذهب» — توحيد النصوص فوق الخلفية الداكنة —— */
+html.theme-royal .text-slate-900 {
+  color: #faf6e8 !important;
+}
+html.theme-royal .text-slate-800 {
+  color: #f2ecd8 !important;
+}
+html.theme-royal .text-slate-700 {
+  color: #e0d4b8 !important;
+}
+html.theme-royal .text-slate-600 {
+  color: #c4b89a !important;
+}
+html.theme-royal .text-slate-500 {
+  color: #9a8a60 !important;
+}
+html.theme-royal .text-emerald-900 {
+  color: #a8a050 !important;
 }
 
 * {
@@ -60,16 +82,17 @@ a {
 }
 
 .card {
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
   border-radius: 1.1rem;
-  box-shadow: 0 8px 28px rgb(15 23 42 / 0.06);
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.45);
+  color: #ede8d8;
   transition: box-shadow 180ms ease, border-color 180ms ease;
 }
 
 .card:hover {
-  border-color: #d9e4dc;
-  box-shadow: 0 12px 30px rgb(15 23 42 / 0.08);
+  border-color: rgba(212, 175, 55, 0.35);
+  box-shadow: 0 12px 36px rgb(0 0 0 / 0.5);
 }
 
 .status-present {
@@ -99,7 +122,7 @@ a {
 
 .launch-screen__logo-wrap {
   text-align: center;
-  color: #f6e5a8;
+  color: #e8d4a8;
   animation: launchFloatIn 420ms ease-out;
 }
 
@@ -114,6 +137,7 @@ a {
   font-size: 1.65rem;
   font-weight: 800;
   letter-spacing: 0.2px;
+  color: #f6e8b8;
 }
 
 .launch-screen__subtitle {

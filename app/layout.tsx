@@ -23,12 +23,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/icons/apple-touch-icon.png", type: "image/png", sizes: "180x180" },
-      { url: "/icons/abn-icon-192.svg", type: "image/svg+xml", sizes: "192x192" },
-      { url: "/icons/abn-icon-512.svg", type: "image/svg+xml", sizes: "512x512" },
+      { url: "/icons/azzam-app-icon.svg", type: "image/svg+xml", sizes: "any" },
+      { url: "/icons/azzam-app-icon.svg", type: "image/svg+xml", sizes: "512x512" },
     ],
-    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
-    shortcut: ["/icons/apple-touch-icon.png"],
+    apple: [{ url: "/icons/azzam-app-icon.svg", type: "image/svg+xml" }],
+    shortcut: ["/icons/azzam-app-icon.svg"],
   },
 };
 
@@ -45,8 +44,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="rtl" className={`${tajawal.variable} h-full antialiased`}>
-      <body className={`${uxInteractions.root} min-h-full flex flex-col bg-slate-50 text-slate-900`}>
+    <html lang="ar" dir="rtl" className={`theme-royal ${tajawal.variable} h-full antialiased`}>
+      <body className={`${uxInteractions.root} min-h-full flex flex-col bg-[#0a0a0a] text-[#e8d4a8]`}>
         {children}
         <PwaReloadOnUpdate />
         <IosInstallHint />
