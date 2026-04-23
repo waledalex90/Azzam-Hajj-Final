@@ -98,7 +98,7 @@ export function AdminSidebar({ user }: Props) {
   return (
     <aside className="w-full border-b border-slate-200 bg-white/95 text-slate-800 backdrop-blur lg:min-h-screen lg:w-[260px] lg:border-b-0 lg:border-l lg:border-slate-200">
       <div className="px-4 py-4">
-        <BrandLogo preset="shell" />
+        <BrandLogo />
         <div className="mt-3 border-t border-amber-200 pt-3">
           <p className="text-xs font-extrabold text-slate-700">{user.username}</p>
           <p className="mt-1 text-[11px] text-slate-500">{user.roleLabel}</p>

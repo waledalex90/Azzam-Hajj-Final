@@ -24,7 +24,7 @@ export function TopNav({ user }: Props) {
     <header className="sticky top-0 z-10 border-b border-[#d8c99a] bg-white/95 backdrop-blur">
       <div className="container-mobile flex min-h-16 items-center justify-between gap-3 py-2.5">
         <div className="flex items-center gap-3">
-          <BrandLogo preset="topNav" />
+          <BrandLogo />
           <div>
             <p className="text-sm font-extrabold text-[#14532d]">نظام عزام للحج</p>
             <p className="text-xs text-[#5b4a1f]">{user.roleLabel}</p>

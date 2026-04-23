@@ -10,7 +10,7 @@ type Props = {
   priority?: boolean;
   /** إطار أسود وحدّ ذهبي — عند الحاجة فقط (لا يُستخدم للشعار على ورق فاتح) */
   framed?: boolean;
-  /** أبعاد موحّدة عبر النظام — الافتراضي `shell` */
+  /** أبعاد موحّدة — الافتراضي `app` (نفس صفحة تسجيل الدخول) */
   preset?: Preset;
 };
 
@@ -21,7 +21,7 @@ const chicFrameClass =
 const LOGO_W = 799;
 const LOGO_H = 287;
 
-export function BrandLogo({ className, priority = false, framed = false, preset = "shell" }: Props) {
+export function BrandLogo({ className, priority = false, framed = false, preset = "app" }: Props) {
   const img = (
     <Image
       src="/brand/azzam-logo.png"
