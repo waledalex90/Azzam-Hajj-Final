@@ -225,7 +225,7 @@ export function UsersManagementClient({ users, roles, sites, canEdit }: Props) {
                   sites={sites}
                   initialSelectedIds={[]}
                   label="المواقع المسموح بها (اختياري)"
-                  hint="بدون اختيار = صلاحية على جميع المواقع. أضف موقعاً أو أكثر من القائمة؛ يمكن إزالة أي موقع بالضغط على (×)."
+                  hint="اختر «كل المواقع (All sites)» من القائمة، أو اترك الوضع الافتراضي، لصلاحية على جميع المواقع. أو أضف مواقع محددة؛ أزل موقعاً بالضغط على (×)."
                 />
               </div>
               <div className="sm:col-span-2 lg:col-span-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
@@ -371,7 +371,7 @@ function UserRowEditor({
       ? u.allowed_site_ids
           .map((id) => sites.find((s) => s.id === id)?.name ?? id)
           .join("، ")
-      : "الكل";
+      : "كل المواقع";
 
   if (!canEdit) {
     return (
@@ -450,7 +450,7 @@ function UserRowEditor({
                   sites={sites}
                   initialSelectedIds={u.allowed_site_ids}
                   label="المواقع المسموح بها"
-                  hint="بدون وسوم = جميع المواقع."
+                  hint="من القائمة: «كل المواقع (All sites)» لإلغاء التقييد، أو أضف مواقع محددة."
                 />
               </div>
               <div className="sm:col-span-2 lg:col-span-4">

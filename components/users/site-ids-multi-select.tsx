@@ -6,6 +6,8 @@ import { X } from "lucide-react";
 
 export type SiteOption = { id: number; name: string };
 
+const ALL_SITES_VALUE = "__all_sites__";
+
 function normalizeIds(ids: number[] | null | undefined): number[] {
   return [...new Set((ids ?? []).filter((n) => Number.isFinite(n) && n > 0))].sort((a, b) => a - b);
 }
@@ -38,6 +40,10 @@ export function SiteIdsMultiSelect({ sites, initialSelectedIds, label, hint }: P
   }
 
   function addFromSelect(value: string) {
+    if (value === ALL_SITES_VALUE) {
+      setSelected([]);
+      return;
+    }
     const id = Number(value);
     if (!Number.isFinite(id) || id <= 0) return;
     setSelected((prev) => normalizeIds([...prev, id]));
@@ -50,7 +56,9 @@ export function SiteIdsMultiSelect({ sites, initialSelectedIds, label, hint }: P
       <div className="min-h-11 rounded-lg border border-slate-200 bg-white px-2 py-2 shadow-sm">
         <div className="flex flex-wrap items-center gap-1.5">
           {selected.length === 0 ? (
-            <span className="text-xs text-slate-400">الكل (لا قيود على المواقع)</span>
+            <span className="inline-flex max-w-full items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200/80">
+              كل المواقع (All sites)
+            </span>
           ) : (
             selected.map((id) => {
               const name = sites.find((s) => s.id === id)?.name ?? `#${id}`;
@@ -83,9 +91,10 @@ export function SiteIdsMultiSelect({ sites, initialSelectedIds, label, hint }: P
               addFromSelect(e.target.value);
               e.target.value = "";
             }}
-            aria-label="إضافة موقع"
+            aria-label="إضافة موقع أو تعيين كل المواقع"
           >
             <option value="">+ إضافة موقع…</option>
+            <option value={ALL_SITES_VALUE}>كل المواقع (All sites)</option>
             {available.map((s) => (
               <option key={s.id} value={String(s.id)}>
                 {s.name}
