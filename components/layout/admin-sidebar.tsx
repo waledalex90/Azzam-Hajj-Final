@@ -96,20 +96,18 @@ export function AdminSidebar({ user }: Props) {
   }
 
   return (
-    <aside className="w-full border-b border-[#2a2110] bg-[#0a0a0a] text-[#e8d4a8] backdrop-blur lg:min-h-screen lg:w-[260px] lg:border-b-0 lg:border-l lg:border-[#2a2110]">
+    <aside className="w-full border-b border-slate-200 bg-white/95 text-slate-800 backdrop-blur lg:min-h-screen lg:w-[260px] lg:border-b-0 lg:border-l lg:border-slate-200">
       <div className="px-4 py-4">
-        <div className="rounded-2xl bg-[#050506] px-2 py-3 ring-1 ring-[#d4af37]/25">
-          <BrandLogo preset="shell" />
-        </div>
-        <div className="mt-3 border-t border-[#d4af37]/20 pt-3">
-          <p className="text-xs font-extrabold text-[#f6e8b8]">{user.username}</p>
-          <p className="mt-1 text-[11px] text-[#b8a050]">{user.roleLabel}</p>
+        <BrandLogo preset="shell" />
+        <div className="mt-3 border-t border-amber-200 pt-3">
+          <p className="text-xs font-extrabold text-slate-700">{user.username}</p>
+          <p className="mt-1 text-[11px] text-slate-500">{user.roleLabel}</p>
         </div>
         <button
           type="button"
           onClick={handleSignOut}
           disabled={isSigningOut}
-          className="mt-3 flex w-full items-center justify-between rounded-xl border border-[#3d3420] bg-[#11100c] px-3 py-2 text-sm font-bold text-[#e8d4a8] transition hover:border-red-500/50 hover:bg-red-950/40 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-3 flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span>{isSigningOut ? "جاري تسجيل الخروج..." : "تسجيل خروج"}</span>
           <LogOut className="h-4 w-4" />
@@ -138,8 +136,8 @@ export function AdminSidebar({ user }: Props) {
                 className={clsx(
                   "flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
                   active
-                    ? "border border-[#d4af37]/30 bg-[#1a1508] text-[#f6e8b8] shadow-sm"
-                    : "text-[#b8a878] hover:bg-[#12100a] hover:text-[#f0e0b0]",
+                    ? "bg-emerald-50 text-emerald-700 shadow-sm"
+                    : "text-slate-700 hover:bg-slate-50 hover:text-slate-900",
                 )}
               >
                 <span>{item.label}</span>

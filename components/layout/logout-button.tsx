@@ -24,7 +24,7 @@ export function LogoutButton() {
       type="button"
       onClick={handleSignOut}
       disabled={isSigningOut}
-      className="flex items-center gap-2 rounded-xl border border-[#3d3420] bg-[#11100c] px-3 py-2 text-sm font-bold text-[#e8d4a8] transition hover:border-red-500/50 hover:bg-red-950/50 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-60"
+      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
     >
       <LogOut className="h-4 w-4" />
       <span>{isSigningOut ? "جاري تسجيل الخروج..." : "تسجيل خروج"}</span>

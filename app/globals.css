@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0a0a;
-  --foreground: #e8d4a8;
-  --primary: #c9a227;
-  --primary-dark: #b88b2f;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --primary: #166534;
+  --primary-dark: #14532d;
   --gold: #d4af37;
   --gold-soft: #f6e5a8;
   --luxury-black: #0b0b0c;
@@ -12,9 +12,7 @@
   --luxury-gold: #d4af37;
   --luxury-gold-deep: #b88b2f;
   --danger: #b91c1c;
-  --muted: #9a8a60;
-  --card-bg: #111113;
-  --card-border: rgba(212, 175, 55, 0.22);
+  --muted: #64748b;
 }
 
 @theme inline {
@@ -28,26 +26,6 @@ body {
   color: var(--foreground);
   font-family: var(--font-tajawal), Arial, Helvetica, sans-serif;
   font-weight: 500;
-}
-
-/* ——— هوية «أسود & ذهب» — توحيد النصوص فوق الخلفية الداكنة —— */
-html.theme-royal .text-slate-900 {
-  color: #faf6e8 !important;
-}
-html.theme-royal .text-slate-800 {
-  color: #f2ecd8 !important;
-}
-html.theme-royal .text-slate-700 {
-  color: #e0d4b8 !important;
-}
-html.theme-royal .text-slate-600 {
-  color: #c4b89a !important;
-}
-html.theme-royal .text-slate-500 {
-  color: #9a8a60 !important;
-}
-html.theme-royal .text-emerald-900 {
-  color: #a8a050 !important;
 }
 
 * {
@@ -64,7 +42,7 @@ textarea {
 select {
   border-radius: 0.75rem;
   border-color: #e2e8f0;
-  background: #fff;
+  background: #ffffff;
   color: #0f172a;
 }
 
@@ -82,17 +60,16 @@ a {
 }
 
 .card {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 1.1rem;
-  box-shadow: 0 8px 32px rgb(0 0 0 / 0.45);
-  color: #ede8d8;
+  box-shadow: 0 8px 28px rgb(15 23 42 / 0.06);
   transition: box-shadow 180ms ease, border-color 180ms ease;
 }
 
 .card:hover {
-  border-color: rgba(212, 175, 55, 0.35);
-  box-shadow: 0 12px 36px rgb(0 0 0 / 0.5);
+  border-color: #d9e4dc;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 0.08);
 }
 
 .status-present {
@@ -108,7 +85,7 @@ a {
 }
 
 .launch-screen {
-  background: radial-gradient(circle at 20% 20%, #222325 0%, #0f0f11 42%, #050506 100%);
+  background: linear-gradient(180deg, #f1f5f9 0%, #f8fafc 45%, #eef2f7 100%);
   animation: launchFadeIn 240ms ease-out;
 }
 
@@ -117,19 +94,20 @@ a {
   display: grid;
   place-items: center;
   padding: 1.5rem;
-  background: linear-gradient(to bottom, rgb(0 0 0 / 0.06), rgb(0 0 0 / 0.15));
+  background: transparent;
 }
 
 .launch-screen__logo-wrap {
   text-align: center;
-  color: #e8d4a8;
+  color: #0f172a;
   animation: launchFloatIn 420ms ease-out;
 }
 
 .launch-screen__icon {
-  border-radius: 2rem;
-  box-shadow: 0 20px 52px rgb(0 0 0 / 0.42);
-  border: 1px solid #d4af37;
+  border-radius: 1rem;
+  box-shadow: 0 12px 40px rgb(15 23 42 / 0.08);
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
 }
 
 .launch-screen__title {
@@ -137,14 +115,14 @@ a {
   font-size: 1.65rem;
   font-weight: 800;
   letter-spacing: 0.2px;
-  color: #f6e8b8;
+  color: #0f172a;
 }
 
 .launch-screen__subtitle {
   margin-top: 0.3rem;
   font-size: 0.9rem;
-  color: #e8d8a5;
-  opacity: 0.9;
+  color: #475569;
+  opacity: 0.95;
 }
 
 @keyframes loginLuxFadeSlide {
