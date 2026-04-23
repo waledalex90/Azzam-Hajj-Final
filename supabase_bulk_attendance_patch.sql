@@ -10,7 +10,7 @@ set search_path = public
 as $$
 declare
   v_user_id bigint;
-  v_role public.app_role;
+  v_role text;
   v_site_id bigint;
   i_count integer := 0;
   u_count integer := 0;
@@ -109,7 +109,7 @@ set search_path = public
 as $$
 declare
   v_user_id bigint;
-  v_role public.app_role;
+  v_role text;
   i_count integer := 0;
   u_count integer := 0;
 begin
