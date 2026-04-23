@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build --webpack",
+    "build:icons": "node scripts/build-app-icons.mjs",
+    "build": "node scripts/build-app-icons.mjs && next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "verify:supabase": "node scripts/verify-azzam-supabase.mjs"
@@ -35,6 +36,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

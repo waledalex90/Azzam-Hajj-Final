@@ -23,11 +23,12 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
+      { url: "/icons/azzam-pwa-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icons/azzam-pwa-512.png", type: "image/png", sizes: "512x512" },
       { url: "/icons/azzam-app-icon.svg", type: "image/svg+xml", sizes: "any" },
-      { url: "/icons/azzam-app-icon.svg", type: "image/svg+xml", sizes: "512x512" },
     ],
-    apple: [{ url: "/icons/azzam-app-icon.svg", type: "image/svg+xml" }],
-    shortcut: ["/icons/azzam-app-icon.svg"],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    shortcut: ["/icons/azzam-pwa-192.png"],
   },
 };
 
