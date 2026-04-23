@@ -1,5 +1,6 @@
 "use server";
 
+import { canAccessReportsApp, canViewReportTab } from "@/lib/auth/report-permissions";
 import { getSessionContext } from "@/lib/auth/session";
 import {
   fetchContractorInvoiceViolationLines,
@@ -28,19 +29,21 @@ export async function searchReportEntitiesAction(
   q: string,
 ) {
   const { appUser } = await getSessionContext();
-  if (!appUser) return [];
+  if (!appUser || !canAccessReportsApp(appUser)) return [];
   return rpcSearchEntities(kind, q);
 }
 
 export async function listReportsFilterOptionsAction() {
   const { appUser } = await getSessionContext();
   if (!appUser) throw new Error("غير مصرح");
+  if (!canAccessReportsApp(appUser)) throw new Error("غير مصرح");
   return listReportsFilterOptions();
 }
 
 export async function getContractorInvoiceViolationLinesAction(f: ReportFilters) {
   const { appUser } = await getSessionContext();
   if (!appUser) throw new Error("غير مصرح");
+  if (!canViewReportTab(appUser, "contractors")) throw new Error("غير مصرح");
   return fetchContractorInvoiceViolationLines(f);
 }
 
@@ -60,6 +63,9 @@ export async function runReportsPreviewAction(payload: {
   const { appUser } = await getSessionContext();
   if (!appUser) {
     throw new Error("غير مصرح");
+  }
+  if (!canViewReportTab(appUser, payload.tab)) {
+    throw new Error("لا صلاحية لهذا التقرير");
   }
 
   const { tab, page, filters } = payload;

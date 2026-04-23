@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { canExportExportQueryReport } from "@/lib/auth/report-permissions";
 import { getSessionContext } from "@/lib/auth/session";
 import { parseIdList } from "@/lib/reports/filters";
 import { estimateExportTotal } from "@/lib/reports/queries";
@@ -31,6 +32,9 @@ export async function GET(req: NextRequest) {
   const report = url.searchParams.get("report");
   if (!report) {
     return NextResponse.json({ error: "Missing report" }, { status: 400 });
+  }
+  if (!canExportExportQueryReport(appUser, report)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const f = filtersFromRequest(url);

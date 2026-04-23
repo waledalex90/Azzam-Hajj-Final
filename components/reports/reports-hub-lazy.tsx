@@ -2,9 +2,14 @@
 
 import dynamic from "next/dynamic";
 
+import type { ReportsTab } from "@/app/(dashboard)/reports/actions";
 import { Card } from "@/components/ui/card";
 
-const ReportsHubDynamic = dynamic<{ canExportReports?: boolean }>(
+const ReportsHubDynamic = dynamic<{
+  canViewTab: Record<ReportsTab, boolean>;
+  canExportTab: Record<ReportsTab, boolean>;
+  defaultTab: ReportsTab;
+}>(
   () => import("@/components/reports/reports-hub").then((m) => m.ReportsHub),
   {
     ssr: false,
@@ -15,6 +20,10 @@ const ReportsHubDynamic = dynamic<{ canExportReports?: boolean }>(
 );
 
 /** تقسيم الحزمة: التقارير ثقيلة — لا تُحمَّل حتى فتح الصفحة */
-export function ReportsHubLazy({ canExportReports }: { canExportReports: boolean }) {
-  return <ReportsHubDynamic canExportReports={canExportReports} />;
+export function ReportsHubLazy(props: {
+  canViewTab: Record<ReportsTab, boolean>;
+  canExportTab: Record<ReportsTab, boolean>;
+  defaultTab: ReportsTab;
+}) {
+  return <ReportsHubDynamic {...props} />;
 }

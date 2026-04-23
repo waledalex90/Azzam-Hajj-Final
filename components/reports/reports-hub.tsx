@@ -122,8 +122,27 @@ const TABS: { id: ReportsTab; label: string }[] = [
   { id: "workers", label: "بيانات العاملين" },
 ];
 
-export function ReportsHub({ canExportReports = true }: { canExportReports?: boolean } = {}) {
-  const [tab, setTab] = useState<ReportsTab>("attendance_log");
+export function ReportsHub({
+  canViewTab,
+  canExportTab,
+  defaultTab,
+}: {
+  canViewTab: Record<ReportsTab, boolean>;
+  canExportTab: Record<ReportsTab, boolean>;
+  defaultTab: ReportsTab;
+}) {
+  const visibleTabs = useMemo(() => TABS.filter((t) => canViewTab[t.id]), [canViewTab]);
+  const [tab, setTab] = useState<ReportsTab>(() =>
+    canViewTab[defaultTab] ? defaultTab : (TABS.find((t) => canViewTab[t.id])?.id ?? "attendance_log"),
+  );
+
+  useEffect(() => {
+    if (canViewTab[tab]) return;
+    const next = TABS.find((t) => canViewTab[t.id])?.id;
+    if (next) setTab(next);
+  }, [canViewTab, tab]);
+
+  const canExportThisTab = canExportTab[tab];
   const [dateFrom, setDateFrom] = useState(todayIsoDateInAppTimeZone);
   const [dateTo, setDateTo] = useState(todayIsoDateInAppTimeZone);
   const [year, setYear] = useState(new Date().getFullYear());
@@ -474,6 +493,14 @@ export function ReportsHub({ canExportReports = true }: { canExportReports?: boo
     }
   }
 
+  if (visibleTabs.length === 0) {
+    return (
+      <Card className="p-6 text-center text-sm font-bold text-amber-800">
+        لا توجد صلاحية لأي تقرير — راجع إعداد الأدوار.
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <Card className="space-y-3 p-4">
@@ -494,7 +521,7 @@ export function ReportsHub({ canExportReports = true }: { canExportReports?: boo
           )}
         </p>
         <div className="flex flex-wrap gap-2">
-          {TABS.map((t) => (
+          {visibleTabs.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -613,7 +640,7 @@ export function ReportsHub({ canExportReports = true }: { canExportReports?: boo
             >
               تطبيق الفلاتر
             </button>
-            {canExportReports ? (
+            {canExportThisTab ? (
               <button
                 type="button"
                 className="rounded-lg border border-emerald-700 bg-emerald-50 px-5 py-2.5 text-sm font-bold text-emerald-900"
@@ -624,7 +651,7 @@ export function ReportsHub({ canExportReports = true }: { canExportReports?: boo
             ) : null}
             <span className="text-[11px] text-slate-500">
               المعاينة صفحات من الخادم (≤50 موظف/صفحة)
-              {canExportReports ? "؛ التصدير على دفعات حتى 1000 سطر." : "؛ التصدير غير متاح لصلاحيتك."}
+              {canExportThisTab ? "؛ التصدير على دفعات حتى 1000 سطر." : "؛ التصدير غير متاح لصلاحيتك لهذا التقرير."}
             </span>
           </div>
         </Card>
@@ -780,7 +807,7 @@ export function ReportsHub({ canExportReports = true }: { canExportReports?: boo
           >
             تطبيق الفلاتر
           </button>
-          {canExportReports ? (
+          {canExportThisTab ? (
             <button
               type="button"
               className="rounded-lg border border-emerald-700 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-900"
@@ -832,7 +859,7 @@ export function ReportsHub({ canExportReports = true }: { canExportReports?: boo
               year={year}
               month={month}
               locked={payrollLocked}
-              canExportReports={canExportReports}
+              canExportReports={canExportTab.payroll}
               onAfterMutation={() => {
                 void refresh();
                 void (async () => {

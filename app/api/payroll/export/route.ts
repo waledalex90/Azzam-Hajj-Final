@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { canExportReportTab } from "@/lib/auth/report-permissions";
 import { getSessionContext } from "@/lib/auth/session";
 import { buildPayrollExcelBuffer } from "@/lib/reports/build-payroll-excel";
 import { buildPayrollPdfBuffer } from "@/lib/reports/build-payroll-pdf";
@@ -27,6 +28,9 @@ export async function GET(req: NextRequest) {
   const { appUser } = await getSessionContext();
   if (!appUser) {
     return new NextResponse("Unauthorized", { status: 401 });
+  }
+  if (!canExportReportTab(appUser, "payroll")) {
+    return new NextResponse("Forbidden", { status: 403 });
   }
 
   const url = req.nextUrl;

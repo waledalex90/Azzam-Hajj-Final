@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 
+import { canExportExportQueryReport } from "@/lib/auth/report-permissions";
 import { getSessionContext } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { CSV_UTF8_BOM, rowToCsvLine } from "@/lib/reports/csv";
@@ -33,6 +34,9 @@ export async function GET(req: NextRequest) {
   const report = url.searchParams.get("report");
   if (!report) {
     return new Response("Missing report", { status: 400 });
+  }
+  if (!canExportExportQueryReport(appUser, report)) {
+    return new Response("Forbidden", { status: 403 });
   }
 
   const f = filtersFromUrl(url);

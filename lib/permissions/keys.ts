@@ -25,6 +25,15 @@ export const PERM = {
   VIEW_REPORTS: "view_reports",
   EXPORT_REPORTS: "export_reports",
 
+  /** أذونات لكل تبويب تقرير — المعاينة تتطلب المفتاح؛ التصدير يتطلب نفس مفتاح التقرير + `export_reports`. */
+  REPORT_ATTENDANCE_LOG: "report_attendance_log",
+  REPORT_MATRIX: "report_matrix",
+  REPORT_HORIZONTAL: "report_horizontal",
+  REPORT_PAYROLL: "report_payroll",
+  REPORT_CONTRACTORS: "report_contractors",
+  REPORT_VIOLATIONS: "report_violations",
+  REPORT_WORKERS: "report_workers",
+
   VIEW_CORRECTIONS_QUEUE: "view_corrections_queue",
   PROCESS_CORRECTIONS: "process_corrections",
 
@@ -41,6 +50,17 @@ export const PERM = {
 
 export type PermissionKey = (typeof PERM)[keyof typeof PERM];
 
+/** مفاتيح صلاحية «تبويب تقرير» — للاستعلام و`requireAnyScreen` وواجهة التقارير. */
+export const ALL_REPORT_TAB_PERMISSIONS: readonly string[] = [
+  PERM.REPORT_ATTENDANCE_LOG,
+  PERM.REPORT_MATRIX,
+  PERM.REPORT_HORIZONTAL,
+  PERM.REPORT_PAYROLL,
+  PERM.REPORT_CONTRACTORS,
+  PERM.REPORT_VIOLATIONS,
+  PERM.REPORT_WORKERS,
+];
+
 /** قيم قديمة في JSON — كل قيمة توسِّع إلى مفاتيح جزئية (للتوافق مع البيانات المخزَّنة قبل التجزئة). */
 export const LEGACY_GRANTS: Record<string, readonly string[]> = {
   prep: [PERM.VIEW_ATTENDANCE, PERM.EDIT_ATTENDANCE],
@@ -55,7 +75,11 @@ export const LEGACY_GRANTS: Record<string, readonly string[]> = {
   sites: [PERM.VIEW_SITES, PERM.EDIT_SITES],
   contractors: [PERM.VIEW_CONTRACTORS, PERM.EDIT_CONTRACTORS],
   transfers: [PERM.VIEW_TRANSFERS, PERM.MANAGE_TRANSFERS],
-  reports: [PERM.VIEW_REPORTS, PERM.EXPORT_REPORTS],
+  reports: [PERM.VIEW_REPORTS, PERM.EXPORT_REPORTS, ...ALL_REPORT_TAB_PERMISSIONS],
+  /** قديم: عرض التقارير يوسّع إلى جميع تبويبات التقارير (حتى تبقى الأدوار المخزّنة دون مفاتيح جديدة). */
+  view_reports: [PERM.VIEW_REPORTS, ...ALL_REPORT_TAB_PERMISSIONS],
+  /** التصدير العام (مع تبويب التقرير) — بدون توسيع لكل التبويبات حتى نحافظ على فصل «معاينة فقط». */
+  export_reports: [PERM.EXPORT_REPORTS],
   corrections_screen: [PERM.VIEW_CORRECTIONS_QUEUE, PERM.PROCESS_CORRECTIONS],
   violation_notice: [PERM.CREATE_VIOLATION_NOTICE],
   violations: [PERM.VIEW_VIOLATIONS, PERM.MANAGE_VIOLATIONS],
@@ -82,8 +106,15 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
   { group: "الحضور والاعتماد", key: PERM.APPROVE_ATTENDANCE, label: "اعتماد أو رفض سجلات الحضور" },
   { group: "الحضور والاعتماد", key: PERM.REQUEST_ATTENDANCE_CORRECTION, label: "طلب تعديل على سجل حضور (من الميدان)" },
 
-  { group: "التقارير", key: PERM.VIEW_REPORTS, label: "عرض التقارير والمعاينة" },
-  { group: "التقارير", key: PERM.EXPORT_REPORTS, label: "تصدير التقارير (CSV وغيره)" },
+  { group: "التقارير", key: PERM.VIEW_REPORTS, label: "وصول صفحة التقارير (يُنصح مع تحديد تبويبات أدناه أو يُوسَّع قديماً لكل التبويبات)" },
+  { group: "التقارير", key: PERM.EXPORT_REPORTS, label: "تصدير تقرير (CSV / Excel / PDF) — يلزم تفعيل تبويب ذلك التقرير" },
+  { group: "التقارير", key: PERM.REPORT_ATTENDANCE_LOG, label: "تقرير: سجل الحضور" },
+  { group: "التقارير", key: PERM.REPORT_MATRIX, label: "تقرير: المصفوفة الشهرية" },
+  { group: "التقارير", key: PERM.REPORT_HORIZONTAL, label: "تقرير: Horizontal Report" },
+  { group: "التقارير", key: PERM.REPORT_PAYROLL, label: "تقرير: مسير الرواتب" },
+  { group: "التقارير", key: PERM.REPORT_CONTRACTORS, label: "تقرير: مستخلص المقاولين" },
+  { group: "التقارير", key: PERM.REPORT_VIOLATIONS, label: "تقرير: المخالفات" },
+  { group: "التقارير", key: PERM.REPORT_WORKERS, label: "تقرير: بيانات العاملين" },
 
   { group: "طلبات التعديل", key: PERM.VIEW_CORRECTIONS_QUEUE, label: "عرض قائمة طلبات التعديل" },
   { group: "طلبات التعديل", key: PERM.PROCESS_CORRECTIONS, label: "معالجة طلبات التعديل (اعتماد/رفض إداري)" },

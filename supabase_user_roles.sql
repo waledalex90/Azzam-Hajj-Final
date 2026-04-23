@@ -9,7 +9,7 @@ create table if not exists public.user_roles (
   created_at timestamptz default now()
 );
 
-comment on table public.user_roles is 'تعريف الأدوار ومصفوفة الصلاحيات (مفاتيح جزئية مثل view_attendance؛ القيم القديمة prep/report ما زالت تُدعم عبر التوسعة في التطبيق)';
+comment on table public.user_roles is 'تعريف الأدوار ومصفوفة الصلاحيات (مفاتيح جزئية مثل view_attendance و report_attendance_log لكل تبويب تقرير؛ القيم القديمة prep/reports/view_reports ما زالت تُدعم عبر LEGACY_GRANTS في التطبيق)';
 
 -- بذور أولية تطابق السلوك السابق قبل الواجهة الديناميكية
 insert into public.user_roles (slug, name_ar, permissions) values

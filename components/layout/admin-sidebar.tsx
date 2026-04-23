@@ -24,7 +24,7 @@ import { BrandLogo } from "@/components/branding/brand-logo";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { AppUser } from "@/lib/types/db";
 import { hasAnyPermission, hasPermission } from "@/lib/auth/permissions";
-import { PERM } from "@/lib/permissions/keys";
+import { ALL_REPORT_TAB_PERMISSIONS, PERM } from "@/lib/permissions/keys";
 
 type Props = {
   user: AppUser;
@@ -48,7 +48,7 @@ const menuItems = [
     icon: Truck,
     anyOf: [PERM.VIEW_TRANSFERS, PERM.MANAGE_TRANSFERS] as const,
   },
-  { href: "/reports", label: "التقارير", icon: FileBarChart2, anyOf: [PERM.VIEW_REPORTS] as const },
+  { href: "/reports", label: "التقارير", icon: FileBarChart2, anyOf: [PERM.VIEW_REPORTS, ...ALL_REPORT_TAB_PERMISSIONS] as const },
   {
     href: "/corrections",
     label: "طلبات التعديل",

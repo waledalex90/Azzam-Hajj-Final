@@ -1,5 +1,6 @@
 "use server";
 
+import { canViewReportTab } from "@/lib/auth/report-permissions";
 import { getSessionContext } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
@@ -20,6 +21,7 @@ function canManagePayrollLock(user: AppUser | null | undefined) {
 export async function getPayrollLockStateAction(f: ReportFilters): Promise<boolean> {
   const { appUser } = await getSessionContext();
   if (!appUser) throw new Error("غير مصرح");
+  if (!canViewReportTab(appUser, "payroll")) throw new Error("غير مصرح");
   return isPayrollScopeLockedRpc(f);
 }
 
@@ -34,6 +36,7 @@ export async function savePayrollManualDeductionAction(payload: {
   if (!appUser) {
     throw new Error("غير مصرح");
   }
+  if (!canViewReportTab(appUser, "payroll")) throw new Error("غير مصرح");
   if (!payload.periodStart || !payload.periodEnd) {
     throw new Error("فترة غير صالحة");
   }
@@ -49,6 +52,7 @@ export async function savePayrollManualDeductionAction(payload: {
 export async function approvePayrollPeriodAction(f: ReportFilters) {
   const { appUser } = await getSessionContext();
   if (!appUser) throw new Error("غير مصرح");
+  if (!canViewReportTab(appUser, "payroll")) throw new Error("غير مصرح");
   if (!canManagePayrollLock(appUser)) {
     throw new Error("ليس لديك صلاحية اعتماد المسير.");
   }
@@ -58,6 +62,7 @@ export async function approvePayrollPeriodAction(f: ReportFilters) {
 export async function unlockPayrollPeriodAction(f: ReportFilters) {
   const { appUser } = await getSessionContext();
   if (!appUser) throw new Error("غير مصرح");
+  if (!canViewReportTab(appUser, "payroll")) throw new Error("غير مصرح");
   if (!canManagePayrollLock(appUser)) {
     throw new Error("ليس لديك صلاحية إلغاء قفل المسير.");
   }
@@ -72,6 +77,7 @@ export async function importPayrollDeductionsAction(payload: {
 }) {
   const { appUser } = await getSessionContext();
   if (!appUser) throw new Error("غير مصرح");
+  if (!canViewReportTab(appUser, "payroll")) throw new Error("غير مصرح");
   if (!payload.periodStart || !payload.periodEnd) throw new Error("فترة غير صالحة");
   let ok = 0;
   for (const r of payload.rows) {
