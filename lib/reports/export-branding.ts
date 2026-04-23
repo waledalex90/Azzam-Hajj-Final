@@ -4,6 +4,7 @@ import path from "node:path";
 /** أسماء ملفات محتملة (حساسية مختلفة للأنظمة) */
 const LOGO_NAMES = [
   "company-logo.png",
+  "brand/azzam-logo.png",
   "Company-Logo.png",
   "company-logo.jpg",
   "payroll-logo.png",
@@ -35,7 +36,7 @@ function publicSearchRoots(): string[] {
 
 /**
  * مسار شعار الشركة للتصدير.
- * - ضع الملف تحت `public/` (مثل public/company-logo.png)
+ * - الافتراضي: `public/company-logo.png` أو `public/brand/azzam-logo.png` (لوجو عزام الرسمي)
  * - أو عيّن متغير بيئة `COMPANY_LOGO_ABS_PATH` لمسار ملف كامل
  */
 export function findCompanyLogoFile(): ExportLogoFile | null {

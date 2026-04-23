@@ -1,39 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="320" height="168" viewBox="0 0 320 168" fill="none" role="img" aria-label="Azzam Al-Shareef abn">
-  <defs>
-    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f7e8b8"/>
-      <stop offset="45%" stop-color="#d4af37"/>
-      <stop offset="100%" stop-color="#8b6914"/>
-    </linearGradient>
-    <linearGradient id="g2" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#c9a227"/>
-      <stop offset="100%" stop-color="#e8d48b"/>
-    </linearGradient>
-    <linearGradient id="g3" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#eed888"/>
-      <stop offset="100%" stop-color="#a67c00"/>
-    </linearGradient>
-    <linearGradient id="g4" x1="100%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#f0dc9a"/>
-      <stop offset="100%" stop-color="#b8891a"/>
-    </linearGradient>
-  </defs>
-  <!-- Card -->
-  <rect width="320" height="168" rx="22" fill="#0b0b0c"/>
-  <rect x="2" y="2" width="316" height="164" rx="20" stroke="#d4af37" stroke-width="2" fill="none" opacity="0.95"/>
-  <!-- Faceted mark (stylized column / pixels) -->
-  <g transform="translate(20, 24)">
-    <polygon points="36,4 52,22 20,22" fill="url(#g1)"/>
-    <polygon points="20,22 36,4 52,22 44,38 28,38" fill="url(#g2)"/>
-    <polygon points="28,38 44,38 52,22 60,40 12,40" fill="url(#g3)"/>
-    <polygon points="12,40 60,40 68,58 4,58" fill="url(#g4)"/>
-    <polygon points="4,58 68,58 56,76 16,76" fill="url(#g1)"/>
-    <polygon points="16,76 56,76 48,92 24,92" fill="url(#g3)"/>
-    <polygon points="24,92 48,92 40,108 32,108" fill="#d4af37"/>
-    <polygon points="8,64 20,52 14,70" fill="#a67c00" opacity="0.85"/>
-    <polygon points="58,50 64,68 52,60" fill="#f7e8b8" opacity="0.7"/>
-  </g>
-  <!-- Wordmark -->
-  <text x="108" y="92" fill="#d4af37" font-family="system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="52" font-weight="800" letter-spacing="-3">abn</text>
-  <text x="108" y="118" fill="#7d6b45" font-family="system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="600" letter-spacing="0.02em">azzam al-shareef co.</text>
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  لوجو شركة عزام (المصدر: abn.sa.com — logo-removebg-preview).
+  مُحزَّم داخل SVG كصورة مُدمَجة للوضوح على كل الشاشات مع الإبقاء على النسب.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="799" height="287" viewBox="0 0 799 287" role="img" aria-label="شعار شركة عزام">
+  <image width="799" height="287" href="azzam-logo.png" xlink:href="azzam-logo.png" preserveAspectRatio="xMidYMid meet"/>
 </svg>
