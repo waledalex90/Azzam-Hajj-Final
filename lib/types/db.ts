@@ -22,6 +22,7 @@ export type WorkerRow = {
   id: number;
   name: string;
   id_number: string;
+  employee_code?: string | null;
   contractor_id?: number | null;
   current_site_id: number | null;
   /** من Excel: 1 صباحي، 2 مسائي؛ null = يظهر في كلا الورديتين في التحضير */

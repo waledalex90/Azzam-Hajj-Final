@@ -165,6 +165,12 @@ create index if not exists idx_workers_current_site on public.workers(current_si
 create index if not exists idx_workers_contractor on public.workers(contractor_id);
 create index if not exists idx_workers_active_not_deleted on public.workers(is_active, is_deleted);
 
+alter table public.workers add column if not exists employee_code text;
+comment on column public.workers.employee_code is 'كود الموظف — فريد عند التعبئة؛ يُدخل يدوياً أو من Excel';
+create unique index if not exists idx_workers_employee_code_unique
+  on public.workers ((btrim(employee_code)))
+  where employee_code is not null and btrim(employee_code) <> '';
+
 -- =========================
 -- Attendance (round/check/summary)
 -- =========================

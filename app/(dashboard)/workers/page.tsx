@@ -9,6 +9,7 @@ import { WorkersListClient, type WorkersListRow } from "@/components/workers/wor
 import { WorkersUploadForm } from "@/components/workers/workers-upload-form";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getContractorOptions, getSiteOptions } from "@/lib/data/attendance";
+import { normalizeEmployeeCode } from "@/lib/workers/employee-code";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 import { hasPermission } from "@/lib/auth/permissions";
 import { requireScreen } from "@/lib/auth/require-screen";
@@ -72,7 +73,9 @@ export default async function WorkersPage({ searchParams }: Props) {
     const contractorId = Number(formData.get("contractorId")) || null;
     const shiftRaw = normalizeText(formData.get("shiftRound"));
     const shift_round = shiftRaw === "1" ? 1 : shiftRaw === "2" ? 2 : null;
+    const employeeCode = normalizeEmployeeCode(formData.get("employeeCode"));
     if (!name || !idNumber) return;
+    if (!employeeCode) return;
     if (allowedSiteIds !== undefined) {
       if (allowedSiteIds.length === 0) return;
       if (siteId == null || !allowedSiteIds.includes(siteId)) return;
@@ -82,9 +85,17 @@ export default async function WorkersPage({ searchParams }: Props) {
     const { data: exists } = await supabase.from("workers").select("id").eq("id_number", idNumber).maybeSingle();
     if (exists?.id) return;
 
+    const { data: codeTaken } = await supabase
+      .from("workers")
+      .select("id")
+      .eq("employee_code", employeeCode)
+      .maybeSingle();
+    if (codeTaken?.id) return;
+
     await supabase.from("workers").insert({
       name,
       id_number: idNumber,
+      employee_code: employeeCode,
       job_title: jobTitle,
       payment_type: paymentType,
       basic_salary: Number.isFinite(basicSalary) ? basicSalary : null,
@@ -131,6 +142,7 @@ export default async function WorkersPage({ searchParams }: Props) {
     const contractorId = Number(formData.get("contractorId")) || null;
     const shiftRaw = normalizeText(formData.get("shiftRound"));
     const shift_round = shiftRaw === "1" ? 1 : shiftRaw === "2" ? 2 : null;
+    const employeeCode = normalizeEmployeeCode(formData.get("employeeCode"));
     if (!workerId || !name || !idNumber) {
       throw new Error("الاسم ورقم الهوية مطلوبان.");
     }
@@ -173,6 +185,18 @@ export default async function WorkersPage({ searchParams }: Props) {
       }
     }
 
+    if (employeeCode) {
+      const { data: codeRow } = await supabase
+        .from("workers")
+        .select("id")
+        .eq("employee_code", employeeCode)
+        .neq("id", workerId)
+        .maybeSingle();
+      if (codeRow?.id) {
+        throw new Error("كود الموظف مستخدم لموظف آخر — اختر كوداً مختلفاً.");
+      }
+    }
+
     const patch: Record<string, unknown> = {
       name,
       job_title: jobTitle,
@@ -180,6 +204,7 @@ export default async function WorkersPage({ searchParams }: Props) {
       current_site_id: siteId,
       contractor_id: contractorId,
       shift_round,
+      employee_code: employeeCode,
     };
     if (allowSensitive) {
       patch.id_number = idNumber;
@@ -301,7 +326,7 @@ export default async function WorkersPage({ searchParams }: Props) {
       let q = supabase
         .from("workers")
         .select(
-          "id, name, id_number, job_title, payment_type, basic_salary, iqama_expiry, contractor_id, current_site_id, shift_round, is_active, is_deleted, sites(name), contractors(name)",
+          "id, name, id_number, employee_code, job_title, payment_type, basic_salary, iqama_expiry, contractor_id, current_site_id, shift_round, is_active, is_deleted, sites(name), contractors(name)",
         )
         .order("id", { ascending: false });
 
@@ -329,6 +354,7 @@ export default async function WorkersPage({ searchParams }: Props) {
       if (error) break;
       const chunk = ((data ?? []) as RawWorkerListRow[]).map((worker) => ({
         ...worker,
+        employee_code: worker.employee_code ?? null,
         sites: relationValue(worker.sites),
         contractors: relationValue(worker.contractors),
       }));
@@ -462,6 +488,13 @@ export default async function WorkersPage({ searchParams }: Props) {
             <h2 className="font-extrabold text-slate-900">تسجيل موظف جديد</h2>
             <form action={createWorker} className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               <Input name="name" placeholder="الاسم الرباعي" required />
+              <Input
+                name="employeeCode"
+                placeholder="كود الموظف (فريد — مطلوب)"
+                required
+                maxLength={64}
+                autoComplete="off"
+              />
               <Input name="idNumber" placeholder="رقم الهوية / الإقامة / الجواز" required />
               <Input name="jobTitle" placeholder="المسمى الوظيفي" />
               <select

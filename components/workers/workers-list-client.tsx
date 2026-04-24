@@ -14,6 +14,8 @@ export type WorkersListRow = {
   id: number;
   name: string;
   id_number: string;
+  /** كود موظف فريد — يُدخل يدوياً */
+  employee_code: string | null;
   job_title: string | null;
   payment_type: "salary" | "daily";
   basic_salary: number | null;
@@ -78,6 +80,13 @@ function WorkersDockedEditForm({
         ) : null}
         <input type="hidden" name="workerId" value={worker.id} />
         <Input name="name" defaultValue={worker.name} required />
+        <Input
+          name="employeeCode"
+          defaultValue={worker.employee_code ?? ""}
+          placeholder="كود الموظف (فريد)"
+          maxLength={64}
+          autoComplete="off"
+        />
         <Input
           name="idNumber"
           defaultValue={worker.id_number}
@@ -191,6 +200,10 @@ const WorkerListRowCard = memo(function WorkerListRowCard({
               )}
             </p>
             <p className="text-xs text-slate-500">
+              {worker.employee_code ? (
+                <span className="font-bold text-slate-700">كود: {worker.employee_code}</span>
+              ) : null}
+              {worker.employee_code ? " · " : null}
               {idLine} | {worker.sites?.name ?? "بدون موقع"} | {worker.contractors?.name ?? "بدون مقاول"}
             </p>
           </div>
@@ -287,7 +300,7 @@ export function WorkersListClient({
   const filtered = useMemo(() => {
     const s = search.trim();
     if (!s) return workers;
-    return workers.filter((w) => matchesClientSearch(w.name, w.id_number, s));
+    return workers.filter((w) => matchesClientSearch(w.name, w.id_number, s, w.employee_code));
   }, [workers, search]);
 
   const resetSearch = useCallback(() => {

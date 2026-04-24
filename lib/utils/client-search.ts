@@ -12,10 +12,19 @@ export function normalizeForClientSearch(value: unknown): string {
   return s.toLowerCase();
 }
 
-export function matchesClientSearch(haystackName: unknown, haystackId: unknown, needle: string): boolean {
+export function matchesClientSearch(
+  haystackName: unknown,
+  haystackId: unknown,
+  needle: string,
+  haystackCode?: unknown,
+): boolean {
   const n = normalizeForClientSearch(needle);
   if (!n) return true;
   const name = normalizeForClientSearch(haystackName);
   const id = normalizeForClientSearch(haystackId);
-  return name.includes(n) || id.includes(n);
+  const code =
+    haystackCode != null && String(haystackCode).trim() !== ""
+      ? normalizeForClientSearch(haystackCode)
+      : "";
+  return name.includes(n) || id.includes(n) || (code.length > 0 && code.includes(n));
 }

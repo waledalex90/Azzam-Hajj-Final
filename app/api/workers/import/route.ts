@@ -9,6 +9,7 @@ import { PERM } from "@/lib/permissions/keys";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 import { parseShiftRoundFromExcelRow } from "@/lib/workers/excel-shift-column";
+import { normalizeEmployeeCode } from "@/lib/workers/employee-code";
 
 export const runtime = "nodejs";
 /** Allow long-running imports on Vercel (adjust per plan). */
@@ -38,6 +39,8 @@ type ParsedRow = {
   rowIndex: number;
   name: string;
   id_number: string;
+  /** كود موظف يدوي — فريد عالمياً */
+  employee_code: string | null;
   job_title: string | null;
   payment_type: "salary" | "daily";
   basic_salary: number | null;
@@ -65,6 +68,11 @@ function parseSheetRow(record: Record<string, unknown>, rowIndex: number): Parse
     normalizeText(record["رقم الجواز"]);
   if (!name || !id_number) return null;
 
+  const employee_code =
+    normalizeEmployeeCode(record["employee_code"]) ||
+    normalizeEmployeeCode(record["كود الموظف"]) ||
+    normalizeEmployeeCode(record["كود"]);
+
   const paymentRaw = normalizeText(record["payment_type"]) || normalizeText(record["نظام الدفع"]);
   const payment_type =
     paymentRaw === "daily" || paymentRaw === "يومي" || paymentRaw === "راتب يومي" ? "daily" : "salary";
@@ -77,6 +85,7 @@ function parseSheetRow(record: Record<string, unknown>, rowIndex: number): Parse
     rowIndex,
     name,
     id_number,
+    employee_code,
     job_title: normalizeText(record["job_title"]) || normalizeText(record["المسمى الوظيفي"]) || null,
     payment_type,
     basic_salary: Number.isFinite(salaryRaw) && salaryRaw > 0 ? salaryRaw : null,
@@ -174,9 +183,11 @@ export async function POST(request: Request) {
 
   const skipped: SkipEntry[] = [];
   const seenInFile = new Set<string>();
+  const seenCodesInFile = new Set<string>();
   const toUpsert: Array<{
     name: string;
     id_number: string;
+    employee_code: string | null;
     job_title: string | null;
     payment_type: "salary" | "daily";
     basic_salary: number | null;
@@ -186,6 +197,7 @@ export async function POST(request: Request) {
     shift_round: number | null;
     is_active: boolean;
     is_deleted: boolean;
+    rowIndex: number;
   }> = [];
 
   for (let i = 0; i < records.length; i += 1) {
@@ -197,10 +209,22 @@ export async function POST(request: Request) {
     }
 
     if (seenInFile.has(parsed.id_number)) {
-      skipped.push({ rowIndex, reason: "رقم الهوية مكرر داخل الملف", id_number: parsed.id_number });
+      skipped.push({ rowIndex, reason: "رقم الهوية/الإقامة/الجواز مكرر داخل الملف", id_number: parsed.id_number });
       continue;
     }
     seenInFile.add(parsed.id_number);
+
+    if (parsed.employee_code) {
+      if (seenCodesInFile.has(parsed.employee_code)) {
+        skipped.push({
+          rowIndex,
+          reason: "كود الموظف مكرر داخل الملف (يجب أن يكون الكود فريداً)",
+          id_number: parsed.id_number,
+        });
+        continue;
+      }
+      seenCodesInFile.add(parsed.employee_code);
+    }
 
     if (!parsed.siteName) {
       skipped.push({ rowIndex, reason: "الموقع ناقص", id_number: parsed.id_number });
@@ -224,6 +248,7 @@ export async function POST(request: Request) {
     toUpsert.push({
       name: parsed.name,
       id_number: parsed.id_number,
+      employee_code: parsed.employee_code,
       job_title: parsed.job_title,
       payment_type: parsed.payment_type,
       basic_salary: parsed.basic_salary,
@@ -233,21 +258,70 @@ export async function POST(request: Request) {
       shift_round: parsed.shift_round,
       is_active: true,
       is_deleted: false,
+      rowIndex: parsed.rowIndex,
     });
   }
 
-  if (toUpsert.length === 0) {
+  const codesToCheck = [...new Set(toUpsert.map((r) => r.employee_code).filter((c): c is string => Boolean(c)))];
+  const codeToExistingIdNumber = new Map<string, string>();
+  if (codesToCheck.length > 0) {
+    const { data: codeRows, error: codeErr } = await supabase
+      .from("workers")
+      .select("id_number, employee_code")
+      .in("employee_code", codesToCheck);
+    if (codeErr) {
+      return NextResponse.json({ error: codeErr.message }, { status: 500 });
+    }
+    for (const r of (codeRows ?? []) as { id_number: string; employee_code: string | null }[]) {
+      if (r.employee_code) {
+        codeToExistingIdNumber.set(r.employee_code.trim(), String(r.id_number).trim());
+      }
+    }
+  }
+
+  const toUpsertFinal: typeof toUpsert = [];
+  for (const row of toUpsert) {
+    if (row.employee_code) {
+      const other = codeToExistingIdNumber.get(row.employee_code);
+      if (other && other !== row.id_number) {
+        skipped.push({
+          rowIndex: row.rowIndex,
+          reason: `كود الموظف «${row.employee_code}» مسجّل مسبقاً لموظف آخر (رقم هوية: ${other}) — صف الشيت: ${row.rowIndex}`,
+          id_number: row.id_number,
+        });
+        continue;
+      }
+    }
+    toUpsertFinal.push(row);
+  }
+
+  if (toUpsertFinal.length === 0) {
     return NextResponse.json({
       ok: true,
       inserted: 0,
       updated: 0,
       skipped: skipped.length,
       skippedRows: skipped,
-      message: "لا توجد صفوف صالحة للمعالجة",
+      message: "لا توجد صفوف صالحة للمعالجة (بعد التحقق من الأكواد أو عدم وجود صفوف أصلاً)",
     });
   }
 
-  const idNumbers = toUpsert.map((r) => r.id_number);
+  const rowsForDb = toUpsertFinal.map((r) => ({
+    name: r.name,
+    id_number: r.id_number,
+    employee_code: r.employee_code,
+    job_title: r.job_title,
+    payment_type: r.payment_type,
+    basic_salary: r.basic_salary,
+    iqama_expiry: r.iqama_expiry,
+    current_site_id: r.current_site_id,
+    contractor_id: r.contractor_id,
+    shift_round: r.shift_round,
+    is_active: r.is_active,
+    is_deleted: r.is_deleted,
+  }));
+
+  const idNumbers = toUpsertFinal.map((r) => r.id_number);
   const { data: existingRows, error: existingError } = await supabase
     .from("workers")
     .select("id_number")
@@ -261,7 +335,7 @@ export async function POST(request: Request) {
     ((existingRows ?? []) as { id_number: string }[]).map((r) => String(r.id_number).trim()),
   );
 
-  const { error: upsertError } = await supabase.from("workers").upsert(toUpsert, {
+  const { error: upsertError } = await supabase.from("workers").upsert(rowsForDb, {
     onConflict: "id_number",
   });
 
@@ -275,7 +349,7 @@ export async function POST(request: Request) {
 
   let inserted = 0;
   let updated = 0;
-  for (const row of toUpsert) {
+  for (const row of toUpsertFinal) {
     if (existingSet.has(row.id_number)) {
       updated += 1;
     } else {
@@ -289,6 +363,6 @@ export async function POST(request: Request) {
     updated,
     skipped: skipped.length,
     skippedRows: skipped,
-    processed: toUpsert.length,
+    processed: toUpsertFinal.length,
   });
 }
