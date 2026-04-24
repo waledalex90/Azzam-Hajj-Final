@@ -624,11 +624,68 @@ for all
 using (app.current_user_role() = 'admin')
 with check (app.current_user_role() = 'admin');
 
+-- app.has_granular_permission: يتطلب جدول public.user_roles (انظر supabase_user_roles.sql)
+create or replace function app.has_granular_permission(p_required text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  j jsonb;
+begin
+  if auth.uid() is null or p_required is null or length(trim(p_required)) = 0 then
+    return false;
+  end if;
+  if not exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'user_roles') then
+    return false;
+  end if;
+  select ur.permissions into j
+  from public.app_users au
+  join public.user_roles ur on ur.slug = au.role
+  where au.auth_user_id = auth.uid()
+  limit 1;
+  if j is null then
+    return false;
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm = p_required
+  ) then
+    return true;
+  end if;
+  if p_required in ('view_violations', 'manage_violations') then
+    if exists (select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm = 'violations') then
+      return true;
+    end if;
+  end if;
+  if p_required = 'create_violation_notice' then
+    if exists (select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm = 'violation_notice') then
+      return true;
+    end if;
+  end if;
+  if p_required = 'report_violations' then
+    if exists (select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm in ('reports', 'view_reports')) then
+      return true;
+    end if;
+  end if;
+  return false;
+end;
+$$;
+
+grant execute on function app.has_granular_permission(text) to authenticated, service_role, anon;
+
 -- violation types
 drop policy if exists violation_types_read_all on public.violation_types;
-create policy violation_types_read_all on public.violation_types
+drop policy if exists violation_types_read_scoped on public.violation_types;
+create policy violation_types_read_scoped on public.violation_types
 for select
-using (auth.uid() is not null);
+using (
+  app.is_admin_or_hr()
+  or app.has_granular_permission('view_violations')
+  or app.has_granular_permission('manage_violations')
+  or app.has_granular_permission('report_violations')
+);
 
 drop policy if exists violation_types_admin_hr_write on public.violation_types;
 create policy violation_types_admin_hr_write on public.violation_types
@@ -642,34 +699,40 @@ create policy worker_violations_read_scoped on public.worker_violations
 for select
 using (
   app.is_admin_or_hr()
-  or site_id = any(app.current_user_site_ids())
+  or (
+    (app.has_granular_permission('view_violations') or app.has_granular_permission('manage_violations'))
+    and app.can_access_site(site_id)
+  )
 );
 
 drop policy if exists worker_violations_insert_scoped on public.worker_violations;
 create policy worker_violations_insert_scoped on public.worker_violations
 for insert
 with check (
-  app.current_user_role() in ('admin', 'hr', 'technical_observer', 'field_observer')
-  and app.can_access_site(site_id)
-  and app.can_access_worker(worker_id)
+  app.is_admin_or_hr()
+  or (
+    app.has_granular_permission('manage_violations')
+    and app.can_access_site(site_id)
+    and app.can_access_worker(worker_id)
+  )
 );
 
 drop policy if exists worker_violations_update_review_scoped on public.worker_violations;
 create policy worker_violations_update_review_scoped on public.worker_violations
 for update
 using (
-  app.current_user_role() in ('admin', 'hr', 'technical_observer')
-  and app.can_access_site(site_id)
+  app.is_admin_or_hr()
+  or (app.has_granular_permission('manage_violations') and app.can_access_site(site_id))
 )
 with check (
-  app.current_user_role() in ('admin', 'hr', 'technical_observer')
-  and app.can_access_site(site_id)
+  app.is_admin_or_hr()
+  or (app.has_granular_permission('manage_violations') and app.can_access_site(site_id))
 );
 
 drop policy if exists worker_violations_no_delete on public.worker_violations;
 create policy worker_violations_no_delete on public.worker_violations
 for delete
-using (app.current_user_role() = 'admin');
+using (false);
 
 -- violation evidence
 drop policy if exists violation_evidence_read_scoped on public.violation_evidence;
@@ -682,7 +745,10 @@ using (
     where v.id = violation_evidence.violation_id
       and (
         app.is_admin_or_hr()
-        or v.site_id = any(app.current_user_site_ids())
+        or (
+          (app.has_granular_permission('view_violations') or app.has_granular_permission('manage_violations'))
+          and app.can_access_site(v.site_id)
+        )
       )
   )
 );
@@ -691,7 +757,7 @@ drop policy if exists violation_evidence_insert_scoped on public.violation_evide
 create policy violation_evidence_insert_scoped on public.violation_evidence
 for insert
 with check (
-  app.current_user_role() in ('admin', 'hr', 'technical_observer', 'field_observer')
+  (app.is_admin_or_hr() or app.has_granular_permission('manage_violations'))
   and exists (
     select 1
     from public.worker_violations v
@@ -703,7 +769,7 @@ with check (
 drop policy if exists violation_evidence_no_delete on public.violation_evidence;
 create policy violation_evidence_no_delete on public.violation_evidence
 for delete
-using (app.current_user_role() = 'admin');
+using (false);
 
 -- violation history
 drop policy if exists violation_history_read_scoped on public.violation_status_history;
@@ -716,16 +782,30 @@ using (
     where v.id = violation_status_history.violation_id
       and (
         app.is_admin_or_hr()
-        or v.site_id = any(app.current_user_site_ids())
+        or (
+          (app.has_granular_permission('view_violations') or app.has_granular_permission('manage_violations'))
+          and app.can_access_site(v.site_id)
+        )
       )
   )
 );
 
 drop policy if exists violation_history_admin_manage on public.violation_status_history;
-create policy violation_history_admin_manage on public.violation_status_history
-for all
-using (app.current_user_role() = 'admin')
-with check (app.current_user_role() = 'admin');
+drop policy if exists violation_status_history_no_write on public.violation_status_history;
+drop policy if exists violation_status_history_no_delete on public.violation_status_history;
+drop policy if exists violation_status_history_insert_chain on public.violation_status_history;
+create policy violation_status_history_no_write on public.violation_status_history
+for update
+using (false);
+create policy violation_status_history_no_delete on public.violation_status_history
+for delete
+using (false);
+create policy violation_status_history_insert_chain on public.violation_status_history
+for insert
+with check (
+  app.current_user_id() is not null
+  and changed_by = app.current_user_id()
+);
 
 -- =========================
 -- Storage bucket for violation photos
@@ -740,12 +820,32 @@ values (
 )
 on conflict (id) do nothing;
 
+create or replace function app.violation_evidence_site_id_from_path(p_object_name text)
+returns bigint
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select (regexp_match(split_part(p_object_name, '/', 1), '^site_([0-9]+)$'))[1]::bigint
+$$;
+
+grant execute on function app.violation_evidence_site_id_from_path(text) to authenticated, service_role, anon;
+
 drop policy if exists violation_evidence_bucket_select on storage.objects;
 create policy violation_evidence_bucket_select on storage.objects
 for select
 using (
   bucket_id = 'violation-evidence'
   and auth.uid() is not null
+  and (
+    app.is_admin_or_hr()
+    or (
+      app.violation_evidence_site_id_from_path(name) is not null
+      and (app.has_granular_permission('view_violations') or app.has_granular_permission('manage_violations'))
+      and app.can_access_site(app.violation_evidence_site_id_from_path(name))
+    )
+  )
 );
 
 drop policy if exists violation_evidence_bucket_insert on storage.objects;
@@ -754,21 +854,19 @@ for insert
 with check (
   bucket_id = 'violation-evidence'
   and auth.uid() is not null
+  and app.violation_evidence_site_id_from_path(name) is not null
+  and (app.is_admin_or_hr() or app.has_granular_permission('manage_violations'))
+  and app.can_access_site(app.violation_evidence_site_id_from_path(name))
 );
 
 drop policy if exists violation_evidence_bucket_update on storage.objects;
-create policy violation_evidence_bucket_update on storage.objects
-for update
-using (
-  bucket_id = 'violation-evidence'
-  and auth.uid() is not null
-);
-
 drop policy if exists violation_evidence_bucket_delete_admin on storage.objects;
-create policy violation_evidence_bucket_delete_admin on storage.objects
+drop policy if exists violation_evidence_bucket_no_update on storage.objects;
+drop policy if exists violation_evidence_bucket_no_delete on storage.objects;
+create policy violation_evidence_bucket_no_update on storage.objects
+for update
+using (false);
+create policy violation_evidence_bucket_no_delete on storage.objects
 for delete
-using (
-  bucket_id = 'violation-evidence'
-  and app.current_user_role() = 'admin'
-);
+using (false);
 commit;

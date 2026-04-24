@@ -70,6 +70,8 @@ export default async function WorkersPage({ searchParams }: Props) {
     const iqamaExpiryRaw = normalizeText(formData.get("iqamaExpiry"));
     let siteId = Number(formData.get("siteId")) || null;
     const contractorId = Number(formData.get("contractorId")) || null;
+    const shiftRaw = normalizeText(formData.get("shiftRound"));
+    const shift_round = shiftRaw === "1" ? 1 : shiftRaw === "2" ? 2 : null;
     if (!name || !idNumber) return;
     if (allowedSiteIds !== undefined) {
       if (allowedSiteIds.length === 0) return;
@@ -89,6 +91,7 @@ export default async function WorkersPage({ searchParams }: Props) {
       iqama_expiry: /^\d{4}-\d{2}-\d{2}$/.test(iqamaExpiryRaw) ? iqamaExpiryRaw : null,
       current_site_id: siteId,
       contractor_id: contractorId,
+      shift_round,
       is_active: true,
       is_deleted: false,
     });
@@ -482,6 +485,14 @@ export default async function WorkersPage({ searchParams }: Props) {
                     {site.name}
                   </option>
                 ))}
+              </select>
+              <select
+                name="shiftRound"
+                className="min-h-12 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
+              >
+                <option value="">الوردية — الورديتان (كما في الاستيراد)</option>
+                <option value="1">صباحي</option>
+                <option value="2">مسائي</option>
               </select>
               <select
                 name="paymentType"
