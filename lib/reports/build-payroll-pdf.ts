@@ -33,6 +33,7 @@ const BASE_COLS_PDF: ColPdf[] = [
   { key: "worker_id", ar: "معرف الموظف" },
   { key: "worker_name", ar: "الاسم" },
   { key: "id_number", ar: "رقم الإقامة" },
+  { key: "employee_code", ar: "كود الموظف" },
   { key: "site_name", ar: "الموقع" },
   { key: "contractor_name", ar: "المقاول" },
   { key: "work_daily_rate_sar", ar: "يومية العمل", num: true },

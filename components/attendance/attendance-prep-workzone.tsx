@@ -66,7 +66,7 @@ export function AttendancePrepWorkzone({
   const filteredRows = useMemo(() => {
     const s = deferredSearch.trim();
     if (!s) return workers;
-    return workers.filter((w) => matchesClientSearch(w.name, w.id_number, s));
+    return workers.filter((w) => matchesClientSearch(w.name, w.id_number, s, w.employee_code));
   }, [workers, deferredSearch]);
 
   const scopeIds = useMemo(() => workers.map((w) => w.id), [workers]);

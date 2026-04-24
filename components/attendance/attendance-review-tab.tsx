@@ -6,6 +6,7 @@ import { TableVirtuoso, Virtuoso } from "react-virtuoso";
 import { CancelHalfDayPrepButton } from "@/components/attendance/cancel-half-day-prep-button";
 import { CorrectionRequestDialog } from "@/components/attendance/correction-request-dialog";
 import type { AttendanceCheckRow } from "@/lib/types/db";
+import { matchesClientSearch } from "@/lib/utils/client-search";
 
 type Props = {
   initialRows: AttendanceCheckRow[];
@@ -50,13 +51,11 @@ export function AttendanceReviewTab({
   }, [initialRows]);
 
   const filtered = useMemo(() => {
-    const s = search.trim().toLowerCase();
+    const s = search.trim();
     if (!s) return rows;
-    return rows.filter((row) => {
-      const name = row.workers?.name?.toLowerCase() ?? "";
-      const idn = row.workers?.id_number?.toLowerCase() ?? "";
-      return name.includes(s) || idn.includes(s);
-    });
+    return rows.filter((row) =>
+      matchesClientSearch(row.workers?.name, row.workers?.id_number, s, row.workers?.employee_code),
+    );
   }, [rows, search]);
 
   return (
@@ -83,7 +82,7 @@ export function AttendanceReviewTab({
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="اسم أو هوية…"
+          placeholder="اسم أو هوية أو كود الموظف…"
           className="mt-1 w-full max-w-md border border-slate-300 px-2 py-1.5 text-sm"
           autoComplete="off"
         />
@@ -103,6 +102,9 @@ export function AttendanceReviewTab({
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-bold text-slate-800">{row.workers?.name ?? "-"}</p>
+                    {row.workers?.employee_code ? (
+                      <p className="text-xs font-mono text-slate-600">{row.workers.employee_code}</p>
+                    ) : null}
                     <p className="text-xs text-slate-500">{row.workers?.id_number ?? "-"}</p>
                   </div>
                   <span
@@ -156,6 +158,9 @@ export function AttendanceReviewTab({
               <>
                 <td className="border border-slate-300 px-3 py-1 align-top">
                   <p className="font-bold text-slate-800">{row.workers?.name ?? "-"}</p>
+                  {row.workers?.employee_code ? (
+                    <p className="text-xs font-mono text-slate-600">{row.workers.employee_code}</p>
+                  ) : null}
                   <p className="text-xs text-slate-500">{row.workers?.id_number ?? "-"}</p>
                 </td>
                 <td className="border border-slate-300 px-3 py-1">{row.sites?.name ?? "-"}</td>

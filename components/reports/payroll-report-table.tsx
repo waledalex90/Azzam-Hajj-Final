@@ -95,6 +95,7 @@ function PayrollReportTableInner({
             <tr>
               <th className="px-2 py-2 text-right">الاسم</th>
               <th className="px-2 py-2 text-right">رقم الإقامة</th>
+              <th className="px-2 py-2 text-right">كود الموظف</th>
               <th className="px-2 py-2 text-right">المقاول</th>
               <th className="px-2 py-2 text-right">الموقع</th>
               <th className="px-2 py-2 text-center">يومية العمل</th>
@@ -123,6 +124,9 @@ function PayrollReportTableInner({
                   </td>
                   <td className="whitespace-nowrap px-2 py-1.5 font-mono text-slate-800">
                     {String(r.id_number ?? "")}
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-1.5 font-mono text-slate-800">
+                    {String(r.employee_code ?? "")}
                   </td>
                   <td className="max-w-[8rem] px-2 py-1.5 text-slate-700">{String(r.contractor_name ?? "")}</td>
                   <td className="max-w-[8rem] px-2 py-1.5 text-slate-700">{String(r.site_name ?? "")}</td>

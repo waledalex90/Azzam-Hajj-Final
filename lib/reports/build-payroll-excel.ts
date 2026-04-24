@@ -64,6 +64,7 @@ const BASE_COLS: ColDef[] = [
   { key: "worker_id", header: "معرف الموظف", width: 12, forceText: true },
   { key: "worker_name", header: "الاسم", width: 26 },
   { key: "id_number", header: "رقم الإقامة", width: 18, forceText: true },
+  { key: "employee_code", header: "كود الموظف", width: 14, forceText: true },
   { key: "site_name", header: "الموقع", width: 18 },
   { key: "contractor_name", header: "المقاول", width: 18 },
   { key: "work_daily_rate_sar", header: "يومية العمل", width: 14, money: true },

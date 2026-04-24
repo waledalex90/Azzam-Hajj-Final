@@ -42,6 +42,7 @@ type RawWorkerRowFlat = {
   id: number;
   name: string;
   id_number: string;
+  employee_code: string | null;
   contractor_id: number | null;
   current_site_id: number | null;
   shift_round: number | null;
@@ -159,12 +160,14 @@ type RawAttendanceCheckRow = Omit<AttendanceCheckRow, "attendance_rounds" | "wor
     | {
         name: string;
         id_number: string;
+        employee_code: string | null;
         sites?: { name: string } | { name: string }[] | null;
         contractors?: { name: string } | { name: string }[] | null;
       }
     | Array<{
         name: string;
         id_number: string;
+        employee_code: string | null;
         sites?: { name: string } | { name: string }[] | null;
         contractors?: { name: string } | { name: string }[] | null;
       }>
@@ -257,8 +260,8 @@ export async function getPendingApprovalCheckIds(params: {
   const supabase = createSupabaseAdminClient();
   const cid = params.contractorId && Number.isFinite(params.contractorId) ? params.contractorId : undefined;
   const workerSelect = cid
-    ? "workers!inner(name, id_number, contractor_id)"
-    : "workers!inner(name, id_number)";
+    ? "workers!inner(name, id_number, employee_code, contractor_id)"
+    : "workers!inner(name, id_number, employee_code)";
   let query = supabase
     .from("attendance_checks")
     .select(`id, attendance_rounds!inner(work_date, site_id, round_no), ${workerSelect}`)
@@ -278,7 +281,9 @@ export async function getPendingApprovalCheckIds(params: {
   }
   if (params.search?.trim()) {
     const v = params.search.trim();
-    query = query.or(`workers.name.ilike.%${v}%,workers.id_number.ilike.%${v}%`);
+    query = query.or(
+      `workers.name.ilike.%${v}%,workers.id_number.ilike.%${v}%,workers.employee_code.ilike.%${v}%`,
+    );
   }
 
   const { data, error } = await query.limit(50000);
@@ -525,7 +530,7 @@ export async function getAllPendingPrepWorkers(
     let query = supabase
       .from("workers")
       .select(
-        "id, name, id_number, contractor_id, current_site_id, shift_round, is_active, is_deleted, sites(name), contractors(name)",
+        "id, name, id_number, employee_code, contractor_id, current_site_id, shift_round, is_active, is_deleted, sites(name), contractors(name)",
         { count: "planned" },
       )
       .eq("is_active", true)
@@ -540,7 +545,9 @@ export async function getAllPendingPrepWorkers(
     if (params.contractorId) query = query.eq("contractor_id", params.contractorId);
     if (params.search?.trim()) {
       const value = params.search.trim();
-      query = query.or(`name.ilike.%${value}%,id_number.ilike.%${value}%`);
+      query = query.or(
+        `name.ilike.%${value}%,id_number.ilike.%${value}%,employee_code.ilike.%${value}%`,
+      );
     }
     if (shiftToFilter !== undefined) {
       query = query.or(`shift_round.is.null,shift_round.eq.${shiftToFilter}`);
@@ -630,7 +637,9 @@ export async function getAttendanceWorkerIdsForFilters({
     }
     if (search && search.trim()) {
       const value = search.trim();
-      query = query.or(`name.ilike.%${value}%,id_number.ilike.%${value}%`);
+      query = query.or(
+        `name.ilike.%${value}%,id_number.ilike.%${value}%,employee_code.ilike.%${value}%`,
+      );
     }
 
     if (shiftF !== undefined) {
@@ -911,7 +920,7 @@ export async function getAttendanceChecksPage({
   const supabase = createSupabaseAdminClient();
 
   const workerEmbed =
-    "id, name, id_number, current_site_id, contractor_id, sites(name), contractors(name)";
+    "id, name, id_number, employee_code, current_site_id, contractor_id, sites(name), contractors(name)";
   const cid =
     contractorId !== undefined && Number.isFinite(contractorId) ? Number(contractorId) : undefined;
   const needInner =
@@ -953,7 +962,9 @@ export async function getAttendanceChecksPage({
 
   if (search && search.trim()) {
     const value = search.trim();
-    query = query.or(`workers.name.ilike.%${value}%,workers.id_number.ilike.%${value}%`);
+    query = query.or(
+      `workers.name.ilike.%${value}%,workers.id_number.ilike.%${value}%,workers.employee_code.ilike.%${value}%`,
+    );
   }
 
   const { data, count, error } = await query.range(from, to);
@@ -978,7 +989,9 @@ export async function getAttendanceChecksPage({
               site_id: item.attendance_rounds[0].site_id,
             }
           : null,
-        workers: w ? { name: w.name, id_number: w.id_number } : null,
+        workers: w
+          ? { name: w.name, id_number: w.id_number, employee_code: w.employee_code }
+          : null,
         sites: workerSite ?? roundSite,
         contractors: workerContractor ?? null,
       };

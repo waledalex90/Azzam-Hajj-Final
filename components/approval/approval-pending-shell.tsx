@@ -43,7 +43,7 @@ export function ApprovalPendingShell({
     const s = deferredSearch.trim();
     if (!s) return baseRows;
     return baseRows.filter((row) =>
-      matchesClientSearch(row.workers?.name, row.workers?.id_number, s),
+      matchesClientSearch(row.workers?.name, row.workers?.id_number, s, row.workers?.employee_code),
     );
   }, [baseRows, deferredSearch]);
 

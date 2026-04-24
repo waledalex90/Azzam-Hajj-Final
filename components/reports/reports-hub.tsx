@@ -359,6 +359,7 @@ export function ReportsHub({
       work_date: "التاريخ",
       worker_name: "الاسم",
       id_number: "الهوية",
+      employee_code: "كود الموظف",
       site_name: "الموقع",
       contractor_name: "المقاول",
       supervisor_name: "المشرف",
@@ -949,6 +950,11 @@ export function ReportsHub({
                           <>
                             <td className="px-2 py-1 text-right">
                               <div className="font-bold">{String(row.worker_name ?? "")}</div>
+                              {row.employee_code ? (
+                                <div className="text-[10px] text-slate-500">
+                                  {String(row.employee_code)}
+                                </div>
+                              ) : null}
                               <div className="text-[10px] text-slate-500">
                                 {String(row.id_number ?? "")}
                               </div>

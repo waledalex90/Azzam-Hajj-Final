@@ -46,7 +46,7 @@ function HorizontalAttendanceMatrixTableInner({
               Table: ({ style, ...props }) => (
                 <table
                   {...props}
-                  style={{ ...style, borderCollapse: "collapse", minWidth: Math.max(960, 80 + dim * 34) }}
+                  style={{ ...style, borderCollapse: "collapse", minWidth: Math.max(1020, 80 + dim * 34) }}
                   className="text-[11px]"
                 />
               ),
@@ -58,6 +58,9 @@ function HorizontalAttendanceMatrixTableInner({
                 </th>
                 <th className="whitespace-nowrap border border-slate-200 px-2 py-2 text-right font-extrabold text-slate-900">
                   رقم الإقامة
+                </th>
+                <th className="whitespace-nowrap border border-slate-200 px-2 py-2 text-right font-extrabold text-slate-900">
+                  كود الموظف
                 </th>
                 <th className="min-w-[8rem] border border-slate-200 px-2 py-2 text-right font-extrabold text-slate-900">
                   الاسم
@@ -88,6 +91,9 @@ function HorizontalAttendanceMatrixTableInner({
                 </td>
                 <td className="border border-slate-200 px-2 py-1.5 font-mono text-slate-800">
                   {String(row.id_number ?? "")}
+                </td>
+                <td className="border border-slate-200 px-2 py-1.5 font-mono text-slate-800">
+                  {String(row.employee_code ?? "")}
                 </td>
                 <td className="border border-slate-200 px-2 py-1.5 font-bold text-slate-900">
                   {String(row.worker_name ?? "")}

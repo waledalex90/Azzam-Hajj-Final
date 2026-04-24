@@ -388,6 +388,9 @@ export function AttendanceWorkersTable({
                 </label>
               ) : null}
               <p className="font-bold text-slate-800">{worker.name}</p>
+              {worker.employee_code ? (
+                <p className="text-xs font-mono text-slate-600">{worker.employee_code}</p>
+              ) : null}
               <p className="text-xs text-slate-500">{worker.id_number}</p>
               <p className="mt-1 text-xs text-slate-500">
                 {workerHasSiteForPrep(worker) ? (worker.sites?.name ?? "—") : (
@@ -423,6 +426,7 @@ export function AttendanceWorkersTable({
               ) : null}
               <th className="border border-slate-300 px-3 py-2 text-right font-bold">#</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold">الاسم</th>
+              <th className="border border-slate-300 px-3 py-2 text-right font-bold">كود الموظف</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold">الهوية</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold">الموقع</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold">إجراء</th>
@@ -442,6 +446,9 @@ export function AttendanceWorkersTable({
               ) : null}
               <td className="border border-slate-300 px-3 py-1">{worker.id}</td>
               <td className="border border-slate-300 px-3 py-1 font-bold text-slate-800">{worker.name}</td>
+              <td className="border border-slate-300 px-3 py-1 font-mono text-slate-700">
+                {worker.employee_code ?? "—"}
+              </td>
               <td className="border border-slate-300 px-3 py-1">{worker.id_number}</td>
               <td className="border border-slate-300 px-3 py-1 text-slate-600">
                 {workerHasSiteForPrep(worker) ? (worker.sites?.name ?? "—") : (

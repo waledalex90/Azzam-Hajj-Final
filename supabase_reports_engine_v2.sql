@@ -265,6 +265,8 @@ as $$
 $$;
 
 -- ============== Attendance log (daily summary rows) ==============
+drop function if exists public.get_attendance_log_report_page(date, date, bigint[], bigint[], bigint[], text, integer, integer);
+
 create or replace function public.get_attendance_log_report_page(
   p_date_start date,
   p_date_end date,
@@ -280,6 +282,7 @@ returns table(
   work_date date,
   worker_name text,
   id_number text,
+  employee_code text,
   site_name text,
   contractor_name text,
   supervisor_name text,
@@ -297,6 +300,7 @@ as $$
       ads.work_date as wd,
       w.name as wn,
       w.id_number as win,
+      nullif(btrim(w.employee_code), '')::text as wcode,
       coalesce(sn.name, 'غير محدد') as sname,
       coalesce(cn.name, 'غير محدد') as cname,
       coalesce(sup.full_name, '—') as supname,
@@ -353,6 +357,7 @@ as $$
     p.wd as work_date,
     p.wn as worker_name,
     p.win as id_number,
+    p.wcode as employee_code,
     p.sname as site_name,
     p.cname as contractor_name,
     p.supname as supervisor_name,
@@ -380,6 +385,7 @@ returns table(
   worker_id bigint,
   worker_name text,
   id_number text,
+  employee_code text,
   site_name text,
   contractor_name text,
   supervisor_name text,
@@ -404,6 +410,7 @@ as $$
       w.id as wid,
       w.name as wname,
       w.id_number as wid_number,
+      nullif(btrim(w.employee_code), '')::text as wemcode,
       coalesce(s.name, 'غير محدد') as sname,
       coalesce(c.name, 'غير محدد') as cname,
       coalesce(sup.full_name, '—') as supname,
@@ -495,12 +502,14 @@ as $$
       or btrim(p_search) = ''
       or c.wname ilike '%' || btrim(p_search) || '%'
       or replace(coalesce(c.wid_number, ''), ' ', '') ilike '%' || replace(btrim(p_search), ' ', '') || '%'
+      or coalesce(c.wemcode, '') ilike '%' || btrim(p_search) || '%'
       or c.wid::text ilike '%' || btrim(p_search) || '%'
   )
   select
     counted.wid as worker_id,
     counted.wname as worker_name,
     counted.wid_number as id_number,
+    counted.wemcode as employee_code,
     counted.sname as site_name,
     counted.cname as contractor_name,
     counted.supname as supervisor_name,
@@ -919,6 +928,8 @@ as $$
 $$;
 
 -- ============== Workers master data ==============
+drop function if exists public.get_workers_master_report_page(bigint[], bigint[], bigint[], text, text, integer, integer);
+
 create or replace function public.get_workers_master_report_page(
   p_site_ids bigint[],
   p_contractor_ids bigint[],
@@ -932,6 +943,7 @@ returns table(
   id bigint,
   name text,
   id_number text,
+  employee_code text,
   job_title text,
   payment_type text,
   basic_salary numeric,
@@ -954,6 +966,7 @@ as $$
       w.id as wid,
       w.name as wn,
       w.id_number as ein,
+      nullif(btrim(w.employee_code), '')::text as ecode,
       w.job_title as jt,
       coalesce(w.payment_type, 'salary')::text as pt,
       coalesce(w.basic_salary, 0)::numeric(12, 2) as bs,
@@ -995,6 +1008,7 @@ as $$
         coalesce(trim(p_q), '') = ''
         or w.name ilike '%' || trim(p_q) || '%'
         or w.id_number ilike '%' || trim(p_q) || '%'
+        or coalesce(w.employee_code, '') ilike '%' || trim(p_q) || '%'
       )
       and (
         auth.role() = 'service_role'
@@ -1009,6 +1023,7 @@ as $$
     n.wid as id,
     n.wn as name,
     n.ein as id_number,
+    n.ecode as employee_code,
     n.jt as job_title,
     n.pt as payment_type,
     n.bs as basic_salary,
@@ -1043,6 +1058,7 @@ returns table(
   worker_id bigint,
   worker_name text,
   id_number text,
+  employee_code text,
   site_name text,
   contractor_name text,
   d01 text, d02 text, d03 text, d04 text, d05 text, d06 text, d07 text, d08 text, d09 text, d10 text,
@@ -1068,6 +1084,7 @@ base_workers as (
     w.id,
     w.name as worker_name,
     w.id_number,
+    nullif(btrim(w.employee_code), '')::text as employee_code,
     s.name as site_name,
     cn.name as contractor_name
   from public.workers w
@@ -1130,6 +1147,7 @@ select
   bw.id as worker_id,
   bw.worker_name,
   bw.id_number,
+  bw.employee_code,
   bw.site_name,
   bw.contractor_name,
   max(agg.mark) filter (where extract(day from agg.work_date) = 1) as d01,
@@ -1170,7 +1188,7 @@ select
 from base_workers bw
 left join agg on agg.worker_id = bw.id
 left join worker_day_stats wds on wds.wid = bw.id
-group by bw.id, bw.worker_name, bw.id_number, bw.site_name, bw.contractor_name
+group by bw.id, bw.worker_name, bw.id_number, bw.employee_code, bw.site_name, bw.contractor_name
 order by bw.worker_name;
 $$;
 
@@ -1188,6 +1206,7 @@ returns table(
   worker_id bigint,
   worker_name text,
   id_number text,
+  employee_code text,
   site_name text,
   contractor_name text,
   d01 text, d02 text, d03 text, d04 text, d05 text, d06 text, d07 text, d08 text, d09 text, d10 text,
