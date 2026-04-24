@@ -30,7 +30,6 @@ const AR_MONTHS = [
 type ColPdf = { key: string; ar: string; num?: boolean; signatureCol?: boolean };
 
 const BASE_COLS_PDF: ColPdf[] = [
-  { key: "worker_id", ar: "معرف الموظف" },
   { key: "worker_name", ar: "الاسم" },
   { key: "id_number", ar: "رقم الإقامة" },
   { key: "employee_code", ar: "كود الموظف" },

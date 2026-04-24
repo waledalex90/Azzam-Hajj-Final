@@ -40,7 +40,11 @@ export async function GET(req: NextRequest) {
   }
 
   const f = filtersFromUrl(url);
-  const skipsDateRange = report === "workers" || report === "matrix" || report === "horizontal_report";
+  const skipsDateRange =
+    report === "workers" ||
+    report === "internal_ids" ||
+    report === "matrix" ||
+    report === "horizontal_report";
   if (!skipsDateRange && (!f.dateFrom || !f.dateTo)) {
     return new Response("dateFrom/dateTo required", { status: 400 });
   }
@@ -97,7 +101,6 @@ export async function GET(req: NextRequest) {
               if (error) throw new Error(error.message);
               rows = (data ?? []) as Record<string, unknown>[];
               ensureHeader([
-                "worker_id",
                 "work_date",
                 "worker_name",
                 "id_number",
@@ -111,7 +114,6 @@ export async function GET(req: NextRequest) {
                 controller.enqueue(
                   enc.encode(
                     rowToCsvLine([
-                      r.worker_id,
                       r.work_date,
                       r.worker_name,
                       r.id_number,
@@ -142,7 +144,6 @@ export async function GET(req: NextRequest) {
               rows = (data ?? []) as Record<string, unknown>[];
               const dayKeys = Array.from({ length: 31 }, (_, i) => `d${String(i + 1).padStart(2, "0")}`);
               const head = [
-                "worker_id",
                 "worker_name",
                 "id_number",
                 "employee_code",
@@ -156,7 +157,6 @@ export async function GET(req: NextRequest) {
               ensureHeader(head);
               for (const r of rows) {
                 const cells = [
-                  r.worker_id,
                   r.worker_name,
                   r.id_number,
                   r.employee_code,
@@ -186,7 +186,6 @@ export async function GET(req: NextRequest) {
               if (error) throw new Error(error.message);
               rows = (data ?? []) as Record<string, unknown>[];
               ensureHeader([
-                "worker_id",
                 "worker_name",
                 "id_number",
                 "employee_code",
@@ -207,7 +206,6 @@ export async function GET(req: NextRequest) {
                 controller.enqueue(
                   enc.encode(
                     rowToCsvLine([
-                      r.worker_id,
                       r.worker_name,
                       r.id_number,
                       r.employee_code,
@@ -283,9 +281,6 @@ export async function GET(req: NextRequest) {
               if (error) throw new Error(error.message);
               rows = (data ?? []) as Record<string, unknown>[];
               ensureHeader([
-                "id",
-                "worker_id",
-                "site_id",
                 "violation_status",
                 "occurred_at",
                 "worker_name",
@@ -301,9 +296,6 @@ export async function GET(req: NextRequest) {
                 controller.enqueue(
                   enc.encode(
                     rowToCsvLine([
-                      r.id,
-                      r.worker_id,
-                      r.site_id,
                       r.status,
                       r.occurred_at,
                       r.worker_name,
@@ -333,7 +325,57 @@ export async function GET(req: NextRequest) {
               if (error) throw new Error(error.message);
               rows = (data ?? []) as Record<string, unknown>[];
               ensureHeader([
-                "id",
+                "name",
+                "id_number",
+                "employee_code",
+                "job_title",
+                "payment_type",
+                "basic_salary",
+                "site_name",
+                "contractor_name",
+                "supervisor_name",
+                "shift_round",
+                "iqama_expiry",
+                "is_active",
+                "is_deleted",
+              ]);
+              for (const r of rows) {
+                controller.enqueue(
+                  enc.encode(
+                    rowToCsvLine([
+                      r.name,
+                      r.id_number,
+                      r.employee_code,
+                      r.job_title,
+                      r.payment_type,
+                      r.basic_salary,
+                      r.site_name,
+                      r.contractor_name,
+                      r.supervisor_name,
+                      r.shift_round,
+                      r.iqama_expiry,
+                      r.is_active,
+                      r.is_deleted,
+                    ]) + "\n",
+                  ),
+                );
+              }
+              break;
+            }
+            case "internal_ids": {
+              const { data, error } = await supabase.rpc("get_workers_master_report_page", {
+                p_site_ids: f.siteIds,
+                p_contractor_ids: f.contractorIds,
+                p_supervisor_ids: f.supervisorIds,
+                p_status: workerStatus === "all" ? null : workerStatus,
+                p_q: workerQ.trim() || null,
+                p_page: page,
+                p_page_size: EXPORT_CHUNK,
+              });
+              if (error) throw new Error(error.message);
+              rows = (data ?? []) as Record<string, unknown>[];
+              ensureHeader([
+                "internal_worker_id",
                 "name",
                 "id_number",
                 "employee_code",

@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 import { requireScreen } from "@/lib/auth/require-screen";
+import { getSessionContext } from "@/lib/auth/session";
+import { isSystemAdminUser } from "@/lib/auth/system-admin";
 import { PERM } from "@/lib/permissions/keys";
 
 export default async function SitesPage() {
@@ -58,6 +60,9 @@ export default async function SitesPage() {
     revalidatePath("/approval");
   }
 
+  const { appUser } = await getSessionContext();
+  const showInternalSiteId = isSystemAdminUser(appUser);
+
   const supabase = createSupabaseAdminClient();
   const [{ data: sites }, contractors] = await Promise.all([
     supabase.from("sites").select("id, name, is_active").order("id", { ascending: false }),
@@ -107,7 +112,9 @@ export default async function SitesPage() {
                   حفظ الاسم
                 </button>
               </form>
-              <p className="text-xs text-slate-500">#{site.id}</p>
+              {showInternalSiteId ? (
+                <p className="text-xs text-slate-500">#{site.id}</p>
+              ) : null}
             </div>
             <form action={toggleSite} className="shrink-0 self-end sm:self-start">
               <input type="hidden" name="siteId" value={site.id} />

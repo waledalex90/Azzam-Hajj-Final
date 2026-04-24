@@ -22,7 +22,9 @@ export type ReportsTab =
   | "payroll"
   | "contractors"
   | "violations"
-  | "workers";
+  | "workers"
+  /** معرّفات داخلية (عامل DB id) — مدير النظام فقط */
+  | "internal_ids";
 
 export async function searchReportEntitiesAction(
   kind: "site" | "contractor" | "supervisor",
@@ -57,7 +59,7 @@ export async function runReportsPreviewAction(payload: {
   violationStatus?: string | null;
   workerStatus?: string;
   workerQ?: string;
-  /** بحث مسير الرواتب (اسم / إقامة / معرف) — يُطبَّق على السيرفر على كل السجلات */
+  /** بحث مسير الرواتب (اسم / إقامة / كود موظف) — يُطبَّق على السيرفر على كل السجلات */
   payrollSearch?: string | null;
 }) {
   const { appUser } = await getSessionContext();
@@ -86,6 +88,7 @@ export async function runReportsPreviewAction(payload: {
     case "violations":
       return previewViolations(filters, page, payload.violationStatus ?? null);
     case "workers":
+    case "internal_ids":
       return previewWorkers(
         {
           ...filters,

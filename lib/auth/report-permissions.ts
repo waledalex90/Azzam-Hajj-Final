@@ -2,6 +2,7 @@ import "server-only";
 
 import type { ReportsTab } from "@/app/(dashboard)/reports/actions";
 import { hasAnyPermission, hasPermission } from "@/lib/auth/permissions";
+import { isSystemAdminUser } from "@/lib/auth/system-admin";
 import { ALL_REPORT_TAB_PERMISSIONS, PERM } from "@/lib/permissions/keys";
 import type { AppUser } from "@/lib/types/db";
 
@@ -13,6 +14,8 @@ const TAB_TO_PERM: Record<ReportsTab, string> = {
   contractors: PERM.REPORT_CONTRACTORS,
   violations: PERM.REPORT_VIOLATIONS,
   workers: PERM.REPORT_WORKERS,
+  /** يُراجع عبر isSystemAdminUser — ليس مفتاح صلاحية حقيقياً */
+  internal_ids: "__admin_only__",
 };
 
 /** دخول شاشة التقارير: وصول عام أو أي تبويب تقرير. */
@@ -23,11 +26,13 @@ export function canAccessReportsApp(user: AppUser | null | undefined): boolean {
 
 export function canViewReportTab(user: AppUser | null | undefined, tab: ReportsTab): boolean {
   if (!user) return false;
+  if (tab === "internal_ids") return isSystemAdminUser(user);
   return hasPermission(user, TAB_TO_PERM[tab]);
 }
 
 export function canExportReportTab(user: AppUser | null | undefined, tab: ReportsTab): boolean {
   if (!user) return false;
+  if (tab === "internal_ids") return isSystemAdminUser(user);
   return hasPermission(user, PERM.EXPORT_REPORTS) && hasPermission(user, TAB_TO_PERM[tab]);
 }
 
@@ -48,4 +53,5 @@ const EXPORT_QUERY_TO_TAB: Record<string, ReportsTab> = {
   contractors: "contractors",
   violations: "violations",
   workers: "workers",
+  internal_ids: "internal_ids",
 };

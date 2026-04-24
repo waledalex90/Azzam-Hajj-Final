@@ -79,6 +79,7 @@ function buildExportQuery(
     contractors: "contractors",
     violations: "violations",
     workers: "workers",
+    internal_ids: "internal_ids",
   };
   p.set("report", reportKey[tab]);
 
@@ -91,7 +92,7 @@ function buildExportQuery(
     return p.toString();
   }
 
-  if (tab !== "workers") {
+  if (tab !== "workers" && tab !== "internal_ids") {
     p.set("dateFrom", filters.dateFrom);
     p.set("dateTo", filters.dateTo);
   }
@@ -105,7 +106,7 @@ function buildExportQuery(
   }
   if (tab === "attendance_log") p.set("attendanceStatus", filters.attendanceStatus);
   if (tab === "violations") p.set("violationStatus", filters.violationStatus);
-  if (tab === "workers") {
+  if (tab === "workers" || tab === "internal_ids") {
     p.set("workerStatus", filters.workerStatus);
     if (filters.workerQ.trim()) p.set("workerQ", filters.workerQ.trim());
   }
@@ -120,6 +121,7 @@ const TABS: { id: ReportsTab; label: string }[] = [
   { id: "contractors", label: "مستخلص المقاولين" },
   { id: "violations", label: "المخالفات" },
   { id: "workers", label: "بيانات العاملين" },
+  { id: "internal_ids", label: "معرّفات النظام (مدير فقط)" },
 ];
 
 export function ReportsHub({
@@ -279,8 +281,8 @@ export function ReportsHub({
         month,
         attendanceStatus: tab === "attendance_log" ? attendanceStatus : null,
         violationStatus: tab === "violations" ? violationStatus : null,
-        workerStatus: tab === "workers" ? workerStatus : undefined,
-        workerQ: tab === "workers" ? workerQ : undefined,
+        workerStatus: tab === "workers" || tab === "internal_ids" ? workerStatus : undefined,
+        workerQ: tab === "workers" || tab === "internal_ids" ? workerQ : undefined,
         payrollSearch: tab === "payroll" ? payrollSearch : undefined,
       });
       setRows(res.rows as Record<string, unknown>[]);
@@ -353,9 +355,14 @@ export function ReportsHub({
 
   const columns = useMemo(() => {
     if (!rows.length) return [] as { key: string; label: string }[];
-    const keys = Object.keys(rows[0]).filter((k) => k !== "total_count" && k !== "total_workers");
+    const rawKeys = Object.keys(rows[0]).filter((k) => k !== "total_count" && k !== "total_workers");
+    const hideInternal =
+      tab === "internal_ids"
+        ? new Set<string>()
+        : new Set(["id", "worker_id", "site_id", "round_id", "check_id", "violation_id", "violationid"]);
+    const keys = rawKeys.filter((k) => !hideInternal.has(k));
     const labels: Record<string, string> = {
-      worker_id: "العامل",
+      id: "المعرّف الداخلي (قاعدة البيانات)",
       work_date: "التاريخ",
       worker_name: "الاسم",
       id_number: "الهوية",
@@ -394,7 +401,7 @@ export function ReportsHub({
       key,
       label: labels[key] ?? key,
     }));
-  }, [rows]);
+  }, [rows, tab]);
 
   const matrixDayCols = useMemo(() => {
     if (tab !== "matrix" || !rows.length) return [] as string[];
@@ -511,7 +518,7 @@ export function ReportsHub({
           {tab === "payroll" && (
             <span className="mt-1 block text-emerald-900">
               مسير الرواتب: حدّد فترة الاحتساب من/إلى يدوياً أو استخدم «ملء الفترة من الشهر والسنة». البحث على السيرفر
-              (اسم / إقامة / معرف)؛ تصدير Excel / PDF مع شعار من public/company-logo.png أو public/brand/azzam-logo.png عند وجوده.
+              (اسم / إقامة / كود موظف)؛ تصدير Excel / PDF مع شعار من public/company-logo.png أو public/brand/azzam-logo.png عند وجوده.
             </span>
           )}
           {tab === "contractors" && (
@@ -658,7 +665,7 @@ export function ReportsHub({
         </Card>
       ) : (
       <Card className="flex flex-wrap items-end gap-3 p-4">
-        {tab !== "workers" && (
+        {tab !== "workers" && tab !== "internal_ids" && (
           <>
             <div className="space-y-1">
               <p className="text-xs font-bold text-slate-700">
@@ -777,7 +784,7 @@ export function ReportsHub({
             </select>
           </div>
         )}
-        {tab === "workers" && (
+        {(tab === "workers" || tab === "internal_ids") && (
           <>
             <div className="space-y-1">
               <p className="text-xs font-bold text-slate-700">حالة العامل</p>
@@ -875,7 +882,7 @@ export function ReportsHub({
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2">
               <Input
                 type="search"
-                placeholder="بحث: الاسم أو الإقامة أو المعرف (كل السجلات)…"
+                placeholder="بحث: الاسم أو الإقامة أو كود الموظف (كل السجلات)…"
                 value={payrollSearchInput}
                 onChange={(e) => setPayrollSearchInput(e.target.value)}
                 className="min-h-9 min-w-[12rem] max-w-xl flex-1"

@@ -7,6 +7,7 @@ import { getDefaultLandingPath } from "@/lib/auth/default-landing";
 import { hasPermission } from "@/lib/auth/permissions";
 import { canRespondAsHr, resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
 import { getSessionContext } from "@/lib/auth/session";
+import { isSystemAdminUser } from "@/lib/auth/system-admin";
 import { getAdminDashboardData, getDashboardStats } from "@/lib/data/dashboard";
 import { getTransferAlertCounts } from "@/lib/data/transfer-requests";
 import { PERM } from "@/lib/permissions/keys";
@@ -19,6 +20,7 @@ export default async function DashboardHomePage({ searchParams }: Props) {
   const filterDate = resolveWorkDateFromSearchParam(params.date);
 
   const { appUser } = await getSessionContext();
+  const showInternalRequestId = isSystemAdminUser(appUser);
   if (appUser && !hasPermission(appUser, PERM.VIEW_DASHBOARD)) {
     redirect(getDefaultLandingPath(appUser));
   }
@@ -227,7 +229,9 @@ export default async function DashboardHomePage({ searchParams }: Props) {
                   key={item.id}
                   className="block rounded-2xl border border-rose-100 bg-rose-50/50 px-3 py-2 transition hover:bg-rose-100/70"
                 >
-                  <p className="font-bold text-slate-800">طلب #{item.id}</p>
+                  <p className="font-bold text-slate-800">
+                    {showInternalRequestId ? `طلب #${item.id}` : "طلب تعديل"}
+                  </p>
                   <p className="text-xs text-slate-500">{item.reason || "بدون وصف"}</p>
                 </Link>
               ))

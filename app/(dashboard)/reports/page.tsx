@@ -11,6 +11,7 @@ const TABS: ReportsTab[] = [
   "contractors",
   "violations",
   "workers",
+  "internal_ids",
 ];
 
 export default async function ReportsPage() {
@@ -23,6 +24,7 @@ export default async function ReportsPage() {
     contractors: canViewReportTab(appUser, "contractors"),
     violations: canViewReportTab(appUser, "violations"),
     workers: canViewReportTab(appUser, "workers"),
+    internal_ids: canViewReportTab(appUser, "internal_ids"),
   };
   const canExportTab: Record<ReportsTab, boolean> = {
     attendance_log: canExportReportTab(appUser, "attendance_log"),
@@ -32,6 +34,7 @@ export default async function ReportsPage() {
     contractors: canExportReportTab(appUser, "contractors"),
     violations: canExportReportTab(appUser, "violations"),
     workers: canExportReportTab(appUser, "workers"),
+    internal_ids: canExportReportTab(appUser, "internal_ids"),
   };
   const defaultTab = TABS.find((t) => canViewTab[t]) ?? "attendance_log";
   return (

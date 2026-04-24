@@ -12,6 +12,7 @@ import {
   unlockPayrollPeriodRpc,
   upsertPayrollManualDeduction,
 } from "@/lib/reports/queries";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 function canManagePayrollLock(user: AppUser | null | undefined) {
   if (!user) return false;
@@ -69,8 +70,10 @@ export async function unlockPayrollPeriodAction(f: ReportFilters) {
   await unlockPayrollPeriodRpc(f);
 }
 
+type ImportPayrollRow = { workerId: number; amountSar: number; idNumber?: string };
+
 export async function importPayrollDeductionsAction(payload: {
-  rows: Array<{ workerId: number; amountSar: number }>;
+  rows: ImportPayrollRow[];
   periodStart: string;
   periodEnd: string;
   filter: Pick<ReportFilters, "siteIds" | "contractorIds" | "supervisorIds">;
@@ -79,11 +82,38 @@ export async function importPayrollDeductionsAction(payload: {
   if (!appUser) throw new Error("غير مصرح");
   if (!canViewReportTab(appUser, "payroll")) throw new Error("غير مصرح");
   if (!payload.periodStart || !payload.periodEnd) throw new Error("فترة غير صالحة");
+
+  const needId = payload.rows.filter((r) => r.idNumber && (!r.workerId || r.workerId <= 0));
+  const idNumbers = Array.from(
+    new Set(needId.map((r) => String(r.idNumber).trim().replace(/\s+/g, "")).filter(Boolean)),
+  );
+  const idToWorker = new Map<string, number>();
+  if (idNumbers.length > 0) {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("workers")
+      .select("id, id_number")
+      .in(
+        "id_number",
+        idNumbers as string[],
+      );
+    if (error) throw new Error(error.message);
+    for (const w of (data ?? []) as Array<{ id: number; id_number: string }>) {
+      const k = String(w.id_number).trim().replace(/\s+/g, "");
+      if (k) idToWorker.set(k, w.id);
+    }
+  }
+
   let ok = 0;
   for (const r of payload.rows) {
-    if (!Number.isFinite(r.workerId)) continue;
+    let wid = r.workerId;
+    if ((!Number.isFinite(wid) || wid <= 0) && r.idNumber) {
+      const k = String(r.idNumber).trim().replace(/\s+/g, "");
+      wid = idToWorker.get(k) ?? 0;
+    }
+    if (!Number.isFinite(wid) || wid <= 0) continue;
     await upsertPayrollManualDeduction(
-      r.workerId,
+      wid,
       payload.periodStart,
       payload.periodEnd,
       r.amountSar,

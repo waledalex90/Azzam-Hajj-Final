@@ -61,7 +61,6 @@ type ColDef = {
 };
 
 const BASE_COLS: ColDef[] = [
-  { key: "worker_id", header: "معرف الموظف", width: 12, forceText: true },
   { key: "worker_name", header: "الاسم", width: 26 },
   { key: "id_number", header: "رقم الإقامة", width: 18, forceText: true },
   { key: "employee_code", header: "كود الموظف", width: 14, forceText: true },

@@ -10,11 +10,23 @@ import {
 } from "@/app/(dashboard)/reports/payroll-actions";
 import type { ReportFilters } from "@/lib/reports/queries";
 
-function parseImportRows(raw: Record<string, unknown>[]): Array<{ workerId: number; amountSar: number }> {
-  const out: Array<{ workerId: number; amountSar: number }> = [];
+type PayrollImportRow = { workerId: number; amountSar: number; idNumber?: string };
+
+function normalizeIdn(v: unknown): string {
+  return String(v ?? "")
+    .trim()
+    .replace(/\s+/g, "");
+}
+
+/** يقبل رقم إقامة (العمود الافتراضي بعد إخفاء المعرف الداخلي) أو worker_id لملفات قديمة. */
+function parseImportRows(raw: Record<string, unknown>[]): PayrollImportRow[] {
+  const out: PayrollImportRow[] = [];
   for (const row of raw) {
     const wid = Number(
-      row.worker_id ?? row.workerId ?? row["معرف الموظف"] ?? row["Worker ID"],
+      row.worker_id ?? row.workerId ?? row["معرف الموظف"] ?? row["Worker ID"] ?? row["internal_worker_id"],
+    );
+    const idNumber = normalizeIdn(
+      row.id_number ?? row["رقم الإقامة"] ?? row["id_number"] ?? row["الهوية"] ?? row["Id Number"],
     );
     const amt = Number(
       row.manual_deductions_sar ??
@@ -24,8 +36,12 @@ function parseImportRows(raw: Record<string, unknown>[]): Array<{ workerId: numb
         row["خصم يدوي"] ??
         row["Manual"],
     );
-    if (!Number.isFinite(wid) || wid <= 0) continue;
-    out.push({ workerId: wid, amountSar: Number.isFinite(amt) ? amt : 0 });
+    if (!Number.isFinite(amt)) continue;
+    if (Number.isFinite(wid) && wid > 0) {
+      out.push({ workerId: wid, amountSar: amt });
+    } else if (idNumber.length > 0) {
+      out.push({ workerId: 0, idNumber, amountSar: amt });
+    }
   }
   return out;
 }
@@ -99,7 +115,9 @@ export function PayrollReportToolbar({
       const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
       const rows = parseImportRows(json);
       if (!rows.length) {
-        throw new Error("لم يُعثر على صفوف صالحة (توقع أعمدة worker_id و manual_deductions_sar).");
+        throw new Error(
+          "لم يُعثر على صفوف صالحة — استخدم أعمدة رقم الإقامة (id_number) والخصم اليدوي، أو ملفاً قديماً يحوي worker_id.",
+        );
       }
       const r = await importPayrollDeductionsAction({
         rows,

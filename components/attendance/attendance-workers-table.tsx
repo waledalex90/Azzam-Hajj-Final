@@ -444,7 +444,7 @@ export function AttendanceWorkersTable({
                   />
                 </td>
               ) : null}
-              <td className="border border-slate-300 px-3 py-1">{worker.id}</td>
+              <td className="border border-slate-300 px-3 py-1 text-slate-600">{_index + 1}</td>
               <td className="border border-slate-300 px-3 py-1 font-bold text-slate-800">{worker.name}</td>
               <td className="border border-slate-300 px-3 py-1 font-mono text-slate-700">
                 {worker.employee_code ?? "—"}
