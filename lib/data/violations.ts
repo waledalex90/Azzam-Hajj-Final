@@ -456,28 +456,38 @@ export async function getNoticeBundleForView(
 const NOTICE_MEDIA_BUCKET = "violation-notices";
 const NOTICE_MEDIA_MAX_BYTES = 45 * 1024 * 1024;
 
+const NOTICE_UPLOAD_CONCURRENCY = 4;
+
 /** رفع صور/فيديو لإشعار المقاول؛ يتطلب bucket violation-notices في Supabase Storage */
 export async function uploadContractorNoticeMediaFiles(workerId: number, files: File[]): Promise<string[]> {
   if (isDemoModeEnabled()) return [];
   const supabase = createSupabaseAdminClient();
-  const urls: string[] = [];
   const list = files.filter((f) => f && typeof f.size === "number" && f.size > 0);
-  for (let i = 0; i < list.length; i++) {
-    const file = list[i];
-    if (file.size > NOTICE_MEDIA_MAX_BYTES) continue;
-    const safe = file.name.replace(/[^\w.\-() ]/g, "_").slice(0, 120);
-    const path = `notices/${workerId}/${Date.now()}_${i}_${safe}`;
-    const buf = Buffer.from(await file.arrayBuffer());
-    const { error } = await supabase.storage.from(NOTICE_MEDIA_BUCKET).upload(path, buf, {
-      contentType: file.type || "application/octet-stream",
-      upsert: false,
-    });
-    if (error) {
-      console.error("violation-notice media upload:", error.message);
-      continue;
+  const urls: string[] = [];
+  for (let i = 0; i < list.length; i += NOTICE_UPLOAD_CONCURRENCY) {
+    const chunk = list.slice(i, i + NOTICE_UPLOAD_CONCURRENCY);
+    const batch = await Promise.all(
+      chunk.map(async (file, j) => {
+        const idx = i + j;
+        if (file.size > NOTICE_MEDIA_MAX_BYTES) return null;
+        const safe = file.name.replace(/[^\w.\-() ]/g, "_").slice(0, 120);
+        const path = `notices/${workerId}/${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 12)}_${safe}`;
+        const buf = Buffer.from(await file.arrayBuffer());
+        const { error } = await supabase.storage.from(NOTICE_MEDIA_BUCKET).upload(path, buf, {
+          contentType: file.type || "application/octet-stream",
+          upsert: false,
+        });
+        if (error) {
+          console.error("violation-notice media upload:", error.message);
+          return null;
+        }
+        const { data } = supabase.storage.from(NOTICE_MEDIA_BUCKET).getPublicUrl(path);
+        return data.publicUrl;
+      }),
+    );
+    for (const u of batch) {
+      if (u) urls.push(u);
     }
-    const { data } = supabase.storage.from(NOTICE_MEDIA_BUCKET).getPublicUrl(path);
-    urls.push(data.publicUrl);
   }
   return urls;
 }

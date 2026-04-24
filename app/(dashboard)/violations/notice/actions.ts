@@ -47,12 +47,11 @@ export async function saveInfractionNoticeAction(formData: FormData): Promise<Sa
   }
 
   const supabase = createSupabaseAdminClient();
-  const options = await getInfractionNoticeOptions();
-  const { data: contractor } = await supabase
-    .from("contractors")
-    .select("name")
-    .eq("id", contractorId)
-    .single<{ name: string }>();
+  const [options, contractorRes] = await Promise.all([
+    getInfractionNoticeOptions(),
+    supabase.from("contractors").select("name").eq("id", contractorId).single<{ name: string }>(),
+  ]);
+  const { data: contractor } = contractorRes;
 
   const siteIdFromKey =
     selectedSite === "mina"
