@@ -10,6 +10,10 @@
 --   3) supabase_bulk_attendance_patch.sql
 --      (اختياري: إن أردت سلوك submit_attendance_checks «الميداني» كما في الإنتاج الحالي)
 --
+-- [RBAC بالمفاتيح (بدون أسماء أدوار في المنطق) — 2026]
+--   1) supabase_azzam_hajj_bootstrap.sql (كاملاً أو دمج الدوال/RLS/البذور)
+--   2) supabase_data_seed_rbac_v2_update.sql (تحديث صفوف user_roles الموجودة)
+--
 -- [مشروع قائم — أدوار ديناميكية ولا يُسجَّل الحضور (خطأ P0001 «Only admin/hr/…»)]
 --   نفّذ في SQL Editor الأجزاء المحدَّثة من supabase_azzam_hajj_bootstrap.sql:
 --   app.has_granular_permission و app.start_attendance_round و app.submit_attendance_checks

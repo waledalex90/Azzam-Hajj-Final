@@ -1,7 +1,7 @@
 -- إصلاح: التحضير يعيد 0 صفوف رغم صحة الواجهة
 -- السبب: app.current_user_site_ids() كانت تقرأ فقط من public.user_sites بينما النظام يربط المواقع بـ public.app_user_sites.
--- كذلك المراقب الفني (technical_observer) يجب أن يمرّ can_access_* مثل الأدمن في الواجهة (isSiteRestrictionExemptRole).
---
+-- منطق can_access يتبع مفاتيح user_roles (انظر supabase_azzam_hajj_bootstrap) وليس أسماء أدوار.
+-- يتطلب: app.has_granular_permission (من bootstrap أو ترحيل الأدوار).
 -- نفّذ هذا الملف كاملاً في Supabase SQL Editor (مرة واحدة).
 
 alter table public.app_users
@@ -56,8 +56,27 @@ set search_path = public
 as $$
   select
     case
-      when app.current_user_role() in ('admin', 'hr', 'technical_observer') then true
-      else p_site_id = any(app.current_user_site_ids())
+      when
+        app.has_granular_permission('*')
+        or app.has_granular_permission('access_all_sites')
+        or app.has_granular_permission('manage_users')
+        or app.has_granular_permission('manage_roles')
+      then
+        true
+      when
+        app.has_granular_permission('attendance_register_as_field')
+        and not app.has_granular_permission('edit_attendance')
+        and not app.has_granular_permission('*')
+      then
+        p_site_id = any(app.current_user_site_ids())
+      when
+        (app.has_granular_permission('edit_attendance') or app.has_granular_permission('view_attendance'))
+        and not app.has_granular_permission('attendance_register_as_field')
+        and cardinality(app.current_user_site_ids()) = 0
+      then
+        true
+      else
+        p_site_id = any(app.current_user_site_ids())
     end
 $$;
 
@@ -70,14 +89,39 @@ set search_path = public
 as $$
   select
     case
-      when app.current_user_role() in ('admin', 'hr', 'technical_observer') then true
-      else exists (
-        select 1
-        from public.workers w
-        where w.id = p_worker_id
-          and w.current_site_id is not null
-          and w.current_site_id = any(app.current_user_site_ids())
-      )
+      when
+        app.has_granular_permission('*')
+        or app.has_granular_permission('access_all_sites')
+        or app.has_granular_permission('manage_users')
+        or app.has_granular_permission('manage_roles')
+      then
+        true
+      when
+        app.has_granular_permission('attendance_register_as_field')
+        and not app.has_granular_permission('edit_attendance')
+        and not app.has_granular_permission('*')
+      then
+        exists (
+          select 1
+          from public.workers w
+          where w.id = p_worker_id
+            and w.current_site_id is not null
+            and w.current_site_id = any(app.current_user_site_ids())
+        )
+      when
+        (app.has_granular_permission('edit_attendance') or app.has_granular_permission('view_attendance'))
+        and not app.has_granular_permission('attendance_register_as_field')
+        and cardinality(app.current_user_site_ids()) = 0
+      then
+        true
+      else
+        exists (
+          select 1
+          from public.workers w
+          where w.id = p_worker_id
+            and w.current_site_id is not null
+            and w.current_site_id = any(app.current_user_site_ids())
+        )
     end
 $$;
 

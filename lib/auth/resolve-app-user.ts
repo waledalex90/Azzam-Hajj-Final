@@ -5,40 +5,6 @@ import { fetchAppUserRowForSession } from "@/lib/data/app-users-queries";
 import type { AppUser } from "@/lib/types/db";
 import { LEGACY_ROLE_LABELS } from "@/lib/constants/roles";
 
-/** مفاتيح قديمة (ما قبل التجزئة) — تُوسَّع فعلياً عبر LEGACY_GRANTS عند التحقق */
-const SCREEN_PERMS: string[] = [
-  "dashboard",
-  "workers",
-  "sites",
-  "contractors",
-  "transfers",
-  "reports",
-  "corrections_screen",
-  "violation_notice",
-  "violations",
-];
-
-const OPS_PERMS: string[] = ["prep", "approval", "correction_request", "workers_import"];
-
-/** إذا لم يُوجد صف في user_roles بعد (قبل تشغيل الـ migration). */
-const LEGACY_PERMISSIONS: Record<string, string[]> = {
-  admin: [...SCREEN_PERMS, ...OPS_PERMS, "users_manage", "roles_manage"],
-  hr: [...SCREEN_PERMS, ...OPS_PERMS, "users_manage"],
-  /** اعتماد الحضور وطلب التعديل — للمراقب الفني وليس الميداني */
-  technical_observer: [
-    "dashboard",
-    "prep",
-    "approval",
-    "correction_request",
-    "corrections_screen",
-    "workers",
-    "sites",
-    "reports",
-  ],
-  /** تحضير فقط في الميدان؛ بدون اعتماد ولا طلب تعديل */
-  field_observer: ["prep", "workers", "sites", "violations", "violation_notice", "transfers"],
-};
-
 function parsePermissionsFromRow(raw: unknown): string[] {
   if (raw == null) return [];
   if (Array.isArray(raw)) return raw.map((x) => String(x));
@@ -83,7 +49,7 @@ type UserRoleRow = {
 export function enrichAppUserWithRoleRow(base: AppUserRow, roleRow: UserRoleRow | null): AppUser {
   const permissions = roleRow
     ? parsePermissionsFromRow(roleRow.permissions)
-    : (LEGACY_PERMISSIONS[base.role] ?? []);
+    : [];
   const roleLabel = (roleRow?.name_ar?.trim() || LEGACY_ROLE_LABELS[base.role] || base.role).trim();
   /** إن لم يُحمَّل العمود (استعلام قديم بدون allowed_site_ids) نُبقي undefined لاستخدام app_user_sites */
   const allowedSiteIds = Object.hasOwn(base, "allowed_site_ids")

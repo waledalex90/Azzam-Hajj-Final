@@ -10,13 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { TabPanelTransition } from "@/components/ui/tab-panel-transition";
 import { Input } from "@/components/ui/input";
-import {
-  canRespondAsHr,
-  isAdminOrHrRole,
-  isFieldObserver,
-  isTechnicalObserver,
-  resolveAllowedSiteIdsForSession,
-} from "@/lib/auth/transfer-access";
+import { canRespondAsHr, canSeeAllDestinationSitesForTransfers, resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
+import { hasPermission } from "@/lib/auth/permissions";
 import { requireAnyScreen } from "@/lib/auth/require-screen";
 import { PERM } from "@/lib/permissions/keys";
 import { getSiteOptions } from "@/lib/data/attendance";
@@ -61,11 +56,10 @@ export default async function TransfersPage({ searchParams }: Props) {
   const tab = TABS.some((t) => t.id === params.tab) ? params.tab! : "new";
   const q = params.q?.trim();
 
-  const role = appUser?.role ?? "";
   const sessionSites = appUser ? await resolveAllowedSiteIdsForSession(appUser) : undefined;
   const canHr = appUser ? canRespondAsHr(appUser) : false;
   const showHrTab = canHr;
-  const canSeeAllDest = isAdminOrHrRole(role) || isTechnicalObserver(role);
+  const canSeeAllDest = appUser ? canSeeAllDestinationSitesForTransfers(appUser) : false;
 
   const sites = await getSiteOptions();
 
@@ -115,7 +109,10 @@ export default async function TransfersPage({ searchParams }: Props) {
             {alerts.hrPending > 0 ? `${alerts.hrPending} بانتظار اعتماد الموارد` : ""}
           </p>
         )}
-        {isFieldObserver(role) && sessionSites !== undefined && sessionSites.length === 0 && (
+        {appUser &&
+          hasPermission(appUser, PERM.ATTENDANCE_REGISTER_AS_FIELD) &&
+          sessionSites !== undefined &&
+          sessionSites.length === 0 && (
           <p className="mt-2 text-xs font-bold text-red-700">
             لا توجد مواقع مسموحة لحسابك. حدّد المواقع من «المستخدمون والأدوار» (أو جدول app_user_sites) لربط المواقع بالموافقات.
           </p>

@@ -18,9 +18,16 @@ export function effectivePermissionSet(user: AppUser | null | undefined): Set<st
   return set;
 }
 
+/** مفتاح `*` في مصفوفة الدور = كل الصلاحيات (سوبر من جدول user_roles فقط). */
+export function hasWildcardPermission(user: AppUser | null | undefined): boolean {
+  return effectivePermissionSet(user).has(PERM.WILDCARD);
+}
+
 export function hasPermission(user: AppUser | null | undefined, permission: string): boolean {
   if (!user?.permissions?.length) return false;
-  return effectivePermissionSet(user).has(permission);
+  const eff = effectivePermissionSet(user);
+  if (eff.has(PERM.WILDCARD)) return true;
+  return eff.has(permission);
 }
 
 export function hasAnyPermission(user: AppUser | null | undefined, permissions: string[]): boolean {

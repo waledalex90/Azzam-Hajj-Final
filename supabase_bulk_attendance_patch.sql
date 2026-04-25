@@ -12,19 +12,22 @@ set search_path = public
 as $$
 declare
   v_user_id bigint;
-  v_role text;
+  v_as_field boolean;
   v_site_id bigint;
   i_count integer := 0;
   u_count integer := 0;
 begin
   v_user_id := app.current_user_id();
-  v_role := app.current_user_role();
+  v_as_field := app.has_granular_permission('attendance_register_as_field');
   if v_user_id is null then
     raise exception 'Unauthorized user';
   end if;
-  if v_role not in ('admin', 'hr', 'technical_observer', 'field_observer')
-     and not app.has_granular_permission('edit_attendance') then
-    raise exception 'Only admin/hr/technical_observer/field_observer can submit checks';
+  if not (
+    app.has_granular_permission('*')
+    or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('attendance_register_as_field')
+  ) then
+    raise exception 'No permission to submit attendance checks';
   end if;
 
   select site_id into v_site_id
@@ -61,10 +64,10 @@ begin
   updated_rows as (
     update public.attendance_checks ac
     set status = ap.status,
-        technical_observer_id = case when v_role = 'field_observer' then null else v_user_id end,
+        technical_observer_id = case when v_as_field then null else v_user_id end,
         checked_at = now(),
         confirmation_status = 'pending',
-        field_observer_id = case when v_role = 'field_observer' then v_user_id else null end,
+        field_observer_id = case when v_as_field then v_user_id else null end,
         confirmed_at = null,
         confirm_note = null,
         rejection_reason = null
@@ -81,8 +84,8 @@ begin
       p_round_id,
       ap.worker_id,
       ap.status,
-      case when v_role = 'field_observer' then null else v_user_id end,
-      case when v_role = 'field_observer' then v_user_id else null end,
+      case when v_as_field then null else v_user_id end,
+      case when v_as_field then v_user_id else null end,
       now(),
       'pending'
     from allowed_payload ap

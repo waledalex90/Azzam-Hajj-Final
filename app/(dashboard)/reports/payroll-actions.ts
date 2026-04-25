@@ -2,7 +2,7 @@
 
 import { canViewReportTab } from "@/lib/auth/report-permissions";
 import { getSessionContext } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { hasPermission, hasWildcardPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
 import type { AppUser } from "@/lib/types/db";
 import {
@@ -16,7 +16,11 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 function canManagePayrollLock(user: AppUser | null | undefined) {
   if (!user) return false;
-  return hasPermission(user, PERM.APPROVE_ATTENDANCE) || hasPermission(user, PERM.MANAGE_USERS);
+  return (
+    hasWildcardPermission(user) ||
+    hasPermission(user, PERM.APPROVE_ATTENDANCE) ||
+    hasPermission(user, PERM.MANAGE_USERS)
+  );
 }
 
 export async function getPayrollLockStateAction(f: ReportFilters): Promise<boolean> {

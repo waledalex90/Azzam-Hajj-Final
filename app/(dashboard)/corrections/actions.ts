@@ -3,8 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 
 import { getSessionContext } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
-import { isAdminOrHrRole } from "@/lib/auth/transfer-access";
+import { hasPermission, hasWildcardPermission } from "@/lib/auth/permissions";
 import { PERM } from "@/lib/permissions/keys";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
@@ -19,7 +18,9 @@ export async function resolveCorrectionRequest(
   const { appUser } = await getSessionContext();
   if (
     !appUser ||
-    (!hasPermission(appUser, PERM.PROCESS_CORRECTIONS) && !isAdminOrHrRole(appUser.role))
+    (!hasPermission(appUser, PERM.PROCESS_CORRECTIONS) &&
+      !hasPermission(appUser, PERM.MANAGE_USERS) &&
+      !hasWildcardPermission(appUser))
   ) {
     return { ok: false, error: "لا توجد صلاحية لاعتماد طلب التعديل (موارد/أدمن أو من لديه اعتماد)." };
   }

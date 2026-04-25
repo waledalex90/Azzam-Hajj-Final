@@ -4,6 +4,17 @@
  * حتى تبقى الصفوف المخزَّنة قديماً تعمل دون ترحيل فوري.
  */
 export const PERM = {
+  /**
+   * wildcard: يعادل «كل المفاتيح» — يُعرَّف فقط لدور «مدير النظام / سوبر» في user_roles.
+   * لا تُسند الأسماء (slug) لأي منطق في الكود.
+   */
+  WILDCARD: "*",
+  /**
+   * رؤية/تحضير على مستوى كل المواقع (بدل الاعتماد على اسم دور).
+   * تُعطى للمستخدمين الذين يحتاجون نطاقاً مؤسسياً واسعاً.
+   */
+  ACCESS_ALL_SITES: "access_all_sites",
+
   VIEW_DASHBOARD: "view_dashboard",
 
   VIEW_WORKERS: "view_workers",
@@ -20,6 +31,10 @@ export const PERM = {
   VIEW_ATTENDANCE: "view_attendance",
   EDIT_ATTENDANCE: "edit_attendance",
   APPROVE_ATTENDANCE: "approve_attendance",
+  /**
+   * تسجيل الحضور باسم «مراقب ميداني» (يملأ field_observer_id لا technical_observer_id).
+   */
+  ATTENDANCE_REGISTER_AS_FIELD: "attendance_register_as_field",
   REQUEST_ATTENDANCE_CORRECTION: "request_attendance_correction",
 
   VIEW_REPORTS: "view_reports",
@@ -103,6 +118,8 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
 
   { group: "الحضور والاعتماد", key: PERM.VIEW_ATTENDANCE, label: "عرض شاشة الحضور والمراجعة (قراءة)" },
   { group: "الحضور والاعتماد", key: PERM.EDIT_ATTENDANCE, label: "تسجيل وتعديل حالة الحضور (التحضير)" },
+  { group: "الحضور والاعتماد", key: PERM.ATTENDANCE_REGISTER_AS_FIELD, label: "تسجيل الحضور نيابة عن الميدان (يُنسب لمراقب ميداني)" },
+  { group: "الحضور والاعتماد", key: PERM.ACCESS_ALL_SITES, label: "نطاق كل المواقع (مؤسسي — غير مربوط بمواقع في الحساب)" },
   { group: "الحضور والاعتماد", key: PERM.APPROVE_ATTENDANCE, label: "اعتماد أو رفض سجلات الحضور" },
   { group: "الحضور والاعتماد", key: PERM.REQUEST_ATTENDANCE_CORRECTION, label: "طلب تعديل على سجل حضور (من الميدان)" },
 
@@ -128,4 +145,5 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
 
   { group: "الإدارة", key: PERM.MANAGE_USERS, label: "إدارة مستخدمي النظام" },
   { group: "الإدارة", key: PERM.MANAGE_ROLES, label: "إدارة الأدوار والصلاحيات" },
+  { group: "الإدارة", key: PERM.WILDCARD, label: "كل الصلاحيات (مدير أعلى — مفتاح * فقط بقرار يدوي)" },
 ];

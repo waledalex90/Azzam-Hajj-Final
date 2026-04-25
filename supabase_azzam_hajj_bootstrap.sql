@@ -116,22 +116,22 @@ insert into public.user_roles (slug, name_ar, permissions) values
 (
   'admin',
   'مدير النظام',
-  '["prep","approval","correction_request","workers_import","users_manage","roles_manage"]'::jsonb
+  '["*"]'::jsonb
 ),
 (
   'hr',
   'الموارد البشرية',
-  '["prep","approval","correction_request","workers_import","users_manage"]'::jsonb
+  '["prep","approval","correction_request","workers_import","users_manage","access_all_sites","transfers"]'::jsonb
 ),
 (
   'technical_observer',
   'مراقب فني',
-  '["dashboard","prep","approval","correction_request","corrections_screen","workers","sites","reports","violations","violation_notice"]'::jsonb
+  '["dashboard","prep","approval","correction_request","corrections_screen","workers","sites","reports","violations","violation_notice","access_all_sites","edit_attendance"]'::jsonb
 ),
 (
   'field_observer',
   'مراقب ميداني',
-  '["prep","workers","sites","violations","violation_notice","transfers"]'::jsonb
+  '["prep","workers","sites","violations","violation_notice","transfers","attendance_register_as_field","view_attendance","edit_attendance"]'::jsonb
 )
 on conflict (slug) do nothing;
 
@@ -395,16 +395,6 @@ as $$
   )
 $$;
 
-create or replace function app.is_admin_or_hr()
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select coalesce(app.current_user_role() in ('admin', 'hr'), false)
-$$;
-
 -- مطابقة تقريبية لـ LEGACY_GRANTS في lib/permissions/keys.ts (المفاتيح المستخدمة في RLS فقط)
 create or replace function app.has_granular_permission(p_required text)
 returns boolean
@@ -431,9 +421,24 @@ begin
     return false;
   end if;
   if exists (
+    select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm = '*'
+  ) then
+    return true;
+  end if;
+  if exists (
     select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm = p_required
   ) then
     return true;
+  end if;
+  if p_required = 'manage_users' then
+    if exists (select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm = 'users_manage') then
+      return true;
+    end if;
+  end if;
+  if p_required = 'manage_roles' then
+    if exists (select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm = 'roles_manage') then
+      return true;
+    end if;
   end if;
   if p_required in ('view_violations', 'manage_violations') then
     if exists (select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm = 'violations') then
@@ -456,12 +461,37 @@ begin
       return true;
     end if;
   end if;
+  if p_required = 'approve_attendance' then
+    if exists (select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm = 'approval') then
+      return true;
+    end if;
+  end if;
+  if p_required in ('view_transfers', 'manage_transfers') then
+    if exists (select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm = 'transfers') then
+      return true;
+    end if;
+  end if;
   return false;
 end;
 $$;
 
 grant execute on function app.has_granular_permission(text) to authenticated, service_role, anon;
 
+-- وصول مؤسسي واسع (يبدل الاعتماد السابق على أسماء أدوار): * أو access_all_sites أو إدارة مستخدمين
+create or replace function app.is_admin_or_hr()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    app.has_granular_permission('*')
+    or app.has_granular_permission('access_all_sites')
+    or app.has_granular_permission('manage_users');
+$$;
+
+-- يطابق transfer-access: «كل المواقع» = مفاتيح واسعة، أو تسجيل فني (edit) مع عدم اقتصار على مواقع، أو حالة الميدان (field) مع اقتصار فعلي
 create or replace function app.can_access_site(p_site_id bigint)
 returns boolean
 language sql
@@ -471,8 +501,27 @@ set search_path = public
 as $$
   select
     case
-      when app.current_user_role() in ('admin', 'hr', 'technical_observer') then true
-      else p_site_id = any(app.current_user_site_ids())
+      when
+        app.has_granular_permission('*')
+        or app.has_granular_permission('access_all_sites')
+        or app.has_granular_permission('manage_users')
+        or app.has_granular_permission('manage_roles')
+      then
+        true
+      when
+        app.has_granular_permission('attendance_register_as_field')
+        and not app.has_granular_permission('edit_attendance')
+        and not app.has_granular_permission('*')
+      then
+        p_site_id = any(app.current_user_site_ids())
+      when
+        (app.has_granular_permission('edit_attendance') or app.has_granular_permission('view_attendance'))
+        and not app.has_granular_permission('attendance_register_as_field')
+        and cardinality(app.current_user_site_ids()) = 0
+      then
+        true
+      else
+        p_site_id = any(app.current_user_site_ids())
     end
 $$;
 
@@ -485,14 +534,39 @@ set search_path = public
 as $$
   select
     case
-      when app.current_user_role() in ('admin', 'hr', 'technical_observer') then true
-      else exists (
-        select 1
-        from public.workers w
-        where w.id = p_worker_id
-          and w.current_site_id is not null
-          and w.current_site_id = any(app.current_user_site_ids())
-      )
+      when
+        app.has_granular_permission('*')
+        or app.has_granular_permission('access_all_sites')
+        or app.has_granular_permission('manage_users')
+        or app.has_granular_permission('manage_roles')
+      then
+        true
+      when
+        app.has_granular_permission('attendance_register_as_field')
+        and not app.has_granular_permission('edit_attendance')
+        and not app.has_granular_permission('*')
+      then
+        exists (
+          select 1
+          from public.workers w
+          where w.id = p_worker_id
+            and w.current_site_id is not null
+            and w.current_site_id = any(app.current_user_site_ids())
+        )
+      when
+        (app.has_granular_permission('edit_attendance') or app.has_granular_permission('view_attendance'))
+        and not app.has_granular_permission('attendance_register_as_field')
+        and cardinality(app.current_user_site_ids()) = 0
+      then
+        true
+      else
+        exists (
+          select 1
+          from public.workers w
+          where w.id = p_worker_id
+            and w.current_site_id is not null
+            and w.current_site_id = any(app.current_user_site_ids())
+        )
     end
 $$;
 
@@ -649,20 +723,21 @@ set search_path = public
 as $$
 declare
   v_creator_id bigint;
-  v_role text;
   v_round_no integer;
   v_row public.attendance_rounds;
 begin
   v_creator_id := app.current_user_id();
-  v_role := app.current_user_role();
 
   if v_creator_id is null then
     raise exception 'Unauthorized user';
   end if;
 
-  if v_role not in ('admin', 'hr', 'technical_observer')
-     and not app.has_granular_permission('edit_attendance') then
-    raise exception 'Only admin/hr/technical_observer can start rounds';
+  if not (
+    app.has_granular_permission('*')
+    or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('attendance_register_as_field')
+  ) then
+    raise exception 'No permission to start attendance rounds';
   end if;
 
   if not app.can_access_site(p_site_id) then
@@ -700,19 +775,22 @@ set search_path = public
 as $$
 declare
   v_user_id bigint;
-  v_role text;
+  v_as_field boolean;
   v_site_id bigint;
   i_count integer := 0;
   u_count integer := 0;
 begin
   v_user_id := app.current_user_id();
-  v_role := app.current_user_role();
+  v_as_field := app.has_granular_permission('attendance_register_as_field');
   if v_user_id is null then
     raise exception 'Unauthorized user';
   end if;
-  if v_role not in ('admin', 'hr', 'technical_observer', 'field_observer')
-     and not app.has_granular_permission('edit_attendance') then
-    raise exception 'Only admin/hr/technical_observer/field_observer can submit checks';
+  if not (
+    app.has_granular_permission('*')
+    or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('attendance_register_as_field')
+  ) then
+    raise exception 'No permission to submit attendance checks';
   end if;
 
   select site_id into v_site_id
@@ -749,10 +827,10 @@ begin
   updated_rows as (
     update public.attendance_checks ac
     set status = ap.status,
-        technical_observer_id = case when v_role = 'field_observer' then null else v_user_id end,
+        technical_observer_id = case when v_as_field then null else v_user_id end,
         checked_at = now(),
         confirmation_status = 'pending',
-        field_observer_id = case when v_role = 'field_observer' then v_user_id else null end,
+        field_observer_id = case when v_as_field then v_user_id else null end,
         confirmed_at = null,
         confirm_note = null,
         rejection_reason = null
@@ -769,8 +847,8 @@ begin
       p_round_id,
       ap.worker_id,
       ap.status,
-      case when v_role = 'field_observer' then null else v_user_id end,
-      case when v_role = 'field_observer' then v_user_id else null end,
+      case when v_as_field then null else v_user_id end,
+      case when v_as_field then v_user_id else null end,
       now(),
       'pending'
     from allowed_payload ap
@@ -805,7 +883,7 @@ set search_path = public
 as $$
 declare
   v_user_id bigint;
-  v_role text;
+  v_as_field boolean;
   i_count integer := 0;
   u_count integer := 0;
   v_round integer;
@@ -813,13 +891,16 @@ begin
   v_round := greatest(1, least(coalesce(p_round_no, 1), 9));
 
   v_user_id := app.current_user_id();
-  v_role := app.current_user_role();
+  v_as_field := app.has_granular_permission('attendance_register_as_field');
   if v_user_id is null then
     raise exception 'Unauthorized user';
   end if;
-  if v_role not in ('admin', 'hr', 'technical_observer', 'field_observer')
-     and not app.has_granular_permission('edit_attendance') then
-    raise exception 'Only admin/hr/technical_observer/field_observer can submit checks';
+  if not (
+    app.has_granular_permission('*')
+    or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('attendance_register_as_field')
+  ) then
+    raise exception 'No permission to submit attendance checks';
   end if;
 
   with normalized_payload as (
@@ -878,10 +959,10 @@ begin
   updated_rows as (
     update public.attendance_checks ac
     set status = pwr.status,
-        technical_observer_id = case when v_role = 'field_observer' then null else v_user_id end,
+        technical_observer_id = case when v_as_field then null else v_user_id end,
         checked_at = now(),
         confirmation_status = 'pending',
-        field_observer_id = case when v_role = 'field_observer' then v_user_id else null end,
+        field_observer_id = case when v_as_field then v_user_id else null end,
         confirmed_at = null,
         confirm_note = null,
         rejection_reason = null
@@ -898,8 +979,8 @@ begin
       pwr.round_id,
       pwr.worker_id,
       pwr.status,
-      case when v_role = 'field_observer' then null else v_user_id end,
-      case when v_role = 'field_observer' then v_user_id else null end,
+      case when v_as_field then null else v_user_id end,
+      case when v_as_field then v_user_id else null end,
       now(),
       'pending'
     from payload_with_round pwr
@@ -962,7 +1043,6 @@ set search_path = public
 as $$
 declare
   v_user_id bigint;
-  v_role text;
   v_site_id bigint;
   rec jsonb;
   v_worker_id bigint;
@@ -972,13 +1052,16 @@ declare
   r_count integer := 0;
 begin
   v_user_id := app.current_user_id();
-  v_role := app.current_user_role();
 
   if v_user_id is null then
     raise exception 'Unauthorized user';
   end if;
-  if v_role not in ('admin', 'hr', 'field_observer') then
-    raise exception 'Only admin/hr/field_observer can confirm';
+  if not (
+    app.has_granular_permission('*')
+    or app.has_granular_permission('approve_attendance')
+    or app.has_granular_permission('attendance_register_as_field')
+  ) then
+    raise exception 'No permission to confirm attendance';
   end if;
 
   select site_id into v_site_id
@@ -1157,8 +1240,8 @@ using (
 drop policy if exists app_users_admin_manage on public.app_users;
 create policy app_users_admin_manage on public.app_users
 for all
-using (app.current_user_role() = 'admin')
-with check (app.current_user_role() = 'admin');
+using (app.has_granular_permission('manage_users') or app.has_granular_permission('*'))
+with check (app.has_granular_permission('manage_users') or app.has_granular_permission('*'));
 
 -- user_sites
 drop policy if exists user_sites_select_visible on public.user_sites;
@@ -1172,8 +1255,8 @@ using (
 drop policy if exists user_sites_admin_manage on public.user_sites;
 create policy user_sites_admin_manage on public.user_sites
 for all
-using (app.current_user_role() = 'admin')
-with check (app.current_user_role() = 'admin');
+using (app.has_granular_permission('manage_users') or app.has_granular_permission('*'))
+with check (app.has_granular_permission('manage_users') or app.has_granular_permission('*'));
 
 -- contractors / sites
 drop policy if exists contractors_read_all on public.contractors;
@@ -1228,7 +1311,11 @@ drop policy if exists attendance_rounds_create_technical on public.attendance_ro
 create policy attendance_rounds_create_technical on public.attendance_rounds
 for insert
 with check (
-  app.current_user_role() in ('admin', 'hr', 'technical_observer')
+  (
+    app.has_granular_permission('*')
+    or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('attendance_register_as_field')
+  )
   and app.can_access_site(site_id)
 );
 
@@ -1236,11 +1323,19 @@ drop policy if exists attendance_rounds_update_admin_hr_tech on public.attendanc
 create policy attendance_rounds_update_admin_hr_tech on public.attendance_rounds
 for update
 using (
-  app.current_user_role() in ('admin', 'hr', 'technical_observer')
+  (
+    app.has_granular_permission('*')
+    or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('attendance_register_as_field')
+  )
   and app.can_access_site(site_id)
 )
 with check (
-  app.current_user_role() in ('admin', 'hr', 'technical_observer')
+  (
+    app.has_granular_permission('*')
+    or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('attendance_register_as_field')
+  )
   and app.can_access_site(site_id)
 );
 
@@ -1250,6 +1345,8 @@ create policy attendance_checks_read_scoped on public.attendance_checks
 for select
 using (
   app.is_admin_or_hr()
+  or app.has_granular_permission('view_attendance')
+  or app.has_granular_permission('approve_attendance')
   or exists (
     select 1 from public.attendance_rounds ar
     where ar.id = attendance_checks.round_id
@@ -1261,7 +1358,11 @@ drop policy if exists attendance_checks_insert_technical on public.attendance_ch
 create policy attendance_checks_insert_technical on public.attendance_checks
 for insert
 with check (
-  app.current_user_role() in ('admin', 'hr', 'technical_observer')
+  (
+    app.has_granular_permission('*')
+    or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('attendance_register_as_field')
+  )
   and app.can_access_worker(worker_id)
   and exists (
     select 1 from public.attendance_rounds ar
@@ -1274,7 +1375,12 @@ drop policy if exists attendance_checks_update_confirm on public.attendance_chec
 create policy attendance_checks_update_confirm on public.attendance_checks
 for update
 using (
-  app.current_user_role() in ('admin', 'hr', 'technical_observer', 'field_observer')
+  (
+    app.has_granular_permission('*')
+    or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('attendance_register_as_field')
+    or app.has_granular_permission('approve_attendance')
+  )
   and exists (
     select 1 from public.attendance_rounds ar
     where ar.id = attendance_checks.round_id
@@ -1282,7 +1388,12 @@ using (
   )
 )
 with check (
-  app.current_user_role() in ('admin', 'hr', 'technical_observer', 'field_observer')
+  (
+    app.has_granular_permission('*')
+    or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('attendance_register_as_field')
+    or app.has_granular_permission('approve_attendance')
+  )
   and exists (
     select 1 from public.attendance_rounds ar
     where ar.id = attendance_checks.round_id
@@ -1293,7 +1404,7 @@ with check (
 drop policy if exists attendance_checks_no_delete_non_admin on public.attendance_checks;
 create policy attendance_checks_no_delete_non_admin on public.attendance_checks
 for delete
-using (app.current_user_role() = 'admin');
+using (app.has_granular_permission('manage_roles') or app.has_granular_permission('*'));
 
 -- attendance_daily_summary
 drop policy if exists attendance_summary_read_scoped on public.attendance_daily_summary;
@@ -1307,8 +1418,8 @@ using (
 drop policy if exists attendance_summary_admin_manage on public.attendance_daily_summary;
 create policy attendance_summary_admin_manage on public.attendance_daily_summary
 for all
-using (app.current_user_role() = 'admin')
-with check (app.current_user_role() = 'admin');
+using (app.has_granular_permission('manage_users') or app.has_granular_permission('*'))
+with check (app.has_granular_permission('manage_users') or app.has_granular_permission('*'));
 
 -- violation types (عُرض الأنواع: مفتاح صلاحية وليس “أي مصادق”)
 drop policy if exists violation_types_read_all on public.violation_types;

@@ -12,8 +12,6 @@ import { PERM, PERMISSION_CATALOG } from "@/lib/permissions/keys";
 import { isValidRoleSlug, slugifyRoleLabel } from "@/lib/permissions/role-slug";
 import * as XLSX from "xlsx";
 
-const LEGACY_SLUGS = new Set(["admin", "hr", "technical_observer", "field_observer"]);
-
 /** عدة حقول مخفية `allowedSiteIds` أو نص قديم مفصول بفواصل → مصفوفة معرفات فريدة */
 function parseSiteIdsFromFormData(formData: FormData): number[] {
   const all = formData.getAll("allowedSiteIds");
@@ -96,7 +94,7 @@ async function allowedRoleSlugs(): Promise<Set<string>> {
   if (data && data.length > 0) {
     return new Set(data.map((r) => r.slug as string));
   }
-  return LEGACY_SLUGS;
+  return new Set<string>();
 }
 
 /** نتيجة إنشاء مستخدم — للواجهة (useActionState) والاستدعاء المباشر */

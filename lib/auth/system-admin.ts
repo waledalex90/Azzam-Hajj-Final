@@ -1,9 +1,9 @@
 import "server-only";
 
-import { ROLES } from "@/lib/constants/roles";
+import { hasWildcardPermission } from "@/lib/auth/permissions";
 import type { AppUser } from "@/lib/types/db";
 
-/** مدير النظام فقط — ليس Every HR. */
+/** مدير أعلى (سوبر): مفتاح `*` في صلاحيات الدور — لا يعتمد على اسم/slug الدور. */
 export function isSystemAdminUser(user: AppUser | null | undefined): boolean {
-  return user != null && user.role === ROLES.admin;
+  return user != null && hasWildcardPermission(user);
 }

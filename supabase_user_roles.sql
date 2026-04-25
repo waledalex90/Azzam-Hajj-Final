@@ -17,22 +17,22 @@ insert into public.user_roles (slug, name_ar, permissions) values
 (
   'admin',
   'مدير النظام',
-  '["prep","approval","correction_request","workers_import","users_manage","roles_manage"]'::jsonb
+  '["*"]'::jsonb
 ),
 (
   'hr',
   'الموارد البشرية',
-  '["prep","approval","correction_request","workers_import","users_manage"]'::jsonb
+  '["prep","approval","correction_request","workers_import","users_manage","access_all_sites","transfers"]'::jsonb
 ),
 (
   'technical_observer',
   'مراقب فني',
-  '["dashboard","prep","approval","correction_request","corrections_screen","workers","sites","reports","violations","violation_notice"]'::jsonb
+  '["dashboard","prep","approval","correction_request","corrections_screen","workers","sites","reports","violations","violation_notice","access_all_sites","edit_attendance"]'::jsonb
 ),
 (
   'field_observer',
   'مراقب ميداني',
-  '["prep","workers","sites","violations","violation_notice","transfers"]'::jsonb
+  '["prep","workers","sites","violations","violation_notice","transfers","attendance_register_as_field","view_attendance","edit_attendance"]'::jsonb
 )
 on conflict (slug) do nothing;
 

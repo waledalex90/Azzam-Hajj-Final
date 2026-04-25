@@ -1,22 +1,33 @@
 import "server-only";
 
+import { hasPermission, hasWildcardPermission } from "@/lib/auth/permissions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { PERM } from "@/lib/permissions/keys";
 import type { AppUser } from "@/lib/types/db";
-import { ROLES } from "@/lib/constants/roles";
 
-export function isAdminOrHrRole(role: string): boolean {
-  return role === ROLES.admin || role === "hr";
+/** @deprecated use hasPermission(appUser, …) */
+export function isAdminOrHrRole(_role: string): boolean {
+  void _role;
+  return false;
 }
 
-export function isTechnicalObserver(role: string): boolean {
-  return role === ROLES.technicalObserver;
+/** يرى كل المواقع دون اقتصار على app_user_sites (من مفاتيح الدور فقط). */
+export function isSiteRestrictionExemptByPermissions(appUser: AppUser | null | undefined): boolean {
+  if (!appUser) return false;
+  return (
+    hasWildcardPermission(appUser) ||
+    hasPermission(appUser, PERM.ACCESS_ALL_SITES) ||
+    hasPermission(appUser, PERM.MANAGE_USERS) ||
+    hasPermission(appUser, PERM.MANAGE_ROLES)
+  );
 }
 
-export function isFieldObserver(role: string): boolean {
-  return role === ROLES.fieldObserver;
+/** @deprecated use isSiteRestrictionExemptByPermissions(appUser) */
+export function isSiteRestrictionExemptRole(_role: string): boolean {
+  void _role;
+  return false;
 }
 
-/** مواقع المستخدم من app_user_sites — فارغ يعني لا مواقع مربوطة (المراقب الميداني يحتاج صفوف). */
 export async function getAppUserSiteIds(appUserId: number): Promise<number[]> {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
@@ -32,7 +43,6 @@ export async function getAppUserSiteIds(appUserId: number): Promise<number[]> {
   return (data as Array<{ site_id: number }>).map((r) => r.site_id).filter(Boolean);
 }
 
-/** جدول قديم في بعض التركيبات — يطابق فرع user_sites في app.current_user_site_ids(). */
 async function getLegacyUserSitesIds(appUserId: number): Promise<number[]> {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
@@ -49,9 +59,7 @@ async function getLegacyUserSitesIds(appUserId: number): Promise<number[]> {
 }
 
 /**
- * مواقع المستخدم — يجب أن يطابق اتحاد Postgres في app.current_user_site_ids():
- * app_user_sites ∪ user_sites (legacy) ∪ allowed_site_ids (إن كانت غير فارغة).
- * عندما يكون العمود allowed_site_ids موجوداً لكن فارغاً {} لا نتجاهل صفوف app_user_sites.
+ * مواقع المستخدم — يجب أن يطابق اتحاد Postgres في app.current_user_site_ids()
  */
 export async function getEffectiveSiteIdsForAppUser(appUser: AppUser): Promise<number[]> {
   const [fromJoin, fromLegacy] = await Promise.all([
@@ -67,28 +75,17 @@ export async function getEffectiveSiteIdsForAppUser(appUser: AppUser): Promise<n
 }
 
 /**
- * أدوار يُعامل «بدون مواقع في الإدارة» كـ **كل المواقع** (لا تقييد).
- * باقي الأدوار: بدون مواقع محددة = لا يرى أي موقع (مصفوفة فارغة).
- */
-export function isSiteRestrictionExemptRole(role: string): boolean {
-  return role === ROLES.admin || role === ROLES.hr || role === ROLES.technicalObserver;
-}
-
-/**
- * نطاق المواقع للواجهات والاستعلامات:
- * - `undefined` = غير مقيّد (كل المواقع) — إدارة / فني / موارد عادةً.
- * - `[]` = مقيّد لكن لا يوجد موقع مسموح (لا بيانات).
- * - `[…ids]` = هذه المواقع فقط.
- *
- * في واجهة «إدارة المستخدم»، خيار **كل المواقع** يحفظ `allowed_site_ids = []` صراحةً — لا يعني
- * حظرًا بل «بدون قيد مواقع». إن كان `getEffective` فارغة ولم يعفَ الدور بالاسم، نُعامل ذلك كـ
- * «كل المواقع» للمستخدمين الذين ليسوا مراقبين ميدانيين (ويدعم أدوار HR بـ slug مخصّص).
+ * نطاق المواقع للواجهات: undefined = غير مقيّد (كل المواقع) حسب مفاتيح الدور والصفوف.
  */
 export async function resolveAllowedSiteIdsForSession(appUser: AppUser): Promise<number[] | undefined> {
   const raw = await getEffectiveSiteIdsForAppUser(appUser);
   if (raw.length > 0) return raw;
-  if (isSiteRestrictionExemptRole(appUser.role)) return undefined;
-  if (appUser.allowedSiteIds !== undefined && appUser.allowedSiteIds.length === 0 && !isFieldObserver(appUser.role)) {
+  if (isSiteRestrictionExemptByPermissions(appUser)) return undefined;
+  if (
+    appUser.allowedSiteIds !== undefined &&
+    appUser.allowedSiteIds.length === 0 &&
+    !hasPermission(appUser, PERM.ATTENDANCE_REGISTER_AS_FIELD)
+  ) {
     return undefined;
   }
   return [];
@@ -99,8 +96,15 @@ export function canCreateWorkerTransferRequest(
   fromSiteId: number | null,
   userSiteIds: number[],
 ): boolean {
-  if (isAdminOrHrRole(appUser.role) || isTechnicalObserver(appUser.role)) return true;
-  if (!isFieldObserver(appUser.role)) return false;
+  if (
+    hasPermission(appUser, PERM.MANAGE_TRANSFERS) ||
+    hasWildcardPermission(appUser) ||
+    hasPermission(appUser, PERM.ACCESS_ALL_SITES) ||
+    hasPermission(appUser, PERM.EDIT_ATTENDANCE)
+  ) {
+    return true;
+  }
+  if (!hasPermission(appUser, PERM.ATTENDANCE_REGISTER_AS_FIELD)) return false;
   if (fromSiteId == null) return false;
   return userSiteIds.includes(fromSiteId);
 }
@@ -110,11 +114,33 @@ export function canRespondAsDestinationSite(
   toSiteId: number,
   userSiteIds: number[],
 ): boolean {
-  if (isAdminOrHrRole(appUser.role) || isTechnicalObserver(appUser.role)) return true;
-  if (!isFieldObserver(appUser.role)) return false;
+  if (
+    hasPermission(appUser, PERM.MANAGE_TRANSFERS) ||
+    hasWildcardPermission(appUser) ||
+    hasPermission(appUser, PERM.ACCESS_ALL_SITES) ||
+    hasPermission(appUser, PERM.EDIT_ATTENDANCE)
+  ) {
+    return true;
+  }
+  if (!hasPermission(appUser, PERM.ATTENDANCE_REGISTER_AS_FIELD)) return false;
   return userSiteIds.includes(toSiteId);
 }
 
+/** الرد بصفة «الموارد» على طلبات النقل النهائية. */
 export function canRespondAsHr(appUser: AppUser): boolean {
-  return isAdminOrHrRole(appUser.role);
+  return (
+    hasWildcardPermission(appUser) ||
+    hasPermission(appUser, PERM.MANAGE_USERS) ||
+    (hasPermission(appUser, PERM.MANAGE_TRANSFERS) && hasPermission(appUser, PERM.ACCESS_ALL_SITES))
+  );
+}
+
+/** عرض كل مواقع الوجهة في نقل الموظفين (قائمة المصفّيات). */
+export function canSeeAllDestinationSitesForTransfers(appUser: AppUser): boolean {
+  return (
+    hasWildcardPermission(appUser) ||
+    hasPermission(appUser, PERM.ACCESS_ALL_SITES) ||
+    hasPermission(appUser, PERM.MANAGE_USERS) ||
+    hasPermission(appUser, PERM.EDIT_ATTENDANCE)
+  );
 }

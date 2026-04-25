@@ -683,6 +683,49 @@ $$;
 
 grant execute on function app.has_granular_permission(text) to authenticated, service_role, anon;
 
+-- إعادة تعريف بعد has_granular_permission: دمج «كل المواقع» لصلاحية edit_attendance
+create or replace function app.can_access_site(p_site_id bigint)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    case
+      when app.current_user_role() in ('admin', 'hr', 'technical_observer') then true
+      when app.current_user_role() <> 'field_observer'
+        and app.has_granular_permission('edit_attendance')
+        and cardinality(app.current_user_site_ids()) = 0
+        then true
+      else p_site_id = any(app.current_user_site_ids())
+    end
+$$;
+
+create or replace function app.can_access_worker(p_worker_id bigint)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    case
+      when app.current_user_role() in ('admin', 'hr', 'technical_observer') then true
+      when app.current_user_role() <> 'field_observer'
+        and app.has_granular_permission('edit_attendance')
+        and cardinality(app.current_user_site_ids()) = 0
+        then true
+      else exists (
+        select 1
+        from public.workers w
+        where w.id = p_worker_id
+          and w.current_site_id is not null
+          and w.current_site_id = any(app.current_user_site_ids())
+      )
+    end
+$$;
+
 -- violation types
 drop policy if exists violation_types_read_all on public.violation_types;
 drop policy if exists violation_types_read_scoped on public.violation_types;

@@ -1,3 +1,7 @@
+/**
+ * أسماء أدوار تاريخية — للتسمية الافتراضية فقط.
+ * منطق الصلاحيات: مفاتيح user_roles.permissions (ومفتاح * للسوبر).
+ */
 export const ROLES = {
   admin: "admin",
   hr: "hr",

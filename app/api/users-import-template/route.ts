@@ -9,7 +9,6 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const LEGACY_ROLE_SLUGS = ["admin", "hr", "technical_observer", "field_observer"];
 const DATA_ROWS = 500;
 
 export async function GET() {
@@ -25,7 +24,7 @@ export async function GET() {
   const slugs =
     roleRows && roleRows.length > 0
       ? roleRows.map((r) => String(r.slug ?? "").trim()).filter(Boolean)
-      : [...LEGACY_ROLE_SLUGS];
+      : [];
   const sites = siteRows ?? [];
 
   const wb = new ExcelJS.Workbook();
