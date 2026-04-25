@@ -10,6 +10,11 @@
 --   3) supabase_bulk_attendance_patch.sql
 --      (اختياري: إن أردت سلوك submit_attendance_checks «الميداني» كما في الإنتاج الحالي)
 --
+-- [مشروع قائم — أدوار ديناميكية ولا يُسجَّل الحضور (خطأ P0001 «Only admin/hr/…»)]
+--   نفّذ في SQL Editor الأجزاء المحدَّثة من supabase_azzam_hajj_bootstrap.sql:
+--   app.has_granular_permission و app.start_attendance_round و app.submit_attendance_checks
+--   و app.submit_attendance_bulk_checks (أو supabase_shift_round_rpc + supabase_bulk_attendance_patch إن كانت منفصلة).
+--
 -- [مشروع قائم / Production — لتفادي: enum app_role، 42P13، 42725]
 --   1) supabase_migration_app_users_role_to_text.sql
 --      (begin … commit) — كامل دفعة واحدة إن أمكن. إن ظهر 42P13: نفّذ أولاً:

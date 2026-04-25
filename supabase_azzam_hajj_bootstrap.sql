@@ -450,6 +450,12 @@ begin
       return true;
     end if;
   end if;
+  -- مطابقة LEGACY_GRANTS: prep → view_attendance + edit_attendance
+  if p_required in ('edit_attendance', 'view_attendance') then
+    if exists (select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm = 'prep') then
+      return true;
+    end if;
+  end if;
   return false;
 end;
 $$;
@@ -654,7 +660,8 @@ begin
     raise exception 'Unauthorized user';
   end if;
 
-  if v_role not in ('admin', 'hr', 'technical_observer') then
+  if v_role not in ('admin', 'hr', 'technical_observer')
+     and not app.has_granular_permission('edit_attendance') then
     raise exception 'Only admin/hr/technical_observer can start rounds';
   end if;
 
@@ -703,8 +710,9 @@ begin
   if v_user_id is null then
     raise exception 'Unauthorized user';
   end if;
-  if v_role not in ('admin', 'hr', 'technical_observer') then
-    raise exception 'Only admin/hr/technical_observer can submit checks';
+  if v_role not in ('admin', 'hr', 'technical_observer', 'field_observer')
+     and not app.has_granular_permission('edit_attendance') then
+    raise exception 'Only admin/hr/technical_observer/field_observer can submit checks';
   end if;
 
   select site_id into v_site_id
@@ -741,10 +749,10 @@ begin
   updated_rows as (
     update public.attendance_checks ac
     set status = ap.status,
-        technical_observer_id = v_user_id,
+        technical_observer_id = case when v_role = 'field_observer' then null else v_user_id end,
         checked_at = now(),
         confirmation_status = 'pending',
-        field_observer_id = null,
+        field_observer_id = case when v_role = 'field_observer' then v_user_id else null end,
         confirmed_at = null,
         confirm_note = null,
         rejection_reason = null
@@ -755,13 +763,14 @@ begin
   ),
   inserted_rows as (
     insert into public.attendance_checks(
-      round_id, worker_id, status, technical_observer_id, checked_at, confirmation_status
+      round_id, worker_id, status, technical_observer_id, field_observer_id, checked_at, confirmation_status
     )
     select
       p_round_id,
       ap.worker_id,
       ap.status,
-      v_user_id,
+      case when v_role = 'field_observer' then null else v_user_id end,
+      case when v_role = 'field_observer' then v_user_id else null end,
       now(),
       'pending'
     from allowed_payload ap
@@ -808,7 +817,8 @@ begin
   if v_user_id is null then
     raise exception 'Unauthorized user';
   end if;
-  if v_role not in ('admin', 'hr', 'technical_observer', 'field_observer') then
+  if v_role not in ('admin', 'hr', 'technical_observer', 'field_observer')
+     and not app.has_granular_permission('edit_attendance') then
     raise exception 'Only admin/hr/technical_observer/field_observer can submit checks';
   end if;
 

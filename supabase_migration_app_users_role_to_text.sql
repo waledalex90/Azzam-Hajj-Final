@@ -93,7 +93,8 @@ begin
     raise exception 'Unauthorized user';
   end if;
 
-  if v_role not in ('admin', 'hr', 'technical_observer') then
+  if v_role not in ('admin', 'hr', 'technical_observer')
+     and not app.has_granular_permission('edit_attendance') then
     raise exception 'Only admin/hr/technical_observer can start rounds';
   end if;
 
@@ -142,7 +143,8 @@ begin
   if v_user_id is null then
     raise exception 'Unauthorized user';
   end if;
-  if v_role not in ('admin', 'hr', 'technical_observer', 'field_observer') then
+  if v_role not in ('admin', 'hr', 'technical_observer', 'field_observer')
+     and not app.has_granular_permission('edit_attendance') then
     raise exception 'Only admin/hr/technical_observer/field_observer can submit checks';
   end if;
 
@@ -247,7 +249,8 @@ begin
   if v_user_id is null then
     raise exception 'Unauthorized user';
   end if;
-  if v_role not in ('admin', 'hr', 'technical_observer', 'field_observer') then
+  if v_role not in ('admin', 'hr', 'technical_observer', 'field_observer')
+     and not app.has_granular_permission('edit_attendance') then
     raise exception 'Only admin/hr/technical_observer/field_observer can submit checks';
   end if;
 
@@ -666,6 +669,11 @@ begin
   end if;
   if p_required = 'report_violations' then
     if exists (select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm in ('reports', 'view_reports')) then
+      return true;
+    end if;
+  end if;
+  if p_required in ('edit_attendance', 'view_attendance') then
+    if exists (select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm = 'prep') then
       return true;
     end if;
   end if;

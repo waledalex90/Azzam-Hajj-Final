@@ -22,7 +22,8 @@ begin
   if v_user_id is null then
     raise exception 'Unauthorized user';
   end if;
-  if v_role not in ('admin', 'hr', 'technical_observer', 'field_observer') then
+  if v_role not in ('admin', 'hr', 'technical_observer', 'field_observer')
+     and not app.has_granular_permission('edit_attendance') then
     raise exception 'Only admin/hr/technical_observer/field_observer can submit checks';
   end if;
 
