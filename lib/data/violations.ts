@@ -26,6 +26,11 @@ type ViolationsPageParams = {
 
 /** أنواع مذكورة في إشعار مخالفة المقاول فقط — تُزامَن في جدول violation_types بالـ code ولا تُعرَض كقائمة عامل عامة */
 const NOTICE_VIOLATION_TYPES = [
+  {
+    code: "no_second_party_rep",
+    name_ar: "عدم تواجد ممثل الطرف الثاني",
+    severity: "high",
+  },
   { code: "worker_absence", name_ar: "غياب عامل / عاملية النظافة", severity: "high" },
   { code: "no_replacement", name_ar: "عدم توفير عامل بديل", severity: "high" },
   { code: "work_negligence", name_ar: "التقصير في الأعمال (عدم نظافة المجمع)", severity: "high" },
@@ -34,11 +39,6 @@ const NOTICE_VIOLATION_TYPES = [
   { code: "public_etiquette", name_ar: "عدم الالتزام بالآداب العامة", severity: "medium" },
   { code: "bad_behavior", name_ar: "سوء السلوك مع الحجيج", severity: "high" },
   { code: "no_accommodation", name_ar: "عدم توفير إعاشة", severity: "high" },
-  {
-    code: "no_second_party_rep",
-    name_ar: "عدم تواجد ممثل الطرف الثاني",
-    severity: "high",
-  },
   { code: "other_notice", name_ar: "أخرى", severity: "low" },
 ] as const;
 
@@ -166,16 +166,20 @@ async function ensureNoticeViolationTypes(): Promise<ViolationTypeOption[]> {
   );
   if (error) throw new Error(`Ensure notice violation types failed: ${error.message}`);
 
+  const noticeCodes = NOTICE_VIOLATION_TYPES.map((item) => item.code);
+  const orderByCode = new Map(noticeCodes.map((code, index) => [code, index]));
+
   const { data, error: qError } = await supabase
     .from("violation_types")
-    .select("id, name_ar")
-    .in(
-      "code",
-      NOTICE_VIOLATION_TYPES.map((item) => item.code),
-    )
-    .order("id");
+    .select("id, name_ar, code")
+    .in("code", noticeCodes);
   if (qError) throw new Error(`Notice violation types query failed: ${qError.message}`);
-  return (data as ViolationTypeOption[]) ?? [];
+
+  type Row = { id: number; name_ar: string; code: string };
+  const rows = (data ?? []) as Row[];
+  rows.sort((a, b) => (orderByCode.get(a.code) ?? 0) - (orderByCode.get(b.code) ?? 0));
+
+  return rows.map(({ id, name_ar }) => ({ id, name_ar }));
 }
 
 function mapSiteByKeyword(sites: SiteOption[]) {
