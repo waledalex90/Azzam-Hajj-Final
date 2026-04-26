@@ -62,6 +62,8 @@ export type SiteOption = {
 export type ViolationTypeOption = {
   id: number;
   name_ar: string;
+  /** مرجع نوع إشعار المخالفة — لترتيب العرض حسب الكتالوج الرسمي */
+  code?: string | null;
 };
 
 export type ContractorOption = {

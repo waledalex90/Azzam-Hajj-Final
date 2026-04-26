@@ -1,7 +1,7 @@
 import { BrandLogo } from "@/components/branding/brand-logo";
 import type { ViolationTypeOption } from "@/lib/types/db";
-
 import type { NoticeSiteKey } from "@/lib/data/violations";
+import { sortNoticeViolationTypesForDisplay } from "@/lib/violations/notice-violation-catalog";
 
 /** بيانات جاهزة للطباعة — نصوص فقط، بدون حقول إدخال */
 export type NoticePrintData = {
@@ -36,6 +36,7 @@ type Props = {
 export function NoticePrintDocument({ data, violationTypes }: Props) {
   const selected = new Set(data.violationTypeIds);
   const complexDisplay = data.complexNo.trim() || "—";
+  const orderedTypes = sortNoticeViolationTypesForDisplay(violationTypes);
 
   return (
     <div className="np-print-root" dir="rtl">
@@ -123,7 +124,7 @@ export function NoticePrintDocument({ data, violationTypes }: Props) {
       <div className="np-violation-sheet">
         <div className="np-section-title">تفاصيل المخالفة</div>
         <div className="np-violation-list">
-          {violationTypes.map((t) => {
+          {orderedTypes.map((t) => {
             const on = selected.has(t.id);
             return (
               <div key={t.id} className="np-viol-row">

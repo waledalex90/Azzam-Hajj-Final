@@ -1,4 +1,5 @@
 import type { ViolationTypeOption } from "@/lib/types/db";
+import { sortNoticeViolationTypesForDisplay } from "@/lib/violations/notice-violation-catalog";
 
 import { BrandLogo } from "@/components/branding/brand-logo";
 import { Input } from "@/components/ui/input";
@@ -157,11 +158,12 @@ type ViolProps = {
 
 /** قائمة المخالفات كالورقة الرسمية — مربع يمين النص */
 export function NoticeOfficialViolationList({ types, readOnly, selectedIds, violationsSectionId }: ViolProps) {
+  const ordered = sortNoticeViolationTypesForDisplay(types);
   return (
     <div className="np-violation-sheet" id={violationsSectionId}>
       <div className="np-section-title">تفاصيل المخالفة</div>
       <div className="np-violation-list">
-        {types.map((t) => {
+        {ordered.map((t) => {
           const checked = selectedIds ? selectedIds.includes(t.id) : false;
           return (
             <div key={t.id} className="np-viol-row">

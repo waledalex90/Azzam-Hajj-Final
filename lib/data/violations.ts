@@ -9,6 +9,7 @@ import type {
 } from "@/lib/types/db";
 import { buildPaginationMeta } from "@/lib/utils/pagination";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { NOTICE_VIOLATION_CATALOG } from "@/lib/violations/notice-violation-catalog";
 
 type ViolationsPageParams = {
   page: number;
@@ -24,23 +25,8 @@ type ViolationsPageParams = {
   workerSearch?: string;
 };
 
-/** أنواع مذكورة في إشعار مخالفة المقاول فقط — تُزامَن في جدول violation_types بالـ code ولا تُعرَض كقائمة عامل عامة */
-const NOTICE_VIOLATION_TYPES = [
-  {
-    code: "no_second_party_rep",
-    name_ar: "عدم تواجد ممثل الطرف الثاني",
-    severity: "high",
-  },
-  { code: "worker_absence", name_ar: "غياب عامل / عاملية النظافة", severity: "high" },
-  { code: "no_replacement", name_ar: "عدم توفير عامل بديل", severity: "high" },
-  { code: "work_negligence", name_ar: "التقصير في الأعمال (عدم نظافة المجمع)", severity: "high" },
-  { code: "uniform_noncompliance", name_ar: "عدم الالتزام بالزي الرسمي", severity: "medium" },
-  { code: "no_work_card", name_ar: "عدم حمل بطاقة العمل", severity: "medium" },
-  { code: "public_etiquette", name_ar: "عدم الالتزام بالآداب العامة", severity: "medium" },
-  { code: "bad_behavior", name_ar: "سوء السلوك مع الحجيج", severity: "high" },
-  { code: "no_accommodation", name_ar: "عدم توفير إعاشة", severity: "high" },
-  { code: "other_notice", name_ar: "أخرى", severity: "low" },
-] as const;
+/** مزامنة مع جدول violation_types — الترتيب من notice-violation-catalog.ts */
+const NOTICE_VIOLATION_TYPES = NOTICE_VIOLATION_CATALOG;
 
 export async function getViolationsPage({
   page,
@@ -147,13 +133,18 @@ export async function getViolationFormOptions(search?: string): Promise<{
 async function ensureNoticeViolationTypes(): Promise<ViolationTypeOption[]> {
   const supabase = createSupabaseAdminClient();
   if (isDemoModeEnabled()) {
+    const noticeCodes = NOTICE_VIOLATION_TYPES.map((item) => item.code);
+    const orderByCode: Map<string, number> = new Map(noticeCodes.map((code, index) => [code, index]));
     const { data, error } = await supabase
       .from("violation_types")
-      .select("id, name_ar")
+      .select("id, name_ar, code")
       .eq("is_active", true)
-      .order("id");
+      .in("code", noticeCodes);
     if (error) throw new Error(`Notice violation types query failed: ${error.message}`);
-    return (data as ViolationTypeOption[]) ?? [];
+    type Row = { id: number; name_ar: string; code: string };
+    const rows = (data ?? []) as Row[];
+    rows.sort((a, b) => (orderByCode.get(a.code) ?? 0) - (orderByCode.get(b.code) ?? 0));
+    return rows.map(({ id, name_ar, code }) => ({ id, name_ar, code }));
   }
   const { error } = await supabase.from("violation_types").upsert(
     NOTICE_VIOLATION_TYPES.map((item) => ({
@@ -167,7 +158,7 @@ async function ensureNoticeViolationTypes(): Promise<ViolationTypeOption[]> {
   if (error) throw new Error(`Ensure notice violation types failed: ${error.message}`);
 
   const noticeCodes = NOTICE_VIOLATION_TYPES.map((item) => item.code);
-  const orderByCode = new Map(noticeCodes.map((code, index) => [code, index]));
+  const orderByCode: Map<string, number> = new Map(noticeCodes.map((code, index) => [code, index]));
 
   const { data, error: qError } = await supabase
     .from("violation_types")
@@ -179,7 +170,7 @@ async function ensureNoticeViolationTypes(): Promise<ViolationTypeOption[]> {
   const rows = (data ?? []) as Row[];
   rows.sort((a, b) => (orderByCode.get(a.code) ?? 0) - (orderByCode.get(b.code) ?? 0));
 
-  return rows.map(({ id, name_ar }) => ({ id, name_ar }));
+  return rows.map(({ id, name_ar, code }) => ({ id, name_ar, code }));
 }
 
 function mapSiteByKeyword(sites: SiteOption[]) {
