@@ -34,6 +34,11 @@ const NOTICE_VIOLATION_TYPES = [
   { code: "public_etiquette", name_ar: "عدم الالتزام بالآداب العامة", severity: "medium" },
   { code: "bad_behavior", name_ar: "سوء السلوك مع الحجيج", severity: "high" },
   { code: "no_accommodation", name_ar: "عدم توفير إعاشة", severity: "high" },
+  {
+    code: "no_second_party_rep",
+    name_ar: "عدم تواجد ممثل الطرف الثاني",
+    severity: "high",
+  },
   { code: "other_notice", name_ar: "أخرى", severity: "low" },
 ] as const;
 
