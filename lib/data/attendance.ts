@@ -133,8 +133,12 @@ type ChecksPageParams = {
 const STATUS_MAP_IN_CHUNK = 500;
 /** حجم دفعة التصفح المفتاحي على `workers.id` (بدون offset). */
 const PREP_SCAN_CHUNK = 1000;
-/** جلب صفوف العمال بعد تجميع المعرفات — دفعات صغيرة لتفادي فشل الاستعلام الثقيل على .range بعد أول ألف صف */
-const PREP_FETCH_BY_ID_CHUNK = 400;
+/** جلب صفوف العمال بعد تجميع المعرفات — أقل من حد PostgREST `max_rows` الشائع لتفادي اقتطاع الرد دون خطأ. */
+const PREP_FETCH_BY_ID_CHUNK = 200;
+
+function shouldLogAttendancePrepDebug(): boolean {
+  return process.env.ATTENDANCE_PREP_DEBUG === "1" || process.env.NODE_ENV === "development";
+}
 
 function mapRawWorkerEmbedRowToWorkerRow(item: RawWorkerEmbedRow): WorkerRow {
   const current_site_id = normalizeWorkerFkId(item.current_site_id);
@@ -508,13 +512,32 @@ function resolvePrepShiftFilter(
 
 /**
  * كل عمال التحضير المعلقين — نفس نطاق `getAttendanceWorkerIdsForFilters` ثم جلب الصفوف بـ `in(id,…)` على دفعات.
- * يتجنّب توقف المسح المبكر عندما ينجح `select(id)` لكل الشرائح لكن يفشل أو يُقطع استعلام الصف الكامل على `.range` من الشريحة الثانية فصاعداً.
+ *
+ * **ملاحظة واجهة:** حقل «بحث فوري» في `AttendancePrepWorkzone` يفلتر **نفس الصفوف المحمّلة** في المتصفح فقط؛
+ * لا يُعاد استدعاء هذه الدالة بـ `search`. إن ظهر اسم بالبحث فالعامل موجود في `initialWorkers` (قد يكون بعيداً في القائمة الافتراضية).
  */
 export async function getAllPendingPrepWorkers(
   params: Omit<WorkersPageParams, "page" | "pageSize">,
 ): Promise<{ rows: WorkerRow[]; meta: PaginationMeta }> {
   if (params.allowedSiteIds !== undefined && params.allowedSiteIds.length === 0) {
     return { rows: [], meta: buildPaginationMeta(0, 1, 1) };
+  }
+
+  const debug = shouldLogAttendancePrepDebug();
+  const rn = normalizeShiftRound(params.roundNo);
+  let preppedExcludeCount = 0;
+  if (debug && params.workDate && /^\d{4}-\d{2}-\d{2}$/.test(params.workDate)) {
+    try {
+      const ex = await getPrepExclusionWorkerIds(
+        params.workDate,
+        params.siteId,
+        rn,
+        params.siteId ? undefined : params.allowedSiteIds,
+      );
+      preppedExcludeCount = ex.length;
+    } catch {
+      preppedExcludeCount = -1;
+    }
   }
 
   const pendingIds = await getAttendanceWorkerIdsForFilters({
@@ -529,14 +552,28 @@ export async function getAllPendingPrepWorkers(
 
   const capped = pendingIds.slice(0, PREP_WORKERS_PAGE_SIZE);
   if (capped.length === 0) {
+    if (debug) {
+      console.warn("[attendance:prep]", {
+        message: "لا معرفات معلّقة بعد الفلترة",
+        preppedWorkerIdsExcludedFromList: preppedExcludeCount,
+        filters: {
+          siteId: params.siteId,
+          contractorId: params.contractorId,
+          workDate: params.workDate,
+          roundNo: rn,
+        },
+      });
+    }
     return { rows: [], meta: buildPaginationMeta(0, 1, 1) };
   }
 
   const supabase = createSupabaseAdminClient();
   const rowById = new Map<number, WorkerRow>();
+  const chunkStats: Array<{ requested: number; returned: number; batchIndex: number }> = [];
 
   for (let i = 0; i < capped.length; i += PREP_FETCH_BY_ID_CHUNK) {
     const chunk = capped.slice(i, i + PREP_FETCH_BY_ID_CHUNK);
+    const batchIndex = Math.floor(i / PREP_FETCH_BY_ID_CHUNK);
     const { data, error } = await supabase
       .from("workers")
       .select(
@@ -549,10 +586,63 @@ export async function getAllPendingPrepWorkers(
     if (error) {
       throw new Error(`getAllPendingPrepWorkers: فشل جلب دفعة عمال (${error.message})`);
     }
-    for (const raw of (data as RawWorkerEmbedRow[]) ?? []) {
+    const rows = (data as RawWorkerEmbedRow[]) ?? [];
+    if (debug) {
+      chunkStats.push({ requested: chunk.length, returned: rows.length, batchIndex });
+      if (rows.length < chunk.length) {
+        console.warn("[attendance:prep] دفعة in(id) أقل من المطلوب — احتمال اقتطاع max_rows أو صفوف لا تطابق is_active/is_deleted", {
+          batchIndex,
+          requestedIds: chunk.length,
+          returnedRows: rows.length,
+        });
+      }
+    }
+    for (const raw of rows) {
       const row = mapRawWorkerEmbedRowToWorkerRow(raw);
       rowById.set(row.id, row);
     }
+  }
+
+  const missingIds = capped.filter((id) => !rowById.has(id));
+
+  if (debug && missingIds.length > 0) {
+    const sample = missingIds.slice(0, 60);
+    const { data: diag } = await supabase
+      .from("workers")
+      .select("id, name, is_active, is_deleted, current_site_id, shift_round")
+      .in("id", sample);
+    const found = (diag ?? []) as Array<{
+      id: number;
+      name: string;
+      is_active: boolean;
+      is_deleted: boolean;
+      current_site_id: number | null;
+      shift_round: number | null;
+    }>;
+    const foundIds = new Set(found.map((r) => r.id));
+    console.warn("[attendance:prep] معرفات في قائمة المعلّقين لكن لم تُجلب بشرط active/deleted", {
+      missingCount: missingIds.length,
+      sampleSize: sample.length,
+      notInDbAtAll: sample.filter((id) => !foundIds.has(id)),
+      inactiveOrDeleted: found.filter((r) => !r.is_active || r.is_deleted),
+      presentButFilteredBySecondQuery: found.filter((r) => r.is_active && !r.is_deleted),
+    });
+  }
+
+  if (debug) {
+    console.warn("[attendance:prep] ملخص التحميل", {
+      pendingIdCount: capped.length,
+      preppedWorkersExcludedCount: preppedExcludeCount,
+      notePrepped:
+        preppedExcludeCount >= 0
+          ? "عدد عمال لهم سجل تحضير في هذه الجولة (يُستبعدون من قائمة المعلّقين)"
+          : "تعذّر حساب المستبعدين",
+      rowMapSize: rowById.size,
+      finalRowCountAfterOrder: capped.length - missingIds.length,
+      fetchBatches: chunkStats,
+      listFiltersSameAsIdsQuery:
+        "getAttendanceWorkerIdsForFilters: is_active, is_deleted, current_site_id / allowedSiteIds, contractorId, shift_round OR null, workDate exclusion — بدون search من الصفحة",
+    });
   }
 
   const allRows = capped.map((id) => rowById.get(id)).filter((r): r is WorkerRow => r != null);
