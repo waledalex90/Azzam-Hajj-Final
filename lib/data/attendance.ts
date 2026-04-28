@@ -131,6 +131,10 @@ type ChecksPageParams = {
 };
 
 const STATUS_MAP_IN_CHUNK = 500;
+/**
+ * حجم نافذة Range لكل طلب. المهم: بعد كل رد نزيد `from` بـ **`data.length` الفعلية** لا بهذا الرقم،
+ * وإلا عند حد `max_rows` أقل من النافذة (شائع في إعدادات PostgREST) نتخطّى آلاف الصفوف ونُرجع قائمة جزئية (مثلاً ~239).
+ */
 const PREP_SCAN_CHUNK = 1000;
 /** جلب صفوف العمال بعد تجميع المعرفات — دفعات صغيرة لتفادي فشل الاستعلام الثقيل على .range بعد أول ألف صف */
 const PREP_FETCH_BY_ID_CHUNK = 400;
@@ -398,11 +402,11 @@ export async function getPreppedWorkerIdsForDate(
     const { data, error } = await query.range(from, from + pageSize - 1);
     if (error || !data) break;
     const chunk = data as Array<{ worker_id: number }>;
+    if (chunk.length === 0) break;
     for (const row of chunk) {
       if (row.worker_id) all.push(row.worker_id);
     }
-    if (chunk.length < pageSize) break;
-    from += pageSize;
+    from += chunk.length;
   }
 
   return Array.from(new Set(all));
@@ -630,7 +634,7 @@ export async function getAttendanceWorkerIdsForFilters({
 
     const { data, error } = await query.range(from, from + PREP_SCAN_CHUNK - 1);
     if (error) {
-      return [];
+      break;
     }
     if (!data?.length) break;
 
@@ -640,8 +644,7 @@ export async function getAttendanceWorkerIdsForFilters({
       if (!excludeSet.has(id)) ids.push(id);
     }
 
-    from += PREP_SCAN_CHUNK;
-    if (data.length < PREP_SCAN_CHUNK) break;
+    from += data.length;
   }
 
   return ids;
