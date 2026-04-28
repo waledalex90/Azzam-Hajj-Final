@@ -179,35 +179,39 @@ export async function getAttendanceLatestStatusMap(
   workerIds: number[],
   roundNo: number = SHIFT_ROUND.morning,
 ): Promise<Record<number, "present" | "absent" | "half">> {
-  const uniqueIds = Array.from(new Set(workerIds.filter(Boolean)));
-  if (uniqueIds.length === 0) return {};
+  try {
+    const uniqueIds = Array.from(new Set(workerIds.filter(Boolean)));
+    if (uniqueIds.length === 0) return {};
 
-  const r = normalizeShiftRound(roundNo);
-  const supabase = createSupabaseAdminClient();
-  const map: Record<number, "present" | "absent" | "half"> = {};
+    const r = normalizeShiftRound(roundNo);
+    const supabase = createSupabaseAdminClient();
+    const map: Record<number, "present" | "absent" | "half"> = {};
 
-  for (let o = 0; o < uniqueIds.length; o += STATUS_MAP_IN_CHUNK) {
-    const batch = uniqueIds.slice(o, o + STATUS_MAP_IN_CHUNK);
-    const { data, error } = await supabase
-      .from("attendance_checks")
-      .select("worker_id, status, checked_at, attendance_rounds!inner(work_date, round_no)")
-      .in("worker_id", batch)
-      .eq("attendance_rounds.work_date", workDate)
-      .eq("attendance_rounds.round_no", r)
-      .order("checked_at", { ascending: false });
+    for (let o = 0; o < uniqueIds.length; o += STATUS_MAP_IN_CHUNK) {
+      const batch = uniqueIds.slice(o, o + STATUS_MAP_IN_CHUNK);
+      const { data, error } = await supabase
+        .from("attendance_checks")
+        .select("worker_id, status, checked_at, attendance_rounds!inner(work_date, round_no)")
+        .in("worker_id", batch)
+        .eq("attendance_rounds.work_date", workDate)
+        .eq("attendance_rounds.round_no", r)
+        .order("checked_at", { ascending: false });
 
-    if (error || !data) continue;
+      if (error || !data) continue;
 
-    for (const row of data as Array<{
-      worker_id: number;
-      status: "present" | "absent" | "half";
-    }>) {
-      if (!map[row.worker_id]) {
-        map[row.worker_id] = row.status;
+      for (const row of data as Array<{
+        worker_id: number;
+        status: "present" | "absent" | "half";
+      }>) {
+        if (!map[row.worker_id]) {
+          map[row.worker_id] = row.status;
+        }
       }
     }
+    return map;
+  } catch {
+    return {};
   }
-  return map;
 }
 
 /** أحدث check_id لكل عامل في التاريخ (لطلبات التعديل وربط correction_requests). */
@@ -530,8 +534,7 @@ export async function getAllPendingPrepWorkers(
     let query = supabase
       .from("workers")
       .select(
-        "id, name, id_number, employee_code, contractor_id, current_site_id, shift_round, is_active, is_deleted, sites(name), contractors(name)",
-        { count: "planned" },
+        "id, name, id_number, employee_code, contractor_id, current_site_id, shift_round, is_active, is_deleted",
       )
       .eq("is_active", true)
       .eq("is_deleted", false)

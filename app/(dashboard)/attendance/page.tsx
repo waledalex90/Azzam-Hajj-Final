@@ -116,53 +116,56 @@ export default async function AttendancePage({ searchParams }: Props) {
             allowedSiteIds,
           ),
     ]);
-
-    prepWorkers =
-      activeTab === "workers"
-        ? await getAllPendingPrepWorkers({
-            siteId: Number.isFinite(siteId) ? siteId : undefined,
-            allowedSiteIds,
-            contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
-            search: undefined,
-            workDate,
-            roundNo,
-          })
-        : null;
-
-    initialStatusMap =
-      activeTab === "workers" && prepWorkers && prepWorkers.rows.length > 0
-        ? await getAttendanceLatestStatusMap(
-            workDate,
-            prepWorkers.rows.map((item) => item.id),
-            roundNo,
-          )
-        : {};
-
-    const reviewedPage =
-      activeTab === "review"
-        ? await getAttendanceChecksPage({
-            page: 1,
-            pageSize: FULL_LOAD,
-            workDate,
-            siteId: Number.isFinite(siteId) ? siteId : undefined,
-            allowedSiteIds,
-            search: undefined,
-            roundNo,
-          })
-        : null;
-
-    reviewedRows = reviewedPage?.rows ?? [];
-    reviewRoundStats =
-      activeTab === "review" ? summarizeAttendanceChecksForRound(reviewedRows) : null;
   } catch {
     sites = [];
     contractors = [];
     dayStats = emptyStats;
-    prepWorkers =
-      activeTab === "workers" ? { rows: [], meta: buildPaginationMeta(0, 1, 1) } : null;
-    initialStatusMap = {};
-    reviewedRows = [];
-    reviewRoundStats = activeTab === "review" ? summarizeAttendanceChecksForRound([]) : null;
+  }
+
+  if (activeTab === "workers") {
+    try {
+      prepWorkers = await getAllPendingPrepWorkers({
+        siteId: Number.isFinite(siteId) ? siteId : undefined,
+        allowedSiteIds,
+        contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
+        search: undefined,
+        workDate,
+        roundNo,
+      });
+    } catch {
+      prepWorkers = { rows: [], meta: buildPaginationMeta(0, 1, 1) };
+    }
+    try {
+      initialStatusMap =
+        prepWorkers.rows.length > 0
+          ? await getAttendanceLatestStatusMap(
+              workDate,
+              prepWorkers.rows.map((item) => item.id),
+              roundNo,
+            )
+          : {};
+    } catch {
+      initialStatusMap = {};
+    }
+  }
+
+  if (activeTab === "review") {
+    try {
+      const reviewedPage = await getAttendanceChecksPage({
+        page: 1,
+        pageSize: FULL_LOAD,
+        workDate,
+        siteId: Number.isFinite(siteId) ? siteId : undefined,
+        allowedSiteIds,
+        search: undefined,
+        roundNo,
+      });
+      reviewedRows = reviewedPage?.rows ?? [];
+      reviewRoundStats = summarizeAttendanceChecksForRound(reviewedRows);
+    } catch {
+      reviewedRows = [];
+      reviewRoundStats = summarizeAttendanceChecksForRound([]);
+    }
   }
 
   if (allowedSiteIds !== undefined) {
