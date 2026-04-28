@@ -132,6 +132,8 @@ type ChecksPageParams = {
 
 const STATUS_MAP_IN_CHUNK = 500;
 const PREP_SCAN_CHUNK = 1000;
+/** جلب صفوف العمال بعد تجميع المعرفات — دفعات صغيرة لتفادي فشل الاستعلام الثقيل على .range بعد أول ألف صف */
+const PREP_FETCH_BY_ID_CHUNK = 400;
 
 function mapRawWorkerEmbedRowToWorkerRow(item: RawWorkerEmbedRow): WorkerRow {
   const current_site_id = normalizeWorkerFkId(item.current_site_id);
@@ -497,79 +499,56 @@ function resolvePrepShiftFilter(
   return undefined;
 }
 
-/** كل عمال التحضير المعلقين — مسح جدول workers بشرائح ثم استبعاد المُحضَّرين في الذاكرة (تجنّب سلسلة not الطويلة مع وردية المسائي). */
+/**
+ * كل عمال التحضير المعلقين — نفس نطاق `getAttendanceWorkerIdsForFilters` ثم جلب الصفوف بـ `in(id,…)` على دفعات.
+ * يتجنّب توقف المسح المبكر عندما ينجح `select(id)` لكل الشرائح لكن يفشل أو يُقطع استعلام الصف الكامل على `.range` من الشريحة الثانية فصاعداً.
+ */
 export async function getAllPendingPrepWorkers(
   params: Omit<WorkersPageParams, "page" | "pageSize">,
 ): Promise<{ rows: WorkerRow[]; meta: PaginationMeta }> {
   if (params.allowedSiteIds !== undefined && params.allowedSiteIds.length === 0) {
     return { rows: [], meta: buildPaginationMeta(0, 1, 1) };
   }
-  const supabase = createSupabaseAdminClient();
-  const rn = normalizeShiftRound(params.roundNo);
-  let excludeList: number[] = [];
-  if (params.workDate && /^\d{4}-\d{2}-\d{2}$/.test(params.workDate)) {
-    try {
-      excludeList = await getPrepExclusionWorkerIds(
-        params.workDate,
-        params.siteId,
-        rn,
-        params.siteId ? undefined : params.allowedSiteIds,
-      );
-    } catch {
-      excludeList = [];
-    }
+
+  const pendingIds = await getAttendanceWorkerIdsForFilters({
+    siteId: params.siteId,
+    allowedSiteIds: params.allowedSiteIds,
+    contractorId: params.contractorId,
+    search: params.search,
+    workDate: params.workDate,
+    roundNo: params.roundNo,
+    shiftRoundFilter: params.shiftRoundFilter,
+  });
+
+  const capped = pendingIds.slice(0, PREP_WORKERS_PAGE_SIZE);
+  if (capped.length === 0) {
+    return { rows: [], meta: buildPaginationMeta(0, 1, 1) };
   }
-  const excludeSet = new Set(excludeList);
 
-  const shiftToFilter = resolvePrepShiftFilter(
-    params.workDate,
-    params.roundNo,
-    params.shiftRoundFilter,
-  );
+  const supabase = createSupabaseAdminClient();
+  const rowById = new Map<number, WorkerRow>();
 
-  let from = 0;
-  const allRows: WorkerRow[] = [];
-
-  while (allRows.length < PREP_WORKERS_PAGE_SIZE) {
-    let query = supabase
+  for (let i = 0; i < capped.length; i += PREP_FETCH_BY_ID_CHUNK) {
+    const chunk = capped.slice(i, i + PREP_FETCH_BY_ID_CHUNK);
+    const { data, error } = await supabase
       .from("workers")
       .select(
         "id, name, id_number, employee_code, contractor_id, current_site_id, shift_round, is_active, is_deleted",
       )
+      .in("id", chunk)
       .eq("is_active", true)
-      .eq("is_deleted", false)
-      .order("id", { ascending: true });
+      .eq("is_deleted", false);
 
-    if (params.siteId) {
-      query = query.eq("current_site_id", params.siteId);
-    } else if (params.allowedSiteIds && params.allowedSiteIds.length > 0) {
-      query = query.in("current_site_id", params.allowedSiteIds);
+    if (error) {
+      throw new Error(`getAllPendingPrepWorkers: فشل جلب دفعة عمال (${error.message})`);
     }
-    if (params.contractorId) query = query.eq("contractor_id", params.contractorId);
-    if (params.search?.trim()) {
-      const value = params.search.trim();
-      query = query.or(
-        `name.ilike.%${value}%,id_number.ilike.%${value}%,employee_code.ilike.%${value}%`,
-      );
+    for (const raw of (data as RawWorkerEmbedRow[]) ?? []) {
+      const row = mapRawWorkerEmbedRowToWorkerRow(raw);
+      rowById.set(row.id, row);
     }
-    if (shiftToFilter !== undefined) {
-      query = query.or(`shift_round.is.null,shift_round.eq.${shiftToFilter}`);
-    }
-
-    const { data, error } = await query.range(from, from + PREP_SCAN_CHUNK - 1);
-    if (error || !data?.length) break;
-
-    const batch = ((data as RawWorkerEmbedRow[]) ?? []).map(mapRawWorkerEmbedRowToWorkerRow);
-    for (const row of batch) {
-      if (!excludeSet.has(row.id)) {
-        allRows.push(row);
-        if (allRows.length >= PREP_WORKERS_PAGE_SIZE) break;
-      }
-    }
-
-    from += PREP_SCAN_CHUNK;
-    if (data.length < PREP_SCAN_CHUNK) break;
   }
+
+  const allRows = capped.map((id) => rowById.get(id)).filter((r): r is WorkerRow => r != null);
 
   let hydrated: WorkerRow[];
   try {
