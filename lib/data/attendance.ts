@@ -131,10 +131,7 @@ type ChecksPageParams = {
 };
 
 const STATUS_MAP_IN_CHUNK = 500;
-/**
- * حجم نافذة Range لكل طلب. المهم: بعد كل رد نزيد `from` بـ **`data.length` الفعلية** لا بهذا الرقم،
- * وإلا عند حد `max_rows` أقل من النافذة (شائع في إعدادات PostgREST) نتخطّى آلاف الصفوف ونُرجع قائمة جزئية (مثلاً ~239).
- */
+/** حجم دفعة التصفح المفتاحي على `workers.id` (بدون offset). */
 const PREP_SCAN_CHUNK = 1000;
 /** جلب صفوف العمال بعد تجميع المعرفات — دفعات صغيرة لتفادي فشل الاستعلام الثقيل على .range بعد أول ألف صف */
 const PREP_FETCH_BY_ID_CHUNK = 400;
@@ -385,28 +382,34 @@ export async function getPreppedWorkerIdsForDate(
   const r = normalizeShiftRound(roundNo);
   const supabase = createSupabaseAdminClient();
   const pageSize = 1000;
-  let from = 0;
   const all: number[] = [];
 
+  let lastCheckId = 0;
   while (true) {
     let query = supabase
       .from("attendance_checks")
-      .select("worker_id, attendance_rounds!inner(work_date, site_id, round_no)")
+      .select("id, worker_id, attendance_rounds!inner(work_date, site_id, round_no)")
       .eq("attendance_rounds.work_date", workDate)
-      .eq("attendance_rounds.round_no", r);
+      .eq("attendance_rounds.round_no", r)
+      .order("id", { ascending: true })
+      .limit(pageSize);
     if (siteId !== undefined && Number.isFinite(siteId)) {
       query = query.eq("attendance_rounds.site_id", siteId);
     } else if (siteIdsScope && siteIdsScope.length > 0) {
       query = query.in("attendance_rounds.site_id", siteIdsScope);
     }
-    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (lastCheckId > 0) {
+      query = query.gt("id", lastCheckId);
+    }
+    const { data, error } = await query;
     if (error || !data) break;
-    const chunk = data as Array<{ worker_id: number }>;
+    const chunk = data as Array<{ id: number; worker_id: number }>;
     if (chunk.length === 0) break;
     for (const row of chunk) {
       if (row.worker_id) all.push(row.worker_id);
     }
-    from += chunk.length;
+    lastCheckId = Number(chunk[chunk.length - 1].id);
+    if (chunk.length < pageSize) break;
   }
 
   return Array.from(new Set(all));
@@ -579,7 +582,6 @@ export async function getAttendanceWorkerIdsForFilters({
     return [];
   }
   const supabase = createSupabaseAdminClient();
-  let from = 0;
   const ids: number[] = [];
 
   let excludeList: number[] = [];
@@ -605,13 +607,20 @@ export async function getAttendanceWorkerIdsForFilters({
 
   const shiftF = resolvePrepShiftFilter(workDate, roundNo, shiftRoundFilter);
 
+  /** تصفح مفتاحي بـ `id` لتفادي اعتماد offset/range مع حدود PostgREST وحالات القطع الصامتة. */
+  let lastWorkerId = 0;
   while (true) {
     let query = supabase
       .from("workers")
       .select("id")
       .eq("is_active", true)
       .eq("is_deleted", false)
-      .order("id", { ascending: true });
+      .order("id", { ascending: true })
+      .limit(PREP_SCAN_CHUNK);
+
+    if (lastWorkerId > 0) {
+      query = query.gt("id", lastWorkerId);
+    }
 
     if (siteId) {
       query = query.eq("current_site_id", siteId);
@@ -621,30 +630,33 @@ export async function getAttendanceWorkerIdsForFilters({
     if (contractorId) {
       query = query.eq("contractor_id", contractorId);
     }
-    if (search && search.trim()) {
-      const value = search.trim();
+
+    const searchTrim = search?.trim() ?? "";
+    if (searchTrim) {
+      const esc = searchTrim.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/,/g, "\\,");
       query = query.or(
-        `name.ilike.%${value}%,id_number.ilike.%${value}%,employee_code.ilike.%${value}%`,
+        `name.ilike.%${esc}%,id_number.ilike.%${esc}%,employee_code.ilike.%${esc}%`,
       );
     }
-
     if (shiftF !== undefined) {
       query = query.or(`shift_round.is.null,shift_round.eq.${shiftF}`);
     }
 
-    const { data, error } = await query.range(from, from + PREP_SCAN_CHUNK - 1);
+    const { data, error } = await query;
     if (error) {
       break;
     }
     if (!data?.length) break;
 
-    for (const row of data as Array<{ id: number }>) {
+    const rows = data as Array<{ id: number }>;
+    for (const row of rows) {
       const id = Number(row.id);
       if (!Number.isFinite(id)) continue;
       if (!excludeSet.has(id)) ids.push(id);
     }
 
-    from += data.length;
+    lastWorkerId = Number(rows[rows.length - 1].id);
+    if (rows.length < PREP_SCAN_CHUNK) break;
   }
 
   return ids;
