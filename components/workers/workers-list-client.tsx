@@ -39,6 +39,7 @@ type RowProps = {
   toggleActive: (formData: FormData) => Promise<void>;
   softDeleteWorker: (formData: FormData) => Promise<void>;
   restoreWorker: (formData: FormData) => Promise<void>;
+  refreshAfter: (fn: (formData: FormData) => Promise<void>) => (formData: FormData) => Promise<void>;
   canEditWorkers: boolean;
   canViewSensitive: boolean;
 };
@@ -61,6 +62,7 @@ function WorkersDockedEditForm({
   updateWorker,
   canViewSensitive,
 }: EditFormProps) {
+  const router = useRouter();
   return (
     <Card className="relative z-10 border-emerald-200 bg-emerald-50/30 shadow-md">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-emerald-100 pb-3">
@@ -72,7 +74,13 @@ function WorkersDockedEditForm({
           إلغاء التعديل
         </Link>
       </div>
-      <form action={updateWorker} className="grid gap-2 sm:grid-cols-2">
+      <form
+        action={async (formData) => {
+          await updateWorker(formData);
+          router.refresh();
+        }}
+        className="grid gap-2 sm:grid-cols-2"
+      >
         {worker.current_site_id == null ? (
           <p className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950">
             لا يوجد موقع حالي لهذا الموظف — اختر «الموقع» من القائمة ثم احفظ (مطلوب لحفظ التعديل وللتحضير لاحقاً).
@@ -174,10 +182,14 @@ const WorkerListRowCard = memo(function WorkerListRowCard({
   toggleActive,
   softDeleteWorker,
   restoreWorker,
+  refreshAfter,
   canEditWorkers,
   canViewSensitive,
 }: RowProps) {
   const idLine = canViewSensitive ? worker.id_number : "••••••••";
+  const onToggle = refreshAfter(toggleActive);
+  const onSoftDelete = refreshAfter(softDeleteWorker);
+  const onRestore = refreshAfter(restoreWorker);
   return (
     <div className="pb-3">
       <Card className={isEditing ? "ring-2 ring-emerald-500 ring-offset-2" : undefined}>
@@ -210,7 +222,7 @@ const WorkerListRowCard = memo(function WorkerListRowCard({
 
           <div className="flex flex-wrap items-center gap-2">
             {canEditWorkers && !worker.is_deleted ? (
-              <form action={toggleActive}>
+              <form action={onToggle}>
                 <input type="hidden" name="workerId" value={worker.id} />
                 <input type="hidden" name="isActive" value={String(worker.is_active)} />
                 <button
@@ -237,7 +249,7 @@ const WorkerListRowCard = memo(function WorkerListRowCard({
             ) : null}
 
             {canEditWorkers && worker.is_deleted ? (
-              <form action={restoreWorker}>
+              <form action={onRestore}>
                 <input type="hidden" name="workerId" value={worker.id} />
                 <button type="submit" className="rounded bg-[#0f766e] px-3 py-1 text-xs font-bold text-white">
                   استرجاع
@@ -245,7 +257,7 @@ const WorkerListRowCard = memo(function WorkerListRowCard({
               </form>
             ) : null}
             {canEditWorkers && !worker.is_deleted ? (
-              <form action={softDeleteWorker}>
+              <form action={onSoftDelete}>
                 <input type="hidden" name="workerId" value={worker.id} />
                 <button type="submit" className="rounded bg-red-600 px-3 py-1 text-xs font-bold text-white">
                   حذف
@@ -297,6 +309,14 @@ export function WorkersListClient({
   const router = useRouter();
   const [search, setSearch] = useState("");
 
+  const refreshAfter = useCallback(
+    (fn: (formData: FormData) => Promise<void>) => async (formData: FormData) => {
+      await fn(formData);
+      router.refresh();
+    },
+    [router],
+  );
+
   const filtered = useMemo(() => {
     const s = search.trim();
     if (!s) return workers;
@@ -325,11 +345,12 @@ export function WorkersListClient({
         toggleActive={toggleActive}
         softDeleteWorker={softDeleteWorker}
         restoreWorker={restoreWorker}
+        refreshAfter={refreshAfter}
         canEditWorkers={canEditWorkers}
         canViewSensitive={canViewSensitive}
       />
     ),
-    [editId, queryBase, toggleActive, softDeleteWorker, restoreWorker, canEditWorkers, canViewSensitive],
+    [editId, queryBase, toggleActive, softDeleteWorker, restoreWorker, refreshAfter, canEditWorkers, canViewSensitive],
   );
 
   return (
