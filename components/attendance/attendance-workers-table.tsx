@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { TableVirtuoso, Virtuoso } from "react-virtuoso";
 
 import { submitAttendancePrepBulk } from "@/app/(dashboard)/attendance/actions";
 import { useAttendanceRscRefreshLock } from "@/components/attendance/attendance-rsc-refresh-lock";
@@ -49,8 +48,7 @@ function statusBadgeClass(status?: AttendanceStatus) {
   return "bg-slate-50 text-slate-600 border-slate-200";
 }
 
-const TABLE_H = "min(70vh,900px)";
-const MOBILE_H = "min(55vh,560px)";
+const SCROLL_MAX_H = "min(70vh, max(28rem, 900px))";
 /** يطابق الحد في `submitAttendancePrepBulk` — دفعات متتابعة مع شريط تقدّم */
 const CLIENT_PREP_CHUNK = 500;
 
@@ -395,13 +393,11 @@ export function AttendanceWorkersTable({
         </div>
       )}
 
-      <div className={`md:hidden`} style={{ height: MOBILE_H }}>
-        <Virtuoso
-          data={visibleRows}
-          style={{ height: "100%" }}
-          fixedItemHeight={132}
-          itemContent={(_index, worker) => (
-            <div className="border-b border-slate-200 p-2">
+      {/* عرض كامل بدون قوائم افتراضية — يطابق عدد الصفوف مع طول المصفوفة */}
+      <div className="md:hidden overflow-auto" style={{ maxHeight: SCROLL_MAX_H }}>
+        <ul className="divide-y divide-slate-200">
+          {visibleRows.map((worker) => (
+            <li key={worker.id} className="p-2">
               {!readOnly ? (
                 <label className="mb-1 inline-flex items-center gap-2 text-xs font-bold text-slate-600">
                   <input
@@ -424,27 +420,15 @@ export function AttendanceWorkersTable({
                 )}
               </p>
               <div className="mt-2">{statusButtons(worker.id)}</div>
-            </div>
-          )}
-        />
+            </li>
+          ))}
+        </ul>
       </div>
 
-      <div className="hidden md:block" style={{ height: TABLE_H }}>
-        <TableVirtuoso
-          data={visibleRows}
-          fixedItemHeight={52}
-          style={{ height: "100%" }}
-          components={{
-            Table: ({ style, ...props }) => (
-              <table
-                {...props}
-                style={{ ...style, width: "100%", borderCollapse: "collapse" }}
-                className="text-sm"
-              />
-            ),
-          }}
-          fixedHeaderContent={() => (
-            <tr className="bg-slate-100">
+      <div className="hidden md:block overflow-auto" style={{ maxHeight: SCROLL_MAX_H }}>
+        <table className="w-full border-collapse text-sm">
+          <thead className="sticky top-0 z-10 bg-slate-100 shadow-sm">
+            <tr>
               {!readOnly ? (
                 <th className="border border-slate-300 px-2 py-2 text-right font-bold">
                   <input type="checkbox" checked={pageAllSelected} onChange={toggleAllPage} disabled={isSaving} />
@@ -457,34 +441,36 @@ export function AttendanceWorkersTable({
               <th className="border border-slate-300 px-3 py-2 text-right font-bold">الموقع</th>
               <th className="border border-slate-300 px-3 py-2 text-right font-bold">إجراء</th>
             </tr>
-          )}
-          itemContent={(_index, worker) => (
-            <>
-              {!readOnly ? (
-                <td className="border border-slate-300 px-2 py-1">
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(worker.id)}
-                    onChange={() => toggle(worker.id)}
-                    disabled={isSaving || !workerHasSiteForPrep(worker)}
-                  />
+          </thead>
+          <tbody>
+            {visibleRows.map((worker, index) => (
+              <tr key={worker.id} className="bg-white even:bg-slate-50/80">
+                {!readOnly ? (
+                  <td className="border border-slate-300 px-2 py-1">
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(worker.id)}
+                      onChange={() => toggle(worker.id)}
+                      disabled={isSaving || !workerHasSiteForPrep(worker)}
+                    />
+                  </td>
+                ) : null}
+                <td className="border border-slate-300 px-3 py-1 text-slate-600">{index + 1}</td>
+                <td className="border border-slate-300 px-3 py-1 font-bold text-slate-800">{worker.name}</td>
+                <td className="border border-slate-300 px-3 py-1 font-mono text-slate-700">
+                  {worker.employee_code ?? "—"}
                 </td>
-              ) : null}
-              <td className="border border-slate-300 px-3 py-1 text-slate-600">{_index + 1}</td>
-              <td className="border border-slate-300 px-3 py-1 font-bold text-slate-800">{worker.name}</td>
-              <td className="border border-slate-300 px-3 py-1 font-mono text-slate-700">
-                {worker.employee_code ?? "—"}
-              </td>
-              <td className="border border-slate-300 px-3 py-1">{worker.id_number}</td>
-              <td className="border border-slate-300 px-3 py-1 text-slate-600">
-                {workerHasSiteForPrep(worker) ? (worker.sites?.name ?? "—") : (
-                  <span className="font-bold text-rose-600">بلا موقع</span>
-                )}
-              </td>
-              <td className="border border-slate-300 px-3 py-1">{statusButtons(worker.id)}</td>
-            </>
-          )}
-        />
+                <td className="border border-slate-300 px-3 py-1">{worker.id_number}</td>
+                <td className="border border-slate-300 px-3 py-1 text-slate-600">
+                  {workerHasSiteForPrep(worker) ? (worker.sites?.name ?? "—") : (
+                    <span className="font-bold text-rose-600">بلا موقع</span>
+                  )}
+                </td>
+                <td className="border border-slate-300 px-3 py-1">{statusButtons(worker.id)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {visibleRows.length === 0 && !suppressEmptyMessage && (

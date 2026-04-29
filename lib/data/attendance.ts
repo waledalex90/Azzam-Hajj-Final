@@ -146,6 +146,14 @@ function shouldLogAttendancePrepDebug(): boolean {
   return process.env.ATTENDANCE_PREP_DEBUG === "1" || process.env.NODE_ENV === "development";
 }
 
+/** تتبع مسح getAttendanceWorkerIdsForFilters (دفعات، lastWorkerId، سبب التوقف) — فعّل: ATTENDANCE_WORKER_IDS_TRACE=1 */
+function shouldTraceAttendanceWorkerIdsScan(): boolean {
+  return (
+    process.env.ATTENDANCE_WORKER_IDS_TRACE === "1" ||
+    process.env.ATTENDANCE_PREP_DEBUG === "1"
+  );
+}
+
 function mapRawWorkerEmbedRowToWorkerRow(item: RawWorkerEmbedRow): WorkerRow {
   const current_site_id = normalizeWorkerFkId(item.current_site_id);
   const contractor_id = normalizeWorkerFkId(item.contractor_id);
@@ -646,9 +654,7 @@ export async function getAllPendingPrepWorkers(
       .select(
         "id, name, id_number, employee_code, contractor_id, current_site_id, shift_round, is_active, is_deleted",
       )
-      .in("id", chunk)
-      .eq("is_active", true)
-      .eq("is_deleted", false);
+      .in("id", chunk);
 
     if (error) {
       throw new Error(`getAllPendingPrepWorkers: فشل جلب دفعة عمال (${error.message})`);
@@ -657,7 +663,7 @@ export async function getAllPendingPrepWorkers(
     if (debug) {
       chunkStats.push({ requested: chunk.length, returned: rows.length, batchIndex });
       if (rows.length < chunk.length) {
-        console.warn("[attendance:prep] دفعة in(id) أقل من المطلوب — احتمال اقتطاع max_rows أو صفوف لا تطابق is_active/is_deleted", {
+        console.warn("[attendance:prep] دفعة in(id) أقل من المطلوب — احتمال حد max_rows من PostgREST", {
           batchIndex,
           requestedIds: chunk.length,
           returnedRows: rows.length,
@@ -781,9 +787,33 @@ export async function getAttendanceWorkerIdsForFilters(
     dateOk &&
     (prepShiftScope === undefined || prepShiftScope === "all");
 
+  const traceScan = shouldTraceAttendanceWorkerIdsScan();
+  if (traceScan) {
+    console.log("[getAttendanceWorkerIdsForFilters] start", {
+      siteId,
+      allowedSiteIdsCount: allowedSiteIds?.length,
+      contractorId,
+      hasSearch: Boolean(search?.trim()),
+      workDate,
+      prepShiftScope,
+      excludeAlreadyPrepped,
+      excludeMorningSize: excludeMorning.size,
+      excludeEveningSize: excludeEvening.size,
+      needShiftColumn,
+      rangeInclusiveEnd: PREP_WORKERS_PAGE_SIZE,
+      batchFullSizeExpected: PREP_WORKERS_PAGE_SIZE + 1,
+    });
+  }
+
   /** تصفح مفتاحي بـ `id` + `range` بعرض PREP_WORKERS_PAGE_SIZE (بدون `.limit()` على الدفعة). */
   let lastWorkerId = 0;
+  let scanIteration = 0;
+  let scanStopReason = "unknown";
+
   while (true) {
+    scanIteration += 1;
+    const lastWorkerIdAtIterationStart = lastWorkerId;
+
     // محلّل الأعمدة في supabase-js لا يقبل سلسلة عمودين هنا رغم دعمها في PostgREST
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let query: any = supabase
@@ -828,12 +858,37 @@ export async function getAttendanceWorkerIdsForFilters(
 
     const { data, error } = await query;
     if (error) {
+      scanStopReason = `supabase_error:${error.message}`;
+      if (traceScan) {
+        console.log("[getAttendanceWorkerIdsForFilters] loop", {
+          iteration: scanIteration,
+          lastWorkerIdAtIterationStart,
+          fetchedRawRows: 0,
+          lastWorkerIdAfter: lastWorkerId,
+          stopReason: scanStopReason,
+        });
+      }
       break;
     }
-    if (!data?.length) break;
+    if (!data?.length) {
+      scanStopReason =
+        scanIteration === 1 ? "empty_first_page" : "empty_page_after_keyset";
+      if (traceScan) {
+        console.log("[getAttendanceWorkerIdsForFilters] loop", {
+          iteration: scanIteration,
+          lastWorkerIdAtIterationStart,
+          fetchedRawRows: 0,
+          lastWorkerIdAfter: lastWorkerId,
+          stopReason: scanStopReason,
+        });
+      }
+      break;
+    }
 
     type ScanRow = { id: number; shift_round?: number | null };
     const rows = data as ScanRow[];
+    const idsBeforePass = ids.length;
+
     for (const row of rows) {
       const id = Number(row.id);
       if (!Number.isFinite(id)) continue;
@@ -850,8 +905,40 @@ export async function getAttendanceWorkerIdsForFilters(
     }
 
     lastWorkerId = Number(rows[rows.length - 1].id);
+    const idsAddedThisPass = ids.length - idsBeforePass;
+
+    if (traceScan) {
+      console.log("[getAttendanceWorkerIdsForFilters] loop", {
+        iteration: scanIteration,
+        lastWorkerIdAtIterationStart,
+        fetchedRawRows: rows.length,
+        idsAddedAfterExclusionThisPass: idsAddedThisPass,
+        cumulativeIds: ids.length,
+        lastWorkerIdAfter: lastWorkerId,
+      });
+    }
+
     /** مع range(0, PREP_WORKERS_PAGE_SIZE) الشامل يصل إلى PREP_WORKERS_PAGE_SIZE + 1 صفاً كحدّ أقصى لكل طلب */
-    if (rows.length < PREP_WORKERS_PAGE_SIZE + 1) break;
+    if (rows.length < PREP_WORKERS_PAGE_SIZE + 1) {
+      scanStopReason = "partial_batch_last_page";
+      if (traceScan) {
+        console.log("[getAttendanceWorkerIdsForFilters] stop", {
+          stopReason: scanStopReason,
+          detail: `rows.length (${rows.length}) < full batch (${PREP_WORKERS_PAGE_SIZE + 1})`,
+          totalIterations: scanIteration,
+          totalIds: ids.length,
+        });
+      }
+      break;
+    }
+  }
+
+  if (traceScan) {
+    console.log("[getAttendanceWorkerIdsForFilters] return", {
+      totalIds: ids.length,
+      totalIterations: scanIteration,
+      lastRecordedStopReason: scanStopReason,
+    });
   }
 
   return ids;

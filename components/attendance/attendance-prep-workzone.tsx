@@ -121,11 +121,14 @@ export function AttendancePrepWorkzone({
 
   const allDone = workers.length === 0;
 
+  /** عدد المعلّقين المعروض = الصفوف المحمّلة (يطابق الجدول حرفياً؛ البحث يضيّق العرض فقط). */
+  const displayedPendingCount = deferredSearch.trim() ? filteredRows.length : workers.length;
+
   const statsBlock = (
     <div className="grid gap-3 sm:grid-cols-3">
       <Card className="text-center">
         <p className="text-xs text-slate-500">معلّق</p>
-        <p className="mt-1 text-2xl font-extrabold text-slate-700">{dayStats.pending}</p>
+        <p className="mt-1 text-2xl font-extrabold text-slate-700">{displayedPendingCount}</p>
       </Card>
       <Card className="text-center">
         <p className="text-xs text-slate-500">حاضر</p>
