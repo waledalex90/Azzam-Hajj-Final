@@ -139,8 +139,6 @@ type ChecksPageParams = {
 };
 
 const STATUS_MAP_IN_CHUNK = 500;
-/** حجم دفعة التصفح المفتاحي على `workers.id` (بدون offset). */
-const PREP_SCAN_CHUNK = 1000;
 /** جلب صفوف العمال بعد تجميع المعرفات — أقل من حد PostgREST `max_rows` الشائع لتفادي اقتطاع الرد دون خطأ. */
 const PREP_FETCH_BY_ID_CHUNK = 200;
 
@@ -783,7 +781,7 @@ export async function getAttendanceWorkerIdsForFilters(
     dateOk &&
     (prepShiftScope === undefined || prepShiftScope === "all");
 
-  /** تصفح مفتاحي بـ `id` لتفادي اعتماد offset/range مع حدود PostgREST وحالات القطع الصامتة. */
+  /** تصفح مفتاحي بـ `id` + `range` بعرض PREP_WORKERS_PAGE_SIZE (بدون `.limit()` على الدفعة). */
   let lastWorkerId = 0;
   while (true) {
     // محلّل الأعمدة في supabase-js لا يقبل سلسلة عمودين هنا رغم دعمها في PostgREST
@@ -794,7 +792,7 @@ export async function getAttendanceWorkerIdsForFilters(
       .eq("is_active", true)
       .eq("is_deleted", false)
       .order("id", { ascending: true })
-      .limit(PREP_SCAN_CHUNK);
+      .range(0, PREP_WORKERS_PAGE_SIZE);
 
     if (lastWorkerId > 0) {
       query = query.gt("id", lastWorkerId);
@@ -852,7 +850,8 @@ export async function getAttendanceWorkerIdsForFilters(
     }
 
     lastWorkerId = Number(rows[rows.length - 1].id);
-    if (rows.length < PREP_SCAN_CHUNK) break;
+    /** مع range(0, PREP_WORKERS_PAGE_SIZE) الشامل يصل إلى PREP_WORKERS_PAGE_SIZE + 1 صفاً كحدّ أقصى لكل طلب */
+    if (rows.length < PREP_WORKERS_PAGE_SIZE + 1) break;
   }
 
   return ids;
