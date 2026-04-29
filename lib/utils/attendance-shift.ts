@@ -14,6 +14,22 @@ export function attendancePrepShiftToQuery(scope: PrepShiftScope): string {
   return scope === "all" ? "0" : String(scope);
 }
 
+/**
+ * شاشة الاعتماد: نفس قيم باراميتر `shift` مثل التحضير؛ «كل الورديات» مسموحة فقط عند تمكين الواجهة (مثل مدير النظام ذي صلاحية `*`).
+ * غير ذلك يُحمَّل كصباحي إن كان الرابط غير مصرّح له.
+ */
+export function parseApprovalShiftFromParam(
+  shift: string | undefined,
+  allowAllShiftsOption: boolean,
+): { kind: "all" } | { kind: "round"; round: 1 | 2 } {
+  const prep = parseAttendancePrepShiftParam(shift);
+  if (prep === "all") {
+    if (allowAllShiftsOption) return { kind: "all" };
+    return { kind: "round", round: 1 };
+  }
+  return { kind: "round", round: prep === 2 ? 2 : 1 };
+}
+
 /** وردية التحضير الفعلية للعامل حسب السجل: NULL أو غير 2 → صباحي */
 export function effectivePrepRoundForWorker(shift_round: number | null | undefined): 1 | 2 {
   return Number(shift_round) === 2 ? 2 : 1;

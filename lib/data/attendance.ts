@@ -340,14 +340,18 @@ export async function getApprovalFilterCounts(params: {
   workDate: string;
   siteId?: number;
   contractorId?: number;
-  roundNo: number;
+  /** غير مُمرَّر = كل الورديات (1 و 2) */
+  roundNo?: number;
   allowedSiteIds?: number[];
 }): Promise<{ pending: number; confirmed: number; total: number }> {
   if (params.allowedSiteIds !== undefined && params.allowedSiteIds.length === 0) {
     return { pending: 0, confirmed: 0, total: 0 };
   }
   const supabase = createSupabaseAdminClient();
-  const r = normalizeShiftRound(params.roundNo);
+  const r =
+    params.roundNo !== undefined && Number.isFinite(params.roundNo)
+      ? normalizeShiftRound(params.roundNo)
+      : undefined;
   const sid = params.siteId && Number.isFinite(params.siteId) ? params.siteId : undefined;
   const cid = params.contractorId && Number.isFinite(params.contractorId) ? params.contractorId : undefined;
 
@@ -360,8 +364,8 @@ export async function getApprovalFilterCounts(params: {
         count: "exact",
         head: true,
       })
-      .eq("attendance_rounds.work_date", params.workDate)
-      .eq("attendance_rounds.round_no", r);
+      .eq("attendance_rounds.work_date", params.workDate);
+    if (r !== undefined) q = q.eq("attendance_rounds.round_no", r);
     if (sid) q = q.eq("attendance_rounds.site_id", sid);
     else if (params.allowedSiteIds && params.allowedSiteIds.length > 0) {
       q = q.in("attendance_rounds.site_id", params.allowedSiteIds);

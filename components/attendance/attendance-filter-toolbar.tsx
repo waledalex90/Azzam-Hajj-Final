@@ -31,7 +31,7 @@ export function AttendanceFilterToolbar(props: {
   tab: string;
   workDate: string;
   prepShiftScope: PrepShiftScope;
-  /** صفحة الاعتماد: إخفاء «كل الورديات» (جولة واحدة فقط) */
+  /** إخفاء «كل الورديات» عند false؛ في الاعتماد تُعرَض فقط لمن لديه صلاحية مدير النظام (`*`) */
   showAllShiftsOption?: boolean;
   siteId?: string;
   contractorId?: string;

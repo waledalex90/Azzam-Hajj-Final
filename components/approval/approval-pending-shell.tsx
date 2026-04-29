@@ -18,7 +18,7 @@ type Props = {
   workDate: string;
   siteId?: string;
   contractorId?: string;
-  roundNo: number;
+  roundNo?: number;
   canCorrection: boolean;
 };
 
@@ -63,7 +63,7 @@ export function ApprovalPendingShell({
     const q = new URLSearchParams();
     q.set("tab", "pending");
     q.set("date", workDate);
-    q.set("shift", String(roundNo));
+    q.set("shift", roundNo === undefined ? "0" : String(roundNo));
     router.push(`/approval?${q.toString()}`);
   }, [router, workDate, roundNo]);
 

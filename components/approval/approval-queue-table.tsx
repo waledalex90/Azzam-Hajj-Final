@@ -19,7 +19,7 @@ type Props = {
   workDate: string;
   siteId?: string;
   contractorId?: string;
-  roundNo: number;
+  roundNo?: number;
   canCorrection: boolean;
   onChunkApproved: (checkIds: number[]) => void;
 };

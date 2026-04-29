@@ -8,7 +8,7 @@ import { AttendanceFilterToolbar } from "@/components/attendance/attendance-filt
 import { Card } from "@/components/ui/card";
 import { TabPanelTransition } from "@/components/ui/tab-panel-transition";
 import { requireScreen } from "@/lib/auth/require-screen";
-import { canRequestAttendanceCorrection, hasPermission } from "@/lib/auth/permissions";
+import { canRequestAttendanceCorrection, hasWildcardPermission } from "@/lib/auth/permissions";
 import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
 import { PERM } from "@/lib/permissions/keys";
 import {
@@ -17,8 +17,8 @@ import {
   getContractorOptionsLive,
   getPendingApprovalCheckIds,
   getSiteOptionsLive,
-  normalizeShiftRound,
 } from "@/lib/data/attendance";
+import { parseApprovalShiftFromParam } from "@/lib/utils/attendance-shift";
 import { buildPaginationMeta } from "@/lib/utils/pagination";
 import { resolveWorkDateFromSearchParam } from "@/lib/utils/today";
 
@@ -42,14 +42,15 @@ export const maxDuration = 120;
 function approvalQueryString(params: {
   tab: string;
   workDate: string;
-  roundNo: number;
+  /** "0" = كل الورديات (مدير النظام)؛ "1"|"2" = جولة واحدة */
+  shift: string;
   siteId?: string;
   contractorId?: string;
 }) {
   const q = new URLSearchParams();
   q.set("tab", params.tab);
   if (params.workDate.trim() !== "") q.set("date", params.workDate);
-  q.set("shift", String(params.roundNo));
+  q.set("shift", params.shift);
   if (params.siteId) q.set("siteId", params.siteId);
   if (params.contractorId) q.set("contractorId", params.contractorId);
   return q.toString();
@@ -61,10 +62,6 @@ export default async function ApprovalPage({ searchParams }: Props) {
   const appUser = await requireScreen(PERM.APPROVE_ATTENDANCE);
   const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
   const canCorrection = canRequestAttendanceCorrection(appUser);
-  const canResetAttendance = Boolean(
-    appUser &&
-      (hasPermission(appUser, PERM.EDIT_ATTENDANCE) || hasPermission(appUser, PERM.APPROVE_ATTENDANCE)),
-  );
 
   const params = await searchParams;
   const activeTab = params.tab === "history" ? "history" : "pending";
@@ -79,7 +76,15 @@ export default async function ApprovalPage({ searchParams }: Props) {
   const contractorId = params.contractorId ? Number(params.contractorId) : undefined;
   const workDate = resolveWorkDateFromSearchParam(params.date);
 
-  const roundNo = normalizeShiftRound(params.shift);
+  const canShowAllShiftsInApprovalUi = hasWildcardPermission(appUser);
+  const approvalShift = parseApprovalShiftFromParam(params.shift, canShowAllShiftsInApprovalUi);
+  const roundNo =
+    approvalShift.kind === "all" ? undefined : approvalShift.round;
+  /** لعنصر التحكم والمفاتيح؛ يعرض القيمة في الرابط (0 = كل الورديات). */
+  const shiftQuery =
+    approvalShift.kind === "all" ? "0" : String(approvalShift.round);
+  const prepShiftScopeForToolbar =
+    approvalShift.kind === "all" ? ("all" as const) : approvalShift.round;
 
   const sid = Number.isFinite(siteId) ? siteId : undefined;
   const cid = Number.isFinite(contractorId) ? contractorId : undefined;
@@ -115,7 +120,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
             contractorId: cid,
             search: undefined,
             confirmationStatus: "pending",
-            roundNo,
+            roundNo: roundNo,
           })
         : Promise.resolve(null),
       activeTab === "history"
@@ -128,7 +133,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
             contractorId: cid,
             search: undefined,
             confirmationStatus: "confirmed",
-            roundNo,
+            roundNo: roundNo,
           })
         : Promise.resolve(null),
       activeTab === "pending"
@@ -168,14 +173,14 @@ export default async function ApprovalPage({ searchParams }: Props) {
     pending: approvalQueryString({
       tab: "pending",
       workDate,
-      roundNo,
+      shift: shiftQuery,
       siteId: params.siteId,
       contractorId: params.contractorId,
     }),
     history: approvalQueryString({
       tab: "history",
       workDate,
-      roundNo,
+      shift: shiftQuery,
       siteId: params.siteId,
       contractorId: params.contractorId,
     }),
@@ -211,8 +216,8 @@ export default async function ApprovalPage({ searchParams }: Props) {
           basePath="/approval"
           tab={activeTab}
           workDate={workDate}
-          prepShiftScope={roundNo === 2 ? 2 : 1}
-          showAllShiftsOption={false}
+          prepShiftScope={prepShiftScopeForToolbar}
+          showAllShiftsOption={canShowAllShiftsInApprovalUi}
           siteId={params.siteId}
           contractorId={params.contractorId}
           sites={sites}
@@ -224,7 +229,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
       <TabPanelTransition key={activeTab}>
         {activeTab === "pending" ? (
           <ApprovalPendingShell
-            key={`pend-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${mountKey}`}
+            key={`pend-${workDate}-${shiftQuery}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${mountKey}`}
             initialRows={pendingRows}
             initialStats={approvalStats}
             totalPendingFiltered={pendingFilteredTotal}
@@ -236,7 +241,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
           />
         ) : (
           <ApprovalHistoryShell
-            key={`hist-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${mountKey}`}
+            key={`hist-${workDate}-${shiftQuery}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${mountKey}`}
             initialRows={historyRows}
             stats={approvalStats}
             canRequestCorrection={canCorrection}

@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 
 import { getSessionContext } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { hasPermission, hasWildcardPermission } from "@/lib/auth/permissions";
 import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
 import { PERM } from "@/lib/permissions/keys";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -75,7 +75,8 @@ export async function fetchPendingApprovalIds(input: {
   workDate: string;
   siteId?: number;
   contractorId?: number;
-  roundNo: number;
+  /** غير مُمرَّر = كل الورديات ضمن الفلتر */
+  roundNo?: number;
 }): Promise<FetchPendingIdsResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser } = await getSessionContext();
@@ -88,6 +89,10 @@ export async function fetchPendingApprovalIds(input: {
   }
   try {
     const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
+    let roundNo = input.roundNo;
+    if (roundNo === undefined && !hasWildcardPermission(appUser)) {
+      roundNo = 1;
+    }
     let siteId = input.siteId;
     if (allowedSiteIds !== undefined && allowedSiteIds.length > 0) {
       if (siteId !== undefined && !allowedSiteIds.includes(siteId)) {
@@ -99,7 +104,7 @@ export async function fetchPendingApprovalIds(input: {
       siteId,
       contractorId: input.contractorId,
       search: undefined,
-      roundNo: input.roundNo,
+      roundNo,
       allowedSiteIds,
     });
     return { ok: true, ids };
