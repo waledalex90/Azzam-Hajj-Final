@@ -100,6 +100,7 @@ export function canCreateWorkerTransferRequest(
     hasPermission(appUser, PERM.MANAGE_TRANSFERS) ||
     hasWildcardPermission(appUser) ||
     hasPermission(appUser, PERM.ACCESS_ALL_SITES) ||
+    hasPermission(appUser, PERM.RECORD_ATTENDANCE_PREP) ||
     hasPermission(appUser, PERM.EDIT_ATTENDANCE)
   ) {
     return true;
@@ -118,6 +119,7 @@ export function canRespondAsDestinationSite(
     hasPermission(appUser, PERM.MANAGE_TRANSFERS) ||
     hasWildcardPermission(appUser) ||
     hasPermission(appUser, PERM.ACCESS_ALL_SITES) ||
+    hasPermission(appUser, PERM.RECORD_ATTENDANCE_PREP) ||
     hasPermission(appUser, PERM.EDIT_ATTENDANCE)
   ) {
     return true;
@@ -141,6 +143,7 @@ export function canSeeAllDestinationSitesForTransfers(appUser: AppUser): boolean
     hasWildcardPermission(appUser) ||
     hasPermission(appUser, PERM.ACCESS_ALL_SITES) ||
     hasPermission(appUser, PERM.MANAGE_USERS) ||
+    hasPermission(appUser, PERM.RECORD_ATTENDANCE_PREP) ||
     hasPermission(appUser, PERM.EDIT_ATTENDANCE)
   );
 }

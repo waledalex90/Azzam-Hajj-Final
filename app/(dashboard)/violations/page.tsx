@@ -12,7 +12,7 @@ import { getSessionContext } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { parsePage } from "@/lib/utils/pagination";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
-import { requireScreen } from "@/lib/auth/require-screen";
+import { requireAnyScreen } from "@/lib/auth/require-screen";
 import { PERM } from "@/lib/permissions/keys";
 import { resolveViolationListDateRange } from "@/lib/utils/today";
 
@@ -32,7 +32,9 @@ type Props = {
 const PAGE_SIZE = 20;
 
 export default async function ViolationsPage({ searchParams }: Props) {
-  await requireScreen(PERM.VIEW_VIOLATIONS);
+  const appUser = await requireAnyScreen([PERM.VIEW_VIOLATIONS, PERM.MANAGE_VIOLATIONS]);
+  const canOpenNoticeForm = hasPermission(appUser, PERM.CREATE_VIOLATION_NOTICE);
+  const canRegisterFromList = hasPermission(appUser, PERM.MANAGE_VIOLATIONS);
 
   async function createViolation(formData: FormData) {
     "use server";
@@ -104,9 +106,11 @@ export default async function ViolationsPage({ searchParams }: Props) {
       <Card>
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-lg font-extrabold text-slate-900">شاشة المخالفات</h1>
-          <Link href="/violations/notice">
-            <Button variant="secondary">فتح إشعار مخالفة 1447هـ</Button>
-          </Link>
+          {canOpenNoticeForm ? (
+            <Link href="/violations/notice">
+              <Button variant="secondary">فتح إشعار مخالفة 1447هـ</Button>
+            </Link>
+          ) : null}
         </div>
         <p className="mt-1 text-sm text-slate-600">
           راجع المخالفات المعلّقة، وحدّد <strong>مبلغ الخصم على المقاول (ر.س)</strong> لكل سطر ثم اعتمد؛ القيمة تُحفظ على
@@ -148,58 +152,68 @@ export default async function ViolationsPage({ searchParams }: Props) {
         </form>
       </Card>
 
-      <Card>
-        <h2 className="text-base font-extrabold text-slate-900">تسجيل مخالفة جديدة</h2>
-        <form method="get" className="mt-3 flex gap-2">
-          <Input name="workerQ" defaultValue={workerQ} placeholder="بحث عامل بالاسم أو الهوية" />
-          <Button type="submit">بحث</Button>
-        </form>
-        <form action={createViolation} className="mt-3 grid gap-2 sm:grid-cols-2">
-          <div className="sm:col-span-2 grid gap-2 sm:grid-cols-2">
-            <ViolationFormWorkerSelect workers={formOptions.workers} required />
+      {canRegisterFromList ? (
+        <Card>
+          <h2 className="text-base font-extrabold text-slate-900">تسجيل مخالفة جديدة</h2>
+          <form method="get" className="mt-3 flex gap-2">
+            <Input name="workerQ" defaultValue={workerQ} placeholder="بحث عامل بالاسم أو الهوية" />
+            <Button type="submit">بحث</Button>
+          </form>
+          <form action={createViolation} className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div className="sm:col-span-2 grid gap-2 sm:grid-cols-2">
+              <ViolationFormWorkerSelect workers={formOptions.workers} required />
+              <select
+                name="violationTypeId"
+                className="min-h-12 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
+                required
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  اختر نوع المخالفة
+                </option>
+                {formOptions.violationTypes.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name_ar}
+                  </option>
+                ))}
+              </select>
+            </div>
             <select
-              name="violationTypeId"
+              name="siteId"
               className="min-h-12 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
-              required
               defaultValue=""
             >
-              <option value="" disabled>
-                اختر نوع المخالفة
-              </option>
-              {formOptions.violationTypes.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name_ar}
+              <option value="">تحديد تلقائي من موقع العامل</option>
+              {formOptions.sites.map((site) => (
+                <option key={site.id} value={site.id}>
+                  {site.name}
                 </option>
               ))}
             </select>
-          </div>
-          <select
-            name="siteId"
-            className="min-h-12 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base"
-            defaultValue=""
-          >
-            <option value="">تحديد تلقائي من موقع العامل</option>
-            {formOptions.sites.map((site) => (
-              <option key={site.id} value={site.id}>
-                {site.name}
-              </option>
-            ))}
-          </select>
-          <Input name="occurredAt" type="datetime-local" placeholder="اختر التاريخ" />
-          <textarea
-            name="description"
-            placeholder="وصف المخالفة"
-            className="min-h-28 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base sm:col-span-2"
-          />
-          <div className="sm:col-span-2">
-            <Button type="submit" className="w-full sm:w-auto">
-              تسجيل المخالفة
-            </Button>
-          </div>
-        </form>
-      </Card>
+            <Input name="occurredAt" type="datetime-local" placeholder="اختر التاريخ" />
+            <textarea
+              name="description"
+              placeholder="وصف المخالفة"
+              className="min-h-28 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base sm:col-span-2"
+            />
+            <div className="sm:col-span-2">
+              <Button type="submit" className="w-full sm:w-auto">
+                تسجيل المخالفة
+              </Button>
+            </div>
+          </form>
+        </Card>
+      ) : (
+        <Card className="border-dashed border-slate-200 bg-slate-50/70">
+          <p className="text-sm text-slate-700">
+            <span className="font-bold">عرض القائمة فقط.</span> لتسجيل مخالفة من هنا أو اعتماد خصومات تحتاج صلاحية
+            «إدارة المخالفات»؛ وإشعار المقاول ١٤٤٧هـ له صلاحية منفصلة من شاشة «إشعار المخالفة» أو من زر الوصول السريع
+            إن رُسمت لحسابك.
+          </p>
+        </Card>
+      )}
 
-      <ViolationsTable rows={rows} />
+      <ViolationsTable rows={rows} allowManageViolationActions={canRegisterFromList} />
 
       <PaginationControls
         page={meta.page}

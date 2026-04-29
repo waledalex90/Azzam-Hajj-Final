@@ -21,7 +21,7 @@ export async function cancelHalfDayAttendancePrep(formData: FormData): Promise<C
 
   const { appUser } = await getSessionContext();
   if (!appUser || !hasPermission(appUser, PERM.EDIT_ATTENDANCE)) {
-    return { ok: false, error: "لا تملك صلاحية التحضير." };
+    return { ok: false, error: "لا تملك صلاحية تعديل سجل الحضور." };
   }
 
   const supabase = createSupabaseAdminClient();
@@ -89,7 +89,12 @@ export async function reviewAttendanceCheck(formData: FormData) {
   if (!workDate) return;
 
   const { appUser } = await getSessionContext();
-  if (!appUser) return;
+  if (
+    !appUser ||
+    (!hasPermission(appUser, PERM.RECORD_ATTENDANCE_PREP) && !hasPermission(appUser, PERM.EDIT_ATTENDANCE))
+  ) {
+    return;
+  }
   const prepGuard = await assertWorkerIdsEligibleForPrep(appUser, [check.worker_id]);
   if (!prepGuard.ok) {
     throw new Error(prepGuard.error);
@@ -112,7 +117,7 @@ export async function returnAttendanceToPreparation(formData: FormData) {
 
   const { appUser } = await getSessionContext();
   if (!appUser || !hasPermission(appUser, PERM.EDIT_ATTENDANCE)) {
-    throw new Error("لا تملك صلاحية التحضير.");
+    throw new Error("لا تملك صلاحية تعديل سجل الحضور.");
   }
 
   const supabase = createSupabaseAdminClient();

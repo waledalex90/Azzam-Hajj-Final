@@ -50,7 +50,7 @@ export async function POST(request: Request) {
 
   try {
     if (mode === "attendance_submit") {
-      if (!appUser || !hasPermission(appUser, PERM.EDIT_ATTENDANCE)) {
+      if (!appUser || !hasPermission(appUser, PERM.RECORD_ATTENDANCE_PREP)) {
         return NextResponse.json({ error: "Forbidden", code: "403" }, { status: 403 });
       }
       if (

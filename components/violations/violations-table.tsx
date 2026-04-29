@@ -10,6 +10,8 @@ import { approveWorkerViolationAction, rejectWorkerViolationAction } from "@/app
 
 type Props = {
   rows: ViolationRow[];
+  /** اعتماد/رفض وخصومات — بدون هذه الصلاحية عرض القائمة فقط */
+  allowManageViolationActions?: boolean;
 };
 
 function getStatusLabel(status: ViolationRow["status"]) {
@@ -40,7 +42,13 @@ function SubmitRowButton({ label }: { label: string }) {
   );
 }
 
-function ReviewCell({ v }: { v: ViolationRow }) {
+function ReviewCell({
+  v,
+  allowManage,
+}: {
+  v: ViolationRow;
+  allowManage: boolean;
+}) {
   const defaultDed = Number(v.deduction_sar ?? 0);
   if (!canReview(v.status)) {
     return (
@@ -48,6 +56,10 @@ function ReviewCell({ v }: { v: ViolationRow }) {
         {v.status === "approved" ? `${defaultDed.toFixed(2)} (معتمد)` : "—"}
       </span>
     );
+  }
+
+  if (!allowManage) {
+    return <span className="text-xs font-bold text-slate-500">عرض القائمة فقط — تتطلّب الاعتماد صلاحية إدارة.</span>;
   }
 
   return (
@@ -78,7 +90,7 @@ function ReviewCell({ v }: { v: ViolationRow }) {
   );
 }
 
-export function ViolationsTable({ rows }: Props) {
+export function ViolationsTable({ rows, allowManageViolationActions = true }: Props) {
   return (
     <Card className="overflow-hidden p-0">
       <div className="space-y-3 p-3 md:hidden">
@@ -94,7 +106,7 @@ export function ViolationsTable({ rows }: Props) {
             </div>
             <div className="mt-3 border-t border-slate-100 pt-2">
               <p className="mb-1 text-xs font-bold text-slate-800">اعتماد وخصم المقاول</p>
-              <ReviewCell v={violation} />
+              <ReviewCell v={violation} allowManage={allowManageViolationActions} />
             </div>
           </div>
         ))}
@@ -134,7 +146,7 @@ export function ViolationsTable({ rows }: Props) {
                   {new Date(violation.occurred_at).toLocaleDateString("ar-SA")}
                 </td>
                 <td className="px-3 py-2 align-top">
-                  <ReviewCell v={violation} />
+                  <ReviewCell v={violation} allowManage={allowManageViolationActions} />
                 </td>
               </tr>
             ))}

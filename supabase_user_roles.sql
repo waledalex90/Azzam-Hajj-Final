@@ -27,7 +27,7 @@ insert into public.user_roles (slug, name_ar, permissions) values
 (
   'technical_observer',
   'مراقب فني',
-  '["dashboard","prep","approval","correction_request","corrections_screen","workers","sites","reports","violations","violation_notice","access_all_sites","edit_attendance"]'::jsonb
+  '["dashboard","prep","approval","correction_request","corrections_screen","workers","sites","reports","violations","violation_notice","access_all_sites","record_attendance_prep","edit_attendance"]'::jsonb
 ),
 (
   'field_observer',

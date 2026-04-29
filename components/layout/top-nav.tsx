@@ -11,7 +11,7 @@ type Props = {
 
 const links = [
   { href: "/dashboard", label: "الرئيسية", anyOf: [PERM.VIEW_DASHBOARD] as const },
-  { href: "/attendance", label: "التحضير", anyOf: [PERM.VIEW_ATTENDANCE, PERM.EDIT_ATTENDANCE] as const },
+  { href: "/attendance", label: "التحضير", anyOf: [PERM.VIEW_ATTENDANCE, PERM.RECORD_ATTENDANCE_PREP, PERM.EDIT_ATTENDANCE] as const },
   {
     href: "/violations",
     label: "المخالفات",

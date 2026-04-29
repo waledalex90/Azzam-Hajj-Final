@@ -143,7 +143,7 @@ export async function submitAttendanceByWorkersEngine({
 
   if (touched === 0 && payload.length > 0) {
     throw new Error(
-      "لم يُحفظ أي سجل في الحضور. إن بدا كل شيء صحيحاً في الواجهة: 1) تأكد أن لدورك صلاحية «تسجيل الحضور» (edit_attendance في الأدوار) وربط تام بين المستخدم ومواقعه (أو اختيار «كل المواقع»). 2) اطلب من مسؤول قاعدة البيانات تطبيق أحدث supabase_azzam_hajj_bootstrap.sql أو supabase_fix_can_access_match_app_user_sites.sql (ينسّق can_access مع app_user_sites ويصلح اختلاف «كل المواقع» مقابل الجلسة). 3) جرّب تسجيل الخروج والدخول لتحميل صلاحيات الجلسة.",
+      "لم يُحفظ أي سجل في الحضور. إن بدا كل شيء صحيحاً في الواجهة: 1) تأكد أن لدورك صلاحية «تسجيل التحضير» (record_attendance_prep أو edit_attendance ضمن الأدوار) وربط تام بين المستخدم ومواقعه (أو اختيار «كل المواقع»). 2) اطلب من مسؤول قاعدة البيانات تطبيق أحدث supabase_azzam_hajj_bootstrap.sql أو supabase_fix_can_access_match_app_user_sites.sql (ينسّق can_access مع app_user_sites ويصلح اختلاف «كل المواقع» مقابل الجلسة). 3) جرّب تسجيل الخروج والدخول لتحميل صلاحيات الجلسة.",
     );
   }
   if (touched < payload.length) {

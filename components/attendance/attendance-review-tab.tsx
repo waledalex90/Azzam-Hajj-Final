@@ -11,6 +11,8 @@ import { matchesClientSearch } from "@/lib/utils/client-search";
 type Props = {
   initialRows: AttendanceCheckRow[];
   canCorrection: boolean;
+  /** تعديل السجلات بعد التسجيل (إلغاء نصف يوم، إلخ.) — مفتاح edit_attendance */
+  canEditAttendanceRecords?: boolean;
   /** مراقب ميداني: يرى من نُقِل للطابور للاطلاع فقط؛ الاعتماد لدى المراقب الفني */
   readOnlyReview?: boolean;
   shiftLabel?: string;
@@ -40,6 +42,7 @@ const MOBILE_H = "min(50vh,520px)";
 export function AttendanceReviewTab({
   initialRows,
   canCorrection,
+  canEditAttendanceRecords = true,
   readOnlyReview = false,
   shiftLabel,
 }: Props) {
@@ -121,7 +124,9 @@ export function AttendanceReviewTab({
                     التحضير: <span className="text-slate-900">{prepStatusLabel(row.status)}</span>
                   </p>
                   <CorrectionRequestDialog checkId={row.id} disabled={!canCorrection} />
-                  {row.status === "half" && row.confirmation_status === "pending" ? (
+                  {canEditAttendanceRecords &&
+                  row.status === "half" &&
+                  row.confirmation_status === "pending" ? (
                     <CancelHalfDayPrepButton checkId={row.id} />
                   ) : null}
                 </div>
@@ -182,7 +187,9 @@ export function AttendanceReviewTab({
                 <td className="border border-slate-300 px-3 py-1 align-top">
                   <div className="flex flex-col gap-2">
                     <CorrectionRequestDialog checkId={row.id} disabled={!canCorrection} />
-                    {row.status === "half" && row.confirmation_status === "pending" ? (
+                    {canEditAttendanceRecords &&
+                    row.status === "half" &&
+                    row.confirmation_status === "pending" ? (
                       <CancelHalfDayPrepButton checkId={row.id} />
                     ) : null}
                   </div>

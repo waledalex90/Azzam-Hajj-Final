@@ -33,8 +33,8 @@ export async function submitAttendancePrepBulk(
 ): Promise<PrepActionResult> {
   if (isDemoModeEnabled()) return { ok: false, error: "وضع العرض فقط — لا يُحفظ." };
   const { appUser } = await getSessionContext();
-  if (!appUser || !hasPermission(appUser, PERM.EDIT_ATTENDANCE)) {
-    return { ok: false, error: "لا توجد صلاحية للتحضير." };
+  if (!appUser || !hasPermission(appUser, PERM.RECORD_ATTENDANCE_PREP)) {
+    return { ok: false, error: "لا توجد صلاحية لتسجيل التحضير." };
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
     return { ok: false, error: "تاريخ غير صالح." };

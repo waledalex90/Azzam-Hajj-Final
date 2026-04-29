@@ -8,7 +8,7 @@ const LANDING_ORDER: Array<{ path: string; anyOf: string[] }> = [
   { path: "/workers", anyOf: [PERM.VIEW_WORKERS] },
   { path: "/sites", anyOf: [PERM.VIEW_SITES] },
   { path: "/contractors", anyOf: [PERM.VIEW_CONTRACTORS] },
-  { path: "/attendance", anyOf: [PERM.VIEW_ATTENDANCE, PERM.EDIT_ATTENDANCE] },
+  { path: "/attendance", anyOf: [PERM.VIEW_ATTENDANCE, PERM.RECORD_ATTENDANCE_PREP, PERM.EDIT_ATTENDANCE] },
   { path: "/approval", anyOf: [PERM.APPROVE_ATTENDANCE] },
   { path: "/transfers", anyOf: [PERM.VIEW_TRANSFERS, PERM.MANAGE_TRANSFERS] },
   { path: "/reports", anyOf: [PERM.VIEW_REPORTS, ...ALL_REPORT_TAB_PERMISSIONS] },

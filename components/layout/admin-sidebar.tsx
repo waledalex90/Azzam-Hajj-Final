@@ -39,7 +39,11 @@ const menuItems = [
     href: "/attendance",
     label: "تسجيل الحضور",
     icon: ClipboardList,
-    anyOf: [PERM.VIEW_ATTENDANCE, PERM.EDIT_ATTENDANCE] as const,
+    anyOf: [
+      PERM.VIEW_ATTENDANCE,
+      PERM.RECORD_ATTENDANCE_PREP,
+      PERM.EDIT_ATTENDANCE,
+    ] as const,
   },
   { href: "/approval", label: "اعتماد الحضور", icon: BadgeCheck, anyOf: [PERM.APPROVE_ATTENDANCE] as const },
   {

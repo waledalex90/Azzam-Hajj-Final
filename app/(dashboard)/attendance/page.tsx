@@ -56,12 +56,17 @@ export const maxDuration = 120;
 
 export default async function AttendancePage({ searchParams }: Props) {
   noStore();
-  const appUser = await requireAnyScreen([PERM.VIEW_ATTENDANCE, PERM.EDIT_ATTENDANCE]);
+  const appUser = await requireAnyScreen([
+    PERM.VIEW_ATTENDANCE,
+    PERM.RECORD_ATTENDANCE_PREP,
+    PERM.EDIT_ATTENDANCE,
+  ]);
   const allowedSiteIds = await resolveAllowedSiteIdsForSession(appUser);
   const canCorrection = canRequestAttendanceCorrection(appUser);
   /** اعتماد/طابور إداري: المراقب الفني؛ الميداني يرى نفس القائمة للاطلاع فقط (من نُقِل بعد تحضيره). */
   const canManageReviewQueue = hasPermission(appUser, PERM.APPROVE_ATTENDANCE);
-  const canEditPrep = hasPermission(appUser, PERM.EDIT_ATTENDANCE);
+  const canRecordPrep = hasPermission(appUser, PERM.RECORD_ATTENDANCE_PREP);
+  const canEditAttendanceRecords = hasPermission(appUser, PERM.EDIT_ATTENDANCE);
 
   const params = await searchParams;
   const activeTab = params.tab === "review" ? "review" : "workers";
@@ -269,7 +274,7 @@ export default async function AttendancePage({ searchParams }: Props) {
             prepShiftScope={prepShiftScope}
             siteId={params.siteId}
             contractorId={params.contractorId}
-            readOnlyPrep={!canEditPrep}
+            readOnlyPrep={!canRecordPrep}
           />
         ) : (
           <>
@@ -309,6 +314,7 @@ export default async function AttendancePage({ searchParams }: Props) {
               key={`rev-${workDate}-${reviewRoundNo}-${params.siteId ?? ""}`}
               initialRows={reviewedRows}
               canCorrection={canCorrection}
+              canEditAttendanceRecords={canEditAttendanceRecords}
               readOnlyReview={!canManageReviewQueue}
               shiftLabel={reviewRoundNo === 2 ? "مسائي" : "صباحي"}
             />

@@ -29,6 +29,9 @@ export const PERM = {
   EDIT_CONTRACTORS: "edit_contractors",
 
   VIEW_ATTENDANCE: "view_attendance",
+  /** التحضير الميداني: تسجيل حاضر/غائب (أول مرة؛ يشمل الواجهة والـ RPC) */
+  RECORD_ATTENDANCE_PREP: "record_attendance_prep",
+  /** تعديل سجلات الحضور بعد التسجيل (إزالة نصف يوم قديم، إرجاع للتحضير، إلخ.) */
   EDIT_ATTENDANCE: "edit_attendance",
   APPROVE_ATTENDANCE: "approve_attendance",
   /**
@@ -78,7 +81,10 @@ export const ALL_REPORT_TAB_PERMISSIONS: readonly string[] = [
 
 /** قيم قديمة في JSON — كل قيمة توسِّع إلى مفاتيح جزئية (للتوافق مع البيانات المخزَّنة قبل التجزئة). */
 export const LEGACY_GRANTS: Record<string, readonly string[]> = {
-  prep: [PERM.VIEW_ATTENDANCE, PERM.EDIT_ATTENDANCE],
+  /** أدوار قبل فصل «تسجيل» عن «تعديل»: المفتاح edit_attendance القديم كان يغطيهما معاً */
+  edit_attendance: [PERM.RECORD_ATTENDANCE_PREP],
+
+  prep: [PERM.VIEW_ATTENDANCE, PERM.RECORD_ATTENDANCE_PREP, PERM.EDIT_ATTENDANCE],
   /** اعتماد الحضور + معالجة طلبات التعديل (السلوك السابق لـ corrections/actions) */
   approval: [PERM.VIEW_ATTENDANCE, PERM.APPROVE_ATTENDANCE, PERM.PROCESS_CORRECTIONS],
   correction_request: [PERM.REQUEST_ATTENDANCE_CORRECTION],
@@ -117,7 +123,8 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
   { group: "المواقع والمقاولون", key: PERM.EDIT_CONTRACTORS, label: "تعديل المقاولين" },
 
   { group: "الحضور والاعتماد", key: PERM.VIEW_ATTENDANCE, label: "عرض شاشة الحضور والمراجعة (قراءة)" },
-  { group: "الحضور والاعتماد", key: PERM.EDIT_ATTENDANCE, label: "تسجيل وتعديل حالة الحضور (التحضير)" },
+  { group: "الحضور والاعتماد", key: PERM.RECORD_ATTENDANCE_PREP, label: "تسجيل حالة الحضور (تحضير — حاضر/غائب)" },
+  { group: "الحضور والاعتماد", key: PERM.EDIT_ATTENDANCE, label: "تعديل سجلات الحضور بعد التسجيل (إزالة قديمة، إرجاع للتحضير)" },
   { group: "الحضور والاعتماد", key: PERM.ATTENDANCE_REGISTER_AS_FIELD, label: "تسجيل الحضور نيابة عن الميدان (يُنسب لمراقب ميداني)" },
   { group: "الحضور والاعتماد", key: PERM.ACCESS_ALL_SITES, label: "نطاق كل المواقع (مؤسسي — غير مربوط بمواقع في الحساب)" },
   { group: "الحضور والاعتماد", key: PERM.APPROVE_ATTENDANCE, label: "اعتماد أو رفض سجلات الحضور" },
@@ -139,9 +146,13 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
   { group: "نقل الموظفين", key: PERM.VIEW_TRANSFERS, label: "عرض طلبات النقل" },
   { group: "نقل الموظفين", key: PERM.MANAGE_TRANSFERS, label: "إنشاء والرد على طلبات النقل" },
 
-  { group: "المخالفات", key: PERM.VIEW_VIOLATIONS, label: "عرض المخالفات" },
-  { group: "المخالفات", key: PERM.MANAGE_VIOLATIONS, label: "إدارة حالة المخالفات" },
-  { group: "المخالفات", key: PERM.CREATE_VIOLATION_NOTICE, label: "إشعار مخالفة" },
+  { group: "المخالفات", key: PERM.VIEW_VIOLATIONS, label: "عرض قائمة المخالفات والتصفية" },
+  { group: "المخالفات", key: PERM.MANAGE_VIOLATIONS, label: "تسجيل أو إعتماد مخالفة من لوحة القائمة" },
+  {
+    group: "المخالفات",
+    key: PERM.CREATE_VIOLATION_NOTICE,
+    label: "إشعار مخالفة مقاول — نموذج ١٤٤٧ (منفصل عن عرض القائمة)",
+  },
 
   { group: "الإدارة", key: PERM.MANAGE_USERS, label: "إدارة مستخدمي النظام" },
   { group: "الإدارة", key: PERM.MANAGE_ROLES, label: "إدارة الأدوار والصلاحيات" },

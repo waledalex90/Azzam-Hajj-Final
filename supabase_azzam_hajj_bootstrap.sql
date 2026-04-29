@@ -126,7 +126,7 @@ insert into public.user_roles (slug, name_ar, permissions) values
 (
   'technical_observer',
   'مراقب فني',
-  '["dashboard","prep","approval","correction_request","corrections_screen","workers","sites","reports","violations","violation_notice","access_all_sites","edit_attendance"]'::jsonb
+  '["dashboard","prep","approval","correction_request","corrections_screen","workers","sites","reports","violations","violation_notice","access_all_sites","record_attendance_prep","edit_attendance"]'::jsonb
 ),
 (
   'field_observer',
@@ -455,9 +455,15 @@ begin
       return true;
     end if;
   end if;
-  -- مطابقة LEGACY_GRANTS: prep → view_attendance + edit_attendance
-  if p_required in ('edit_attendance', 'view_attendance') then
+  -- مطابقة LEGACY_GRANTS: prep → view_attendance + record_attendance_prep + edit_attendance
+  if p_required in ('edit_attendance', 'view_attendance', 'record_attendance_prep') then
     if exists (select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm = 'prep') then
+      return true;
+    end if;
+  end if;
+  -- أدوار قديمة: edit_attendance وحده كان يمنح تحضيراً كاملاً — اعتباره مساوياً لتسجيل التحضير للـ Postgres
+  if p_required = 'record_attendance_prep' then
+    if exists (select 1 from jsonb_array_elements_text(j) as e(perm) where e.perm = 'edit_attendance') then
       return true;
     end if;
   end if;
@@ -511,11 +517,12 @@ as $$
       when
         app.has_granular_permission('attendance_register_as_field')
         and not app.has_granular_permission('edit_attendance')
+        and not app.has_granular_permission('record_attendance_prep')
         and not app.has_granular_permission('*')
       then
         p_site_id = any(app.current_user_site_ids())
       when
-        (app.has_granular_permission('edit_attendance') or app.has_granular_permission('view_attendance'))
+        (app.has_granular_permission('edit_attendance') or app.has_granular_permission('view_attendance') or app.has_granular_permission('record_attendance_prep'))
         and not app.has_granular_permission('attendance_register_as_field')
         and cardinality(app.current_user_site_ids()) = 0
       then
@@ -544,6 +551,7 @@ as $$
       when
         app.has_granular_permission('attendance_register_as_field')
         and not app.has_granular_permission('edit_attendance')
+        and not app.has_granular_permission('record_attendance_prep')
         and not app.has_granular_permission('*')
       then
         exists (
@@ -554,7 +562,7 @@ as $$
             and w.current_site_id = any(app.current_user_site_ids())
         )
       when
-        (app.has_granular_permission('edit_attendance') or app.has_granular_permission('view_attendance'))
+        (app.has_granular_permission('edit_attendance') or app.has_granular_permission('view_attendance') or app.has_granular_permission('record_attendance_prep'))
         and not app.has_granular_permission('attendance_register_as_field')
         and cardinality(app.current_user_site_ids()) = 0
       then
@@ -735,6 +743,7 @@ begin
   if not (
     app.has_granular_permission('*')
     or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('record_attendance_prep')
     or app.has_granular_permission('attendance_register_as_field')
   ) then
     raise exception 'No permission to start attendance rounds';
@@ -788,6 +797,7 @@ begin
   if not (
     app.has_granular_permission('*')
     or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('record_attendance_prep')
     or app.has_granular_permission('attendance_register_as_field')
   ) then
     raise exception 'No permission to submit attendance checks';
@@ -898,6 +908,7 @@ begin
   if not (
     app.has_granular_permission('*')
     or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('record_attendance_prep')
     or app.has_granular_permission('attendance_register_as_field')
   ) then
     raise exception 'No permission to submit attendance checks';
@@ -1314,6 +1325,7 @@ with check (
   (
     app.has_granular_permission('*')
     or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('record_attendance_prep')
     or app.has_granular_permission('attendance_register_as_field')
   )
   and app.can_access_site(site_id)
@@ -1326,6 +1338,7 @@ using (
   (
     app.has_granular_permission('*')
     or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('record_attendance_prep')
     or app.has_granular_permission('attendance_register_as_field')
   )
   and app.can_access_site(site_id)
@@ -1334,6 +1347,7 @@ with check (
   (
     app.has_granular_permission('*')
     or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('record_attendance_prep')
     or app.has_granular_permission('attendance_register_as_field')
   )
   and app.can_access_site(site_id)
@@ -1361,6 +1375,7 @@ with check (
   (
     app.has_granular_permission('*')
     or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('record_attendance_prep')
     or app.has_granular_permission('attendance_register_as_field')
   )
   and app.can_access_worker(worker_id)
@@ -1378,6 +1393,7 @@ using (
   (
     app.has_granular_permission('*')
     or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('record_attendance_prep')
     or app.has_granular_permission('attendance_register_as_field')
     or app.has_granular_permission('approve_attendance')
   )
@@ -1391,6 +1407,7 @@ with check (
   (
     app.has_granular_permission('*')
     or app.has_granular_permission('edit_attendance')
+    or app.has_granular_permission('record_attendance_prep')
     or app.has_granular_permission('attendance_register_as_field')
     or app.has_granular_permission('approve_attendance')
   )

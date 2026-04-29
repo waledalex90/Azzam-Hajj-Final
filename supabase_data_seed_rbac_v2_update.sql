@@ -11,7 +11,7 @@ set permissions = '["prep","approval","correction_request","workers_import","use
 where slug = 'hr';
 
 update public.user_roles
-set permissions = '["dashboard","prep","approval","correction_request","corrections_screen","workers","sites","reports","violations","violation_notice","access_all_sites","edit_attendance"]'::jsonb
+set permissions = '["dashboard","prep","approval","correction_request","corrections_screen","workers","sites","reports","violations","violation_notice","access_all_sites","record_attendance_prep","edit_attendance"]'::jsonb
 where slug = 'technical_observer';
 
 update public.user_roles
