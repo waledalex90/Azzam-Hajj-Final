@@ -35,6 +35,11 @@ type WorkersPageParams = {
    * لا يُستخدم في صفحات أخرى (مثل نقل الموظفين بدون تاريخ).
    */
   shiftRoundFilter?: number;
+  /**
+   * مسار قائمة التحضير: عدم ضيّق الوردية — جلب من لديهم shift_round NULL أو 1 أو 2 فقط
+   * (يُستبعد من دخل بخطأ بقيمة أخرى؛ المُضاف يدوياً بلا وردية لا يُسقط).
+   */
+  prepListIncludeAllShiftRounds?: boolean;
 };
 
 /** صف عامل من workers + join مباشر على sites و contractors. */
@@ -351,7 +356,7 @@ export async function getApprovalFilterCounts(params: {
 }
 
 /** تحميل كامل بدون ترقيم صفحات — حتى ~كل العمال النشطين في نطاق الفلتر */
-const PREP_WORKERS_PAGE_SIZE = 50000;
+const PREP_WORKERS_PAGE_SIZE = 7000;
 
 /**
  * عمال لديهم صف `attendance_checks` لهذا التاريخ (أي `attendance_checks.id` موجود).
@@ -454,6 +459,7 @@ export async function getAttendancePrepTabStats(
     workDate,
     roundNo: r,
     shiftRoundFilter: r,
+    prepListIncludeAllShiftRounds: true,
   });
   const total = filteredIds.length;
   if (total === 0) return { total: 0, pending: 0, present: 0, absent: 0, half: 0 };
@@ -548,6 +554,7 @@ export async function getAllPendingPrepWorkers(
     workDate: params.workDate,
     roundNo: params.roundNo,
     shiftRoundFilter: params.shiftRoundFilter,
+    prepListIncludeAllShiftRounds: true,
   });
 
   const capped = pendingIds.slice(0, PREP_WORKERS_PAGE_SIZE);
@@ -641,7 +648,7 @@ export async function getAllPendingPrepWorkers(
       finalRowCountAfterOrder: capped.length - missingIds.length,
       fetchBatches: chunkStats,
       listFiltersSameAsIdsQuery:
-        "getAttendanceWorkerIdsForFilters: is_active, is_deleted, current_site_id / allowedSiteIds, contractorId, shift_round OR null, workDate exclusion — بدون search من الصفحة",
+        "getAttendanceWorkerIdsForFilters (prep): is_active, is_deleted, current_site_id / allowedSiteIds, contractorId, shift_round في {null,1,2}, workDate exclusion — بدون search من الصفحة",
     });
   }
 
@@ -667,6 +674,7 @@ export async function getAttendanceWorkerIdsForFilters({
   workDate,
   roundNo,
   shiftRoundFilter,
+  prepListIncludeAllShiftRounds,
 }: Omit<WorkersPageParams, "page" | "pageSize">): Promise<number[]> {
   if (allowedSiteIds !== undefined && allowedSiteIds.length === 0) {
     return [];
@@ -728,7 +736,11 @@ export async function getAttendanceWorkerIdsForFilters({
         `name.ilike.%${esc}%,id_number.ilike.%${esc}%,employee_code.ilike.%${esc}%`,
       );
     }
-    if (shiftF !== undefined) {
+    if (prepListIncludeAllShiftRounds) {
+      query = query.or(
+        `shift_round.is.null,shift_round.eq.${SHIFT_ROUND.morning},shift_round.eq.${SHIFT_ROUND.evening}`,
+      );
+    } else if (shiftF !== undefined) {
       query = query.or(`shift_round.is.null,shift_round.eq.${shiftF}`);
     }
 
