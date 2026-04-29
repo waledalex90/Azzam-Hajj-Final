@@ -7,11 +7,11 @@ import {
   getAttendanceChecksPage,
   getAttendanceDayStats,
   getAttendanceLatestStatusMap,
+  getAttendanceLatestStatusMapForPrepMixed,
   getAttendancePrepTabStats,
   summarizeAttendanceChecksForRound,
   getContractorOptionsLive,
   getSiteOptionsLive,
-  normalizeShiftRound,
 } from "@/lib/data/attendance";
 import { AttendancePrepWorkzone } from "@/components/attendance/attendance-prep-workzone";
 import { AttendanceReviewTab } from "@/components/attendance/attendance-review-tab";
@@ -24,6 +24,7 @@ import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
 import { PERM } from "@/lib/permissions/keys";
 import type { AttendanceDayStats } from "@/lib/types/db";
 import { buildPaginationMeta } from "@/lib/utils/pagination";
+import { parseAttendancePrepShiftParam } from "@/lib/utils/attendance-shift";
 import { resolveWorkDateFromSearchParam } from "@/lib/utils/today";
 
 const emptyStats: AttendanceDayStats = {
@@ -40,7 +41,7 @@ type Props = {
     siteId?: string;
     contractorId?: string;
     date?: string;
-    /** 1 = صباحي، 2 = مسائي */
+    /** 0|all = كل الورديات في التحضير؛ 1 صباحي؛ 2 مسائي */
     shift?: string;
   }>;
 };
@@ -75,13 +76,19 @@ export default async function AttendancePage({ searchParams }: Props) {
   const contractorId = params.contractorId ? Number(params.contractorId) : undefined;
   const workDate = resolveWorkDateFromSearchParam(params.date);
 
-  const roundNo = normalizeShiftRound(params.shift);
+  const prepShiftScope = parseAttendancePrepShiftParam(params.shift);
+  /** تبويب المراجعة يحمّل جولة واحدة؛ مع «كل الورديات» في الرابط نعرض صباحي حتى يختار المستخدم مسائي من القائمة */
+  const reviewRoundNo: 1 | 2 = prepShiftScope === "all" ? 1 : prepShiftScope;
 
   function attendanceQuery(tab: "workers" | "review") {
     const q = new URLSearchParams();
     q.set("tab", tab);
     if (workDate) q.set("date", workDate);
-    q.set("shift", String(roundNo));
+    const shiftStr =
+      params.shift !== undefined && String(params.shift).trim() !== ""
+        ? String(params.shift).trim()
+        : "1";
+    q.set("shift", shiftStr);
     if (params.siteId) q.set("siteId", params.siteId);
     if (params.contractorId) q.set("contractorId", params.contractorId);
     return q.toString();
@@ -105,7 +112,7 @@ export default async function AttendancePage({ searchParams }: Props) {
             Number.isFinite(siteId) ? siteId : undefined,
             Number.isFinite(contractorId) ? contractorId : undefined,
             undefined,
-            roundNo,
+            prepShiftScope,
             allowedSiteIds,
           )
         : getAttendanceDayStats(
@@ -130,7 +137,7 @@ export default async function AttendancePage({ searchParams }: Props) {
         contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
         search: undefined,
         workDate,
-        roundNo,
+        prepShiftScope,
       });
     } catch {
       prepWorkers = { rows: [], meta: buildPaginationMeta(0, 1, 1) };
@@ -138,11 +145,13 @@ export default async function AttendancePage({ searchParams }: Props) {
     try {
       initialStatusMap =
         prepWorkers.rows.length > 0
-          ? await getAttendanceLatestStatusMap(
-              workDate,
-              prepWorkers.rows.map((item) => item.id),
-              roundNo,
-            )
+          ? prepShiftScope === "all"
+            ? await getAttendanceLatestStatusMapForPrepMixed(workDate, prepWorkers.rows)
+            : await getAttendanceLatestStatusMap(
+                workDate,
+                prepWorkers.rows.map((item) => item.id),
+                prepShiftScope,
+              )
           : {};
     } catch {
       initialStatusMap = {};
@@ -158,7 +167,7 @@ export default async function AttendancePage({ searchParams }: Props) {
         siteId: Number.isFinite(siteId) ? siteId : undefined,
         allowedSiteIds,
         search: undefined,
-        roundNo,
+        roundNo: reviewRoundNo,
       });
       reviewedRows = reviewedPage?.rows ?? [];
       reviewRoundStats = summarizeAttendanceChecksForRound(reviewedRows);
@@ -217,7 +226,7 @@ export default async function AttendancePage({ searchParams }: Props) {
 
         <p className="mt-2 text-xs text-slate-600">
           {activeTab === "workers"
-            ? "الوردية: صباحي/مسائي — جولة منفصلة لكل وردية. المسائي لا يعرض من حُضِّر صباحاً. بحث فوري تحت الجدول."
+            ? "الوردية: صباحي أو مسائي أو «كل الورديات» (التسجيل يتم في وردية كل عامل تلقائياً). بحث فوري تحت الجدول."
             : canManageReviewQueue
               ? "نفس الوردية المختارة لعرض سجلات المراجعة والاعتماد المعلّق لهذه الجولة."
               : "عرض السجلات المُرحَّلة لهذا اليوم والوردية — للاطلاع على من تم تحضيره؛ الاعتماد من المراقب الفني."}
@@ -227,7 +236,7 @@ export default async function AttendancePage({ searchParams }: Props) {
             basePath="/attendance"
             tab="workers"
             workDate={workDate}
-            roundNo={roundNo}
+            prepShiftScope={prepShiftScope}
             siteId={params.siteId}
             contractorId={params.contractorId}
             sites={sites}
@@ -239,7 +248,7 @@ export default async function AttendancePage({ searchParams }: Props) {
             basePath="/attendance"
             tab="review"
             workDate={workDate}
-            roundNo={roundNo}
+            prepShiftScope={prepShiftScope}
             siteId={params.siteId}
             contractorId={params.contractorId}
             contractors={contractors}
@@ -252,12 +261,12 @@ export default async function AttendancePage({ searchParams }: Props) {
       <TabPanelTransition key={activeTab}>
         {activeTab === "workers" ? (
           <AttendancePrepWorkzone
-            key={`prep-${workDate}-${roundNo}-${params.siteId ?? ""}-${params.contractorId ?? ""}`}
+            key={`prep-${workDate}-${prepShiftScope}-${params.siteId ?? ""}-${params.contractorId ?? ""}`}
             initialDayStats={dayStats}
             initialWorkers={prepWorkers?.rows ?? []}
             initialStatusMap={initialStatusMap}
             workDate={workDate}
-            roundNo={roundNo}
+            prepShiftScope={prepShiftScope}
             siteId={params.siteId}
             contractorId={params.contractorId}
             readOnlyPrep={!canEditPrep}
@@ -281,7 +290,12 @@ export default async function AttendancePage({ searchParams }: Props) {
             <Card className="border-dashed border-slate-200 bg-white/80">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-extrabold text-slate-800">
-                  سجلات المحضّرة للمراجعة — {workDate} — {roundNo === 2 ? "مسائي" : "صباحي"}
+                  سجلات المحضّرة للمراجعة — {workDate} —{" "}
+                  {prepShiftScope === "all"
+                    ? `صباحي (عرض المراجعة — اختر «مسائي» من القائمة لمراجعة المسائي)`
+                    : reviewRoundNo === 2
+                      ? "مسائي"
+                      : "صباحي"}
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="rounded-lg bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
@@ -292,11 +306,11 @@ export default async function AttendancePage({ searchParams }: Props) {
             </Card>
 
             <AttendanceReviewTab
-              key={`rev-${workDate}-${roundNo}-${params.siteId ?? ""}`}
+              key={`rev-${workDate}-${reviewRoundNo}-${params.siteId ?? ""}`}
               initialRows={reviewedRows}
               canCorrection={canCorrection}
               readOnlyReview={!canManageReviewQueue}
-              shiftLabel={roundNo === 2 ? "مسائي" : "صباحي"}
+              shiftLabel={reviewRoundNo === 2 ? "مسائي" : "صباحي"}
             />
           </>
         )}

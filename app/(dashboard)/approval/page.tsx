@@ -211,7 +211,8 @@ export default async function ApprovalPage({ searchParams }: Props) {
           basePath="/approval"
           tab={activeTab}
           workDate={workDate}
-          roundNo={roundNo}
+          prepShiftScope={roundNo === 2 ? 2 : 1}
+          showAllShiftsOption={false}
           siteId={params.siteId}
           contractorId={params.contractorId}
           sites={sites}

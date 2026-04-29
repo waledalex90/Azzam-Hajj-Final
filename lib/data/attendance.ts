@@ -1,4 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { effectivePrepRoundForWorker } from "@/lib/utils/attendance-shift";
+import type { PrepShiftScope } from "@/lib/utils/attendance-shift";
 import { unstable_cache } from "next/cache";
 import type {
   AttendanceCheckRow,
@@ -18,28 +20,29 @@ export function normalizeShiftRound(value: unknown): 1 | 2 {
   return n === 2 ? 2 : 1;
 }
 
-type WorkersPageParams = {
-  page: number;
-  pageSize: number;
+export type { PrepShiftScope } from "@/lib/utils/attendance-shift";
+export type PrepWorkersLoadParams = {
   siteId?: number;
-  /** عند تعيين مواقع للمستخدم في الإدارة: يُقيّد الجداول بهذه المواقع عند غياب siteId */
   allowedSiteIds?: number[];
   contractorId?: number;
   search?: string;
-  /** يُستبعد من قائمة التحضير من لديهم سجل حضور لهذا التاريخ (ربط attendance_checks + attendance_rounds) */
   workDate?: string;
-  /** وردية التحضير: 1 صباحي، 2 مسائي — المسائي يستبعد من حضّر صباحاً */
-  roundNo?: number;
+  prepShiftScope: PrepShiftScope;
+};
+
+type AttendanceWorkerIdsParams = {
+  siteId?: number;
+  allowedSiteIds?: number[];
+  contractorId?: number;
+  search?: string;
+  workDate?: string;
   /**
-   * عند التحضير: يقتصر على عمال بـ shift_round مطابق أو فارغ (من عمود الوردية في Excel).
-   * لا يُستخدم في صفحات أخرى (مثل نقل الموظفين بدون تاريخ).
+   * نطاق الوردية في الاستعلام: صباحي (1+NULL)، مسائي (2)، الكل (NULL+1+2).
+   * عند `undefined` لا يُضاف شرط `shift_round` (مسارات مثل إحصاء اليوم بلا تاريخ).
    */
-  shiftRoundFilter?: number;
-  /**
-   * مسار قائمة التحضير: عدم ضيّق الوردية — جلب من لديهم shift_round NULL أو 1 أو 2 فقط
-   * (يُستبعد من دخل بخطأ بقيمة أخرى؛ المُضاف يدوياً بلا وردية لا يُسقط).
-   */
-  prepListIncludeAllShiftRounds?: boolean;
+  prepShiftScope?: PrepShiftScope;
+  /** عند false يعيد كل المرشّحين بما فيهم المُحضَّرون مسبقاً */
+  excludeAlreadyPrepped?: boolean;
 };
 
 /** صف عامل من workers + join مباشر على sites و contractors. */
@@ -226,6 +229,24 @@ export async function getAttendanceLatestStatusMap(
   }
 }
 
+/** أحدث حالة تحضير لكل عامل حسب ورديته الفعلية (صباحي/مسائي) — لوضع «كل الورديات». */
+export async function getAttendanceLatestStatusMapForPrepMixed(
+  workDate: string,
+  workers: WorkerRow[],
+): Promise<Record<number, "present" | "absent" | "half">> {
+  const morningIds = workers
+    .filter((w) => effectivePrepRoundForWorker(w.shift_round) === 1)
+    .map((w) => w.id);
+  const eveningIds = workers
+    .filter((w) => effectivePrepRoundForWorker(w.shift_round) === 2)
+    .map((w) => w.id);
+  const [m, e] = await Promise.all([
+    morningIds.length > 0 ? getAttendanceLatestStatusMap(workDate, morningIds, 1) : Promise.resolve({}),
+    eveningIds.length > 0 ? getAttendanceLatestStatusMap(workDate, eveningIds, 2) : Promise.resolve({}),
+  ]);
+  return { ...m, ...e };
+}
+
 /** أحدث check_id لكل عامل في التاريخ (لطلبات التعديل وربط correction_requests). */
 export async function getAttendanceCheckIdMap(
   workDate: string,
@@ -355,8 +376,8 @@ export async function getApprovalFilterCounts(params: {
   return { pending, confirmed, total };
 }
 
-/** تحميل كامل بدون ترقيم صفحات — حتى ~كل العمال النشطين في نطاق الفلتر */
-const PREP_WORKERS_PAGE_SIZE = 7000;
+/** تحميل كامل لقائمة التحضير — حتى 10k عامل معلّق في النطاق */
+const PREP_WORKERS_PAGE_SIZE = 10_000;
 
 /**
  * عمال لديهم صف `attendance_checks` لهذا التاريخ (أي `attendance_checks.id` موجود).
@@ -439,81 +460,105 @@ export async function getPrepExclusionWorkerIds(
   return Array.from(new Set([...forShift, ...morning]));
 }
 
-/** إحصائيات تبويب التحضير: نفس نطاق الفلتر، مع استبعاد المُحضَّرين حسب الوردية وحساب الحالات لهذه الوردية فقط. */
+async function fetchWorkerShiftRoundMap(workerIds: number[]): Promise<Map<number, number | null>> {
+  const map = new Map<number, number | null>();
+  if (workerIds.length === 0) return map;
+  const supabase = createSupabaseAdminClient();
+  const uniq = Array.from(new Set(workerIds.filter(Boolean)));
+  const CH = 500;
+  for (let i = 0; i < uniq.length; i += CH) {
+    const chunk = uniq.slice(i, i + CH);
+    const { data, error } = await supabase.from("workers").select("id, shift_round").in("id", chunk);
+    if (error || !data) continue;
+    for (const row of data as Array<{ id: number; shift_round: number | null }>) {
+      const id = Number(row.id);
+      if (!Number.isFinite(id)) continue;
+      map.set(id, row.shift_round != null ? Number(row.shift_round) : null);
+    }
+  }
+  return map;
+}
+
+/** إحصائيات تبويب التحضير: نطاق الفلتر حسب prepShiftScope؛ المُعلّقون = من لم يُحضّروا لورديتهم الفعلية. */
 export async function getAttendancePrepTabStats(
   workDate: string,
   siteId?: number,
   contractorId?: number,
   search?: string,
-  roundNo: number = SHIFT_ROUND.morning,
+  prepShiftScope: PrepShiftScope = 1,
   allowedSiteIds?: number[],
 ): Promise<AttendanceDayStats> {
-  const r = normalizeShiftRound(roundNo);
   const siteIdsScope =
     siteId !== undefined && Number.isFinite(siteId) ? undefined : allowedSiteIds;
-  const filteredIds = await getAttendanceWorkerIdsForFilters({
+
+  const candidateIds = await getAttendanceWorkerIdsForFilters({
+    siteId,
+    allowedSiteIds,
+    contractorId,
+    search,
+    prepShiftScope,
+    excludeAlreadyPrepped: false,
+  });
+
+  const pendingIds = await getAttendanceWorkerIdsForFilters({
     siteId,
     allowedSiteIds,
     contractorId,
     search,
     workDate,
-    roundNo: r,
-    shiftRoundFilter: r,
-    prepListIncludeAllShiftRounds: true,
+    prepShiftScope,
+    excludeAlreadyPrepped: true,
   });
-  const total = filteredIds.length;
-  if (total === 0) return { total: 0, pending: 0, present: 0, absent: 0, half: 0 };
 
-  const excludeList = await getPrepExclusionWorkerIds(workDate, siteId, r, siteIdsScope);
-  const excludeSet = new Set(excludeList);
-  const pending = filteredIds.filter((id) => !excludeSet.has(id)).length;
+  const total = candidateIds.length;
+  const pending = pendingIds.length;
 
-  const preppedThisRound = await getPreppedWorkerIdsForDate(workDate, siteId, r, siteIdsScope);
-  const preppedInRoundSet = new Set(preppedThisRound);
-  const preppedInFilter = filteredIds.filter((id) => preppedInRoundSet.has(id));
   let present = 0;
   let absent = 0;
   let half = 0;
 
-  const CH = 400;
-  const supabase = createSupabaseAdminClient();
-  for (let i = 0; i < preppedInFilter.length; i += CH) {
-    const chunk = preppedInFilter.slice(i, i + CH);
-    let q = supabase
-      .from("attendance_checks")
-      .select("status, attendance_rounds!inner(work_date, round_no)")
-      .in("worker_id", chunk)
-      .eq("attendance_rounds.work_date", workDate)
-      .eq("attendance_rounds.round_no", r);
-    if (siteId !== undefined && Number.isFinite(siteId)) {
-      q = q.eq("attendance_rounds.site_id", siteId);
-    } else if (siteIdsScope && siteIdsScope.length > 0) {
-      q = q.in("attendance_rounds.site_id", siteIdsScope);
+  if (total > 0 && /^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+    const shiftById = await fetchWorkerShiftRoundMap(candidateIds);
+    const morningIds: number[] = [];
+    const eveningIds: number[] = [];
+    for (const id of candidateIds) {
+      const eff = effectivePrepRoundForWorker(shiftById.get(id) ?? null);
+      if (eff === 2) eveningIds.push(id);
+      else morningIds.push(id);
     }
-    const { data, error } = await q;
-    if (error || !data) continue;
-    for (const row of data as Array<{ status: string }>) {
-      if (row.status === "present") present++;
-      else if (row.status === "absent") absent++;
-      else if (row.status === "half") half++;
+
+    const supabase = createSupabaseAdminClient();
+    const CH = 400;
+    for (const [round, ids] of [
+      [SHIFT_ROUND.morning, morningIds],
+      [SHIFT_ROUND.evening, eveningIds],
+    ] as const) {
+      if (ids.length === 0) continue;
+      for (let i = 0; i < ids.length; i += CH) {
+        const chunk = ids.slice(i, i + CH);
+        let q = supabase
+          .from("attendance_checks")
+          .select("status, attendance_rounds!inner(work_date, round_no)")
+          .in("worker_id", chunk)
+          .eq("attendance_rounds.work_date", workDate)
+          .eq("attendance_rounds.round_no", round);
+        if (siteId !== undefined && Number.isFinite(siteId)) {
+          q = q.eq("attendance_rounds.site_id", siteId);
+        } else if (siteIdsScope && siteIdsScope.length > 0) {
+          q = q.in("attendance_rounds.site_id", siteIdsScope);
+        }
+        const { data, error } = await q;
+        if (error || !data) continue;
+        for (const row of data as Array<{ status: string }>) {
+          if (row.status === "present") present++;
+          else if (row.status === "absent") absent++;
+          else if (row.status === "half") half++;
+        }
+      }
     }
   }
 
   return { total, pending, present, absent, half };
-}
-
-function resolvePrepShiftFilter(
-  workDate: string | undefined,
-  roundNo: number | undefined,
-  shiftRoundFilter: number | undefined,
-): number | undefined {
-  if (workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
-    return normalizeShiftRound(roundNo);
-  }
-  if (shiftRoundFilter !== undefined) {
-    return normalizeShiftRound(shiftRoundFilter);
-  }
-  return undefined;
 }
 
 /**
@@ -523,24 +568,42 @@ function resolvePrepShiftFilter(
  * لا يُعاد استدعاء هذه الدالة بـ `search`. إن ظهر اسم بالبحث فالعامل موجود في `initialWorkers` (قد يكون بعيداً في القائمة الافتراضية).
  */
 export async function getAllPendingPrepWorkers(
-  params: Omit<WorkersPageParams, "page" | "pageSize">,
+  params: PrepWorkersLoadParams,
 ): Promise<{ rows: WorkerRow[]; meta: PaginationMeta }> {
   if (params.allowedSiteIds !== undefined && params.allowedSiteIds.length === 0) {
     return { rows: [], meta: buildPaginationMeta(0, 1, 1) };
   }
 
   const debug = shouldLogAttendancePrepDebug();
-  const rn = normalizeShiftRound(params.roundNo);
+  const scope = params.prepShiftScope;
   let preppedExcludeCount = 0;
   if (debug && params.workDate && /^\d{4}-\d{2}-\d{2}$/.test(params.workDate)) {
     try {
-      const ex = await getPrepExclusionWorkerIds(
-        params.workDate,
-        params.siteId,
-        rn,
-        params.siteId ? undefined : params.allowedSiteIds,
-      );
-      preppedExcludeCount = ex.length;
+      if (scope === "all") {
+        const [em, ee] = await Promise.all([
+          getPrepExclusionWorkerIds(
+            params.workDate,
+            params.siteId,
+            SHIFT_ROUND.morning,
+            params.siteId ? undefined : params.allowedSiteIds,
+          ),
+          getPrepExclusionWorkerIds(
+            params.workDate,
+            params.siteId,
+            SHIFT_ROUND.evening,
+            params.siteId ? undefined : params.allowedSiteIds,
+          ),
+        ]);
+        preppedExcludeCount = new Set([...em, ...ee]).size;
+      } else {
+        const ex = await getPrepExclusionWorkerIds(
+          params.workDate,
+          params.siteId,
+          scope === 2 ? SHIFT_ROUND.evening : SHIFT_ROUND.morning,
+          params.siteId ? undefined : params.allowedSiteIds,
+        );
+        preppedExcludeCount = ex.length;
+      }
     } catch {
       preppedExcludeCount = -1;
     }
@@ -552,9 +615,8 @@ export async function getAllPendingPrepWorkers(
     contractorId: params.contractorId,
     search: params.search,
     workDate: params.workDate,
-    roundNo: params.roundNo,
-    shiftRoundFilter: params.shiftRoundFilter,
-    prepListIncludeAllShiftRounds: true,
+    prepShiftScope: scope,
+    excludeAlreadyPrepped: true,
   });
 
   const capped = pendingIds.slice(0, PREP_WORKERS_PAGE_SIZE);
@@ -567,7 +629,7 @@ export async function getAllPendingPrepWorkers(
           siteId: params.siteId,
           contractorId: params.contractorId,
           workDate: params.workDate,
-          roundNo: rn,
+          prepShiftScope: scope,
         },
       });
     }
@@ -648,7 +710,7 @@ export async function getAllPendingPrepWorkers(
       finalRowCountAfterOrder: capped.length - missingIds.length,
       fetchBatches: chunkStats,
       listFiltersSameAsIdsQuery:
-        "getAttendanceWorkerIdsForFilters (prep): is_active, is_deleted, current_site_id / allowedSiteIds, contractorId, shift_round في {null,1,2}, workDate exclusion — بدون search من الصفحة",
+        "getAttendanceWorkerIdsForFilters (prep): prepShiftScope + استبعاد حسب وردية كل عامل — بدون search من الصفحة",
     });
   }
 
@@ -666,51 +728,69 @@ export async function getAllPendingPrepWorkers(
   };
 }
 
-export async function getAttendanceWorkerIdsForFilters({
-  siteId,
-  allowedSiteIds,
-  contractorId,
-  search,
-  workDate,
-  roundNo,
-  shiftRoundFilter,
-  prepListIncludeAllShiftRounds,
-}: Omit<WorkersPageParams, "page" | "pageSize">): Promise<number[]> {
+export async function getAttendanceWorkerIdsForFilters(
+  params: AttendanceWorkerIdsParams,
+): Promise<number[]> {
+  const {
+    siteId,
+    allowedSiteIds,
+    contractorId,
+    search,
+    workDate,
+    prepShiftScope,
+    excludeAlreadyPrepped = true,
+  } = params;
+
   if (allowedSiteIds !== undefined && allowedSiteIds.length === 0) {
     return [];
   }
   const supabase = createSupabaseAdminClient();
   const ids: number[] = [];
 
-  let excludeList: number[] = [];
-  if (workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
-    const rnForExclude =
-      roundNo !== undefined
-        ? normalizeShiftRound(roundNo)
-        : shiftRoundFilter !== undefined
-          ? normalizeShiftRound(shiftRoundFilter)
-          : SHIFT_ROUND.morning;
+  const siteIdsScope =
+    siteId !== undefined && Number.isFinite(siteId) ? undefined : allowedSiteIds;
+
+  let excludeMorning = new Set<number>();
+  let excludeEvening = new Set<number>();
+  const dateOk = Boolean(workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate));
+
+  if (excludeAlreadyPrepped && dateOk) {
     try {
-      excludeList = await getPrepExclusionWorkerIds(
-        workDate,
-        siteId,
-        rnForExclude,
-        siteId ? undefined : allowedSiteIds,
-      );
+      if (prepShiftScope === undefined || prepShiftScope === "all") {
+        const [em, ee] = await Promise.all([
+          getPrepExclusionWorkerIds(workDate!, siteId, SHIFT_ROUND.morning, siteIdsScope),
+          getPrepExclusionWorkerIds(workDate!, siteId, SHIFT_ROUND.evening, siteIdsScope),
+        ]);
+        excludeMorning = new Set(em);
+        excludeEvening = new Set(ee);
+      } else if (prepShiftScope === 1) {
+        excludeMorning = new Set(
+          await getPrepExclusionWorkerIds(workDate!, siteId, SHIFT_ROUND.morning, siteIdsScope),
+        );
+      } else {
+        excludeEvening = new Set(
+          await getPrepExclusionWorkerIds(workDate!, siteId, SHIFT_ROUND.evening, siteIdsScope),
+        );
+      }
     } catch {
-      excludeList = [];
+      excludeMorning = new Set();
+      excludeEvening = new Set();
     }
   }
-  const excludeSet = new Set(excludeList);
 
-  const shiftF = resolvePrepShiftFilter(workDate, roundNo, shiftRoundFilter);
+  const needShiftColumn =
+    excludeAlreadyPrepped &&
+    dateOk &&
+    (prepShiftScope === undefined || prepShiftScope === "all");
 
   /** تصفح مفتاحي بـ `id` لتفادي اعتماد offset/range مع حدود PostgREST وحالات القطع الصامتة. */
   let lastWorkerId = 0;
   while (true) {
-    let query = supabase
+    // محلّل الأعمدة في supabase-js لا يقبل سلسلة عمودين هنا رغم دعمها في PostgREST
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query: any = supabase
       .from("workers")
-      .select("id")
+      .select(needShiftColumn ? "id, shift_round" : "id")
       .eq("is_active", true)
       .eq("is_deleted", false)
       .order("id", { ascending: true })
@@ -736,12 +816,16 @@ export async function getAttendanceWorkerIdsForFilters({
         `name.ilike.%${esc}%,id_number.ilike.%${esc}%,employee_code.ilike.%${esc}%`,
       );
     }
-    if (prepListIncludeAllShiftRounds) {
+    if (prepShiftScope === undefined) {
+      /* لا فلتر وردية */
+    } else if (prepShiftScope === "all") {
       query = query.or(
         `shift_round.is.null,shift_round.eq.${SHIFT_ROUND.morning},shift_round.eq.${SHIFT_ROUND.evening}`,
       );
-    } else if (shiftF !== undefined) {
-      query = query.or(`shift_round.is.null,shift_round.eq.${shiftF}`);
+    } else if (prepShiftScope === 1) {
+      query = query.or(`shift_round.is.null,shift_round.eq.${SHIFT_ROUND.morning}`);
+    } else {
+      query = query.eq("shift_round", SHIFT_ROUND.evening);
     }
 
     const { data, error } = await query;
@@ -750,11 +834,21 @@ export async function getAttendanceWorkerIdsForFilters({
     }
     if (!data?.length) break;
 
-    const rows = data as Array<{ id: number }>;
+    type ScanRow = { id: number; shift_round?: number | null };
+    const rows = data as ScanRow[];
     for (const row of rows) {
       const id = Number(row.id);
       if (!Number.isFinite(id)) continue;
-      if (!excludeSet.has(id)) ids.push(id);
+      if (excludeAlreadyPrepped && dateOk) {
+        const eff = needShiftColumn
+          ? effectivePrepRoundForWorker(row.shift_round ?? null)
+          : prepShiftScope === 2
+            ? 2
+            : 1;
+        if (eff === 1 && excludeMorning.has(id)) continue;
+        if (eff === 2 && excludeEvening.has(id)) continue;
+      }
+      ids.push(id);
     }
 
     lastWorkerId = Number(rows[rows.length - 1].id);
@@ -913,6 +1007,7 @@ async function getAttendanceDayStatsFiltered(
     allowedSiteIds,
     contractorId,
     search,
+    excludeAlreadyPrepped: false,
   });
 
   const totalNum = filteredIds.length;

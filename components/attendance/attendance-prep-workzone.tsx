@@ -8,6 +8,7 @@ import { AttendanceWorkersTable } from "@/components/attendance/attendance-worke
 import { Card } from "@/components/ui/card";
 import { matchesClientSearch } from "@/lib/utils/client-search";
 import { workerHasSiteForPrep } from "@/lib/utils/worker-prep-eligibility";
+import { attendancePrepShiftToQuery, type PrepShiftScope } from "@/lib/utils/attendance-shift";
 import type { AttendanceDayStats, WorkerRow } from "@/lib/types/db";
 
 type AttendanceStatus = "present" | "absent" | "half";
@@ -18,8 +19,7 @@ type Props = {
   initialWorkers: WorkerRow[];
   initialStatusMap: Record<number, AttendanceStatus | undefined>;
   workDate: string;
-  /** 1 صباحي، 2 مسائي */
-  roundNo: number;
+  prepShiftScope: PrepShiftScope;
   siteId?: string;
   contractorId?: string;
   readOnlyPrep?: boolean;
@@ -44,11 +44,13 @@ export function AttendancePrepWorkzone({
   initialWorkers,
   initialStatusMap,
   workDate,
-  roundNo,
+  prepShiftScope,
   siteId,
   contractorId,
   readOnlyPrep = false,
 }: Props) {
+  const shiftQs = attendancePrepShiftToQuery(prepShiftScope);
+  const singleRoundForTable = prepShiftScope === "all" ? 1 : prepShiftScope;
   const router = useRouter();
   const [dayStats, setDayStats] = useState(initialDayStats);
   const [workers, setWorkers] = useState(initialWorkers);
@@ -80,11 +82,11 @@ export function AttendancePrepWorkzone({
     const qs = new URLSearchParams();
     qs.set("tab", "review");
     qs.set("date", workDate);
-    qs.set("shift", String(roundNo));
+    qs.set("shift", shiftQs);
     if (siteId) qs.set("siteId", siteId);
     if (contractorId) qs.set("contractorId", contractorId);
     window.location.assign(`/attendance?${qs.toString()}`);
-  }, [workDate, roundNo, siteId, contractorId]);
+  }, [workDate, shiftQs, siteId, contractorId]);
 
   const onPrepDone = useCallback(
     (ids: number[], status: PrepSubmitStatus) => {
@@ -107,8 +109,10 @@ export function AttendancePrepWorkzone({
 
   const onResetAll = useCallback(() => {
     setSearch("");
-    router.push(`/attendance?tab=workers&date=${encodeURIComponent(workDate)}&shift=${roundNo}`);
-  }, [router, workDate, roundNo]);
+    router.push(
+      `/attendance?tab=workers&date=${encodeURIComponent(workDate)}&shift=${encodeURIComponent(shiftQs)}`,
+    );
+  }, [router, workDate, shiftQs]);
 
   const onHardRefresh = useCallback(async () => {
     await revalidateAttendancePageCache();
@@ -199,7 +203,8 @@ export function AttendancePrepWorkzone({
       <AttendanceWorkersTable
         rows={filteredRows}
         workDate={workDate}
-        roundNo={roundNo}
+        roundNo={singleRoundForTable}
+        usePerWorkerRound={prepShiftScope === "all"}
         initialStatusMap={initialStatusMap}
         filteredWorkerIds={scopeIds}
         filteredTotalRows={scopeIds.length}

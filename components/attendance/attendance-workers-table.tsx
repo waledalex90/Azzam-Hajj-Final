@@ -10,6 +10,7 @@ import { submitAttendancePrepBulk } from "@/app/(dashboard)/attendance/actions";
 import { useAttendanceRscRefreshLock } from "@/components/attendance/attendance-rsc-refresh-lock";
 import { useRunWithGlobalLock } from "@/components/providers/global-action-lock-context";
 import type { WorkerRow } from "@/lib/types/db";
+import { effectivePrepRoundForWorker } from "@/lib/utils/attendance-shift";
 import { workerHasSiteForPrep } from "@/lib/utils/worker-prep-eligibility";
 
 type AttendanceStatus = "present" | "absent" | "half";
@@ -19,6 +20,8 @@ type Props = {
   rows: WorkerRow[];
   workDate: string;
   roundNo?: number;
+  /** وضع «كل الورديات»: كل عامل يُسجَّل في جولته (1 أو 2) حسب shift_round */
+  usePerWorkerRound?: boolean;
   initialStatusMap?: Record<number, AttendanceStatus | undefined>;
   filteredWorkerIds?: number[];
   filteredTotalRows?: number;
@@ -55,6 +58,7 @@ export function AttendanceWorkersTable({
   rows,
   workDate,
   roundNo = 1,
+  usePerWorkerRound = false,
   initialStatusMap = {},
   filteredWorkerIds = [],
   filteredTotalRows = 0,
@@ -142,24 +146,43 @@ export function AttendanceWorkersTable({
       toast.warning(`تجاهل ${ids.length - withSite.length} عامل بلا موقع — يُحفظ ${withSite.length} فقط.`);
     }
 
-    const chunks: number[][] = [];
-    for (let i = 0; i < withSite.length; i += CLIENT_PREP_CHUNK) {
-      chunks.push(withSite.slice(i, i + CLIENT_PREP_CHUNK));
+    type ChunkStep = { round: number; chunk: number[] };
+    let plan: ChunkStep[] = [];
+    if (usePerWorkerRound) {
+      const r1: number[] = [];
+      const r2: number[] = [];
+      for (const id of withSite) {
+        const r = rowById.get(id) ?? rows.find((x) => x.id === id);
+        if (effectivePrepRoundForWorker(r?.shift_round) === 2) r2.push(id);
+        else r1.push(id);
+      }
+      for (let i = 0; i < r1.length; i += CLIENT_PREP_CHUNK) {
+        plan.push({ round: 1, chunk: r1.slice(i, i + CLIENT_PREP_CHUNK) });
+      }
+      for (let i = 0; i < r2.length; i += CLIENT_PREP_CHUNK) {
+        plan.push({ round: 2, chunk: r2.slice(i, i + CLIENT_PREP_CHUNK) });
+      }
+    } else {
+      const rn = Math.max(1, Math.min(Number(roundNo) || 1, 9));
+      for (let i = 0; i < withSite.length; i += CLIENT_PREP_CHUNK) {
+        plan.push({ round: rn, chunk: withSite.slice(i, i + CLIENT_PREP_CHUNK) });
+      }
     }
 
     await runLocked(async () => {
       setIsSaving(true);
       if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = true;
-      const progressId = chunks.length > 1 ? toast.loading(`جاري التحضير… 1/${chunks.length}`) : undefined;
+      const progressId =
+        plan.length > 1 ? toast.loading(`جاري التحضير… 1/${plan.length}`) : undefined;
 
       try {
-        for (let i = 0; i < chunks.length; i += 1) {
-          if (chunks.length > 1 && progressId !== undefined) {
-            toast.loading(`جاري التحضير… ${i + 1}/${chunks.length}`, { id: progressId });
+        for (let i = 0; i < plan.length; i += 1) {
+          const { round, chunk } = plan[i];
+          if (plan.length > 1 && progressId !== undefined) {
+            toast.loading(`جاري التحضير… ${i + 1}/${plan.length}`, { id: progressId });
           }
-          const res = await submitAttendancePrepBulk(workDate, status, chunks[i], roundNo, {
-            /* منع revalidatePath أثناء التحضير المحلي — يتعارض مع تحديث الحالة ثم الانتقال (نفس السلوك لكل الأدوار) */
-            revalidate: skipServerRefresh ? false : i === chunks.length - 1,
+          const res = await submitAttendancePrepBulk(workDate, status, chunk, round, {
+            revalidate: skipServerRefresh ? false : i === plan.length - 1,
           });
           if (!res.ok) {
             toast.error(res.error, { id: progressId });
@@ -168,15 +191,15 @@ export function AttendanceWorkersTable({
           }
           if (skipServerRefresh) {
             flushSync(() => {
-              onAttendanceChunkSaved?.(chunks[i], status);
+              onAttendanceChunkSaved?.(chunk, status);
             });
           } else {
-            onAttendanceChunkSaved?.(chunks[i], status);
+            onAttendanceChunkSaved?.(chunk, status);
           }
         }
 
         toast.success(
-          chunks.length > 1 ? `تم التحضير — ${chunks.length} دفعة (${withSite.length} عامل)` : "تم التحضير ✅",
+          plan.length > 1 ? `تم التحضير — ${plan.length} دفعة (${withSite.length} عامل)` : "تم التحضير ✅",
           { id: progressId },
         );
         setSelected([]);
@@ -234,11 +257,14 @@ export function AttendanceWorkersTable({
         setIsSaving(true);
         if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = true;
         try {
+          const submitRound = usePerWorkerRound
+            ? effectivePrepRoundForWorker(worker?.shift_round)
+            : Math.max(1, Math.min(Number(roundNo) || 1, 9));
           const res = await submitAttendancePrepBulk(
             workDate,
             status,
             [workerId],
-            roundNo,
+            submitRound,
             skipServerRefresh ? { revalidate: false } : undefined,
           );
           if (!res.ok) {

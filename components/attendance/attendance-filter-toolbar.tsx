@@ -7,6 +7,7 @@ import { revalidateAttendancePageCache } from "@/app/(dashboard)/attendance/acti
 import { SearchableSelect } from "@/components/filters/searchable-select";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
+import { attendancePrepShiftToQuery, type PrepShiftScope } from "@/lib/utils/attendance-shift";
 
 function buildQuery(base: {
   tab: string;
@@ -29,7 +30,9 @@ export function AttendanceFilterToolbar(props: {
   basePath: "/attendance" | "/approval";
   tab: string;
   workDate: string;
-  roundNo: number;
+  prepShiftScope: PrepShiftScope;
+  /** صفحة الاعتماد: إخفاء «كل الورديات» (جولة واحدة فقط) */
+  showAllShiftsOption?: boolean;
   siteId?: string;
   contractorId?: string;
   sites: { id: number; name: string }[];
@@ -38,21 +41,38 @@ export function AttendanceFilterToolbar(props: {
 }) {
   const router = useRouter();
   const [isNavPending, startTransition] = useTransition();
-  const { basePath, tab, workDate, roundNo, siteId, contractorId, sites, contractors, showContractor } = props;
+  const {
+    basePath,
+    tab,
+    workDate,
+    prepShiftScope,
+    showAllShiftsOption = true,
+    siteId,
+    contractorId,
+    sites,
+    contractors,
+    showContractor,
+  } = props;
+
+  const defaultShiftInUrl = attendancePrepShiftToQuery(prepShiftScope);
 
   useEffect(() => {
     const common = { tab, date: workDate, siteId, contractorId, includeContractor: showContractor };
+    if (showAllShiftsOption) {
+      const q0 = buildQuery({ ...common, shift: "0" });
+      router.prefetch(`${basePath}?${q0}`);
+    }
     const q1 = buildQuery({ ...common, shift: "1" });
     const q2 = buildQuery({ ...common, shift: "2" });
     router.prefetch(`${basePath}?${q1}`);
     router.prefetch(`${basePath}?${q2}`);
-  }, [basePath, tab, workDate, siteId, contractorId, showContractor, router]);
+  }, [basePath, tab, workDate, siteId, contractorId, showContractor, showAllShiftsOption, router]);
 
   const navigate = (patch: Partial<{ date: string; shift: string; siteId: string; contractorId: string }>) => {
     const q = buildQuery({
       tab,
       date: patch.date ?? workDate,
-      shift: patch.shift ?? String(roundNo),
+      shift: patch.shift ?? defaultShiftInUrl,
       siteId: patch.siteId !== undefined ? patch.siteId : siteId,
       contractorId: patch.contractorId !== undefined ? patch.contractorId : contractorId,
       includeContractor: showContractor,
@@ -75,10 +95,11 @@ export function AttendanceFilterToolbar(props: {
         onCommitted={(d) => navigate({ date: d })}
       />
       <select
-        value={String(roundNo)}
+        value={defaultShiftInUrl}
         onChange={(e) => navigate({ shift: e.target.value })}
         className="min-h-12 w-full rounded border border-slate-200 bg-white px-4 py-3 text-base font-bold"
       >
+        {showAllShiftsOption ? <option value="0">كل الورديات</option> : null}
         <option value="1">وردية صباحي</option>
         <option value="2">وردية مسائي</option>
       </select>
