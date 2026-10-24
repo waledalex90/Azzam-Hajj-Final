@@ -18,10 +18,12 @@ type Props = {
   initialDayStats: AttendanceDayStats;
   initialWorkers: WorkerRow[];
   initialStatusMap: Record<number, AttendanceStatus | undefined>;
+  pendingTotal: number;
   workDate: string;
   prepShiftScope: PrepShiftScope;
   siteId?: string;
   contractorId?: string;
+  searchQuery?: string;
   readOnlyPrep?: boolean;
 };
 
@@ -43,23 +45,25 @@ export function AttendancePrepWorkzone({
   initialDayStats,
   initialWorkers,
   initialStatusMap,
+  pendingTotal,
   workDate,
   prepShiftScope,
   siteId,
   contractorId,
+  searchQuery = "",
   readOnlyPrep = false,
 }: Props) {
   const shiftQs = attendancePrepShiftToQuery(prepShiftScope);
   const singleRoundForTable = prepShiftScope === "all" ? 1 : prepShiftScope;
   const router = useRouter();
-  const [dayStats, setDayStats] = useState(initialDayStats);
+  const [dayStats, setDayStats] = useState({ ...initialDayStats, pending: pendingTotal });
   const [workers, setWorkers] = useState(initialWorkers);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchQuery);
   const deferredSearch = useDeferredValue(search);
 
   useEffect(() => {
-    setDayStats(initialDayStats);
-  }, [initialDayStats]);
+    setDayStats({ ...initialDayStats, pending: pendingTotal });
+  }, [initialDayStats, pendingTotal]);
 
   useEffect(() => {
     setWorkers(initialWorkers);
@@ -92,37 +96,47 @@ export function AttendancePrepWorkzone({
     (ids: number[], status: PrepSubmitStatus) => {
       const set = new Set(ids);
       let becameEmpty = false;
+      let pendingLeft = 0;
       flushSync(() => {
         setWorkers((prev) => {
           const next = prev.filter((w) => !set.has(w.id));
           if (next.length === 0) becameEmpty = true;
           return next;
         });
-        setDayStats((prev) => applyPrepToStats(prev, ids.length, status));
+        setDayStats((prev) => {
+          const next = applyPrepToStats(prev, ids.length, status);
+          pendingLeft = next.pending;
+          return next;
+        });
       });
-      if (becameEmpty) {
+      if (pendingLeft <= 0) {
         queueMicrotask(() => goToReviewTab());
+      } else if (becameEmpty) {
+        queueMicrotask(() => router.refresh());
       }
     },
-    [goToReviewTab],
+    [goToReviewTab, router],
   );
 
   const onResetAll = useCallback(() => {
     setSearch("");
-    router.push(
-      `/attendance?tab=workers&date=${encodeURIComponent(workDate)}&shift=${encodeURIComponent(shiftQs)}`,
-    );
-  }, [router, workDate, shiftQs]);
+    const qs = new URLSearchParams();
+    qs.set("tab", "workers");
+    qs.set("date", workDate);
+    qs.set("shift", shiftQs);
+    if (siteId) qs.set("siteId", siteId);
+    if (contractorId) qs.set("contractorId", contractorId);
+    router.push(`/attendance?${qs.toString()}`);
+  }, [router, workDate, shiftQs, siteId, contractorId]);
 
   const onHardRefresh = useCallback(async () => {
     await revalidateAttendancePageCache();
     router.refresh();
   }, [router]);
 
-  const allDone = workers.length === 0;
+  const allDone = dayStats.pending === 0 && workers.length === 0;
 
-  /** عدد المعلّقين المعروض = الصفوف المحمّلة (يطابق الجدول حرفياً؛ البحث يضيّق العرض فقط). */
-  const displayedPendingCount = deferredSearch.trim() ? filteredRows.length : workers.length;
+  const displayedPendingCount = dayStats.pending;
 
   const statsBlock = (
     <div className="grid gap-3 sm:grid-cols-3">
@@ -169,37 +183,45 @@ export function AttendancePrepWorkzone({
       ) : null}
       {statsBlock}
 
-      <div className="rounded border border-slate-200 bg-white p-3">
-        <div className="flex flex-wrap items-end gap-2">
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <form className="flex flex-wrap items-end gap-2" action="/attendance" method="get">
+          <input type="hidden" name="tab" value="workers" />
+          <input type="hidden" name="date" value={workDate} />
+          <input type="hidden" name="shift" value={shiftQs} />
+          {siteId ? <input type="hidden" name="siteId" value={siteId} /> : null}
+          {contractorId ? <input type="hidden" name="contractorId" value={contractorId} /> : null}
           <div className="min-w-[200px] flex-1">
-            <label className="block text-xs font-bold text-slate-700">بحث فوري (كل القائمة)</label>
+            <label className="block text-xs font-bold text-slate-700">بحث في المعلّقين</label>
             <input
               type="text"
+              name="q"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="اسم أو رقم هوية…"
-              className="mt-1 w-full max-w-md border border-slate-300 px-2 py-1.5 text-sm"
+              placeholder="اسم أو رقم هوية أو كود…"
+              className="mt-1 w-full max-w-md rounded-xl border border-slate-300 px-3 py-2 text-sm"
               autoComplete="off"
             />
           </div>
+          <button type="submit" className="rounded-xl bg-[#0B1730] px-3 py-2 text-xs font-bold text-white">
+            بحث
+          </button>
           <button
             type="button"
             onClick={onResetAll}
-            className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800"
+            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800"
           >
             عرض الكل / إعادة ضبط
           </button>
           <button
             type="button"
             onClick={() => void onHardRefresh()}
-            className="rounded bg-slate-700 px-3 py-2 text-xs font-bold text-white"
+            className="rounded-xl bg-slate-700 px-3 py-2 text-xs font-bold text-white"
           >
             تحديث
           </button>
-        </div>
+        </form>
         <p className="mt-1 text-xs text-slate-500">
-          يظهر {filteredRows.length} من أصل {workers.length} معلّق. كل من تُحضّره يختفي من هنا ويظهر في «مراجعة تحضير
-          اليوم»؛ عندما لا يبقى معلّق في هذا النطاق يُفتح التبويب الثاني تلقائياً (أو افتحه يدوياً متى شئت).
+          الصفحة تعرض {filteredRows.length} من أصل {dayStats.pending} معلّق. الإجمالي لا يعتمد على الصفوف المرسومة.
         </p>
       </div>
 
@@ -210,10 +232,16 @@ export function AttendancePrepWorkzone({
         usePerWorkerRound={prepShiftScope === "all"}
         initialStatusMap={initialStatusMap}
         filteredWorkerIds={scopeIds}
-        filteredTotalRows={scopeIds.length}
+        filteredTotalRows={dayStats.pending}
         skipServerRefresh
         onAttendanceChunkSaved={onPrepDone}
         readOnly={readOnlyPrep}
+        filterContext={{
+          siteId: siteId ? Number(siteId) : undefined,
+          contractorId: contractorId ? Number(contractorId) : undefined,
+          search: searchQuery,
+          prepShiftScope,
+        }}
       />
     </>
   );

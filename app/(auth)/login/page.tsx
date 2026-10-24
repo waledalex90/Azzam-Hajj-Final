@@ -39,6 +39,11 @@ export default async function LoginPage() {
         <div className="mt-6">
           <LoginForm />
         </div>
+        <p className="mt-5 text-center text-sm text-slate-500">
+          <a href="/demo" className="font-bold text-[#2563EB] hover:underline">
+            معاينة تجريبية آمنة — بيانات افتراضية
+          </a>
+        </p>
       </div>
     </main>
   );

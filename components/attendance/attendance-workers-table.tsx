@@ -5,11 +5,11 @@ import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { submitAttendancePrepBulk } from "@/app/(dashboard)/attendance/actions";
+import { submitAttendancePrepBulk, submitAttendancePrepMatchingFilters } from "@/app/(dashboard)/attendance/actions";
 import { useAttendanceRscRefreshLock } from "@/components/attendance/attendance-rsc-refresh-lock";
 import { useRunWithGlobalLock } from "@/components/providers/global-action-lock-context";
 import type { WorkerRow } from "@/lib/types/db";
-import { effectivePrepRoundForWorker } from "@/lib/utils/attendance-shift";
+import { effectivePrepRoundForWorker, type PrepShiftScope } from "@/lib/utils/attendance-shift";
 import { workerHasSiteForPrep } from "@/lib/utils/worker-prep-eligibility";
 
 type AttendanceStatus = "present" | "absent" | "half";
@@ -32,6 +32,12 @@ type Props = {
   suppressEmptyMessage?: boolean;
   /** عرض القائمة دون أزرار التحضير (صلاحية view_attendance فقط) */
   readOnly?: boolean;
+  filterContext?: {
+    siteId?: number;
+    contractorId?: number;
+    search?: string;
+    prepShiftScope: PrepShiftScope;
+  };
 };
 
 function statusLabel(status?: AttendanceStatus) {
@@ -66,11 +72,12 @@ export function AttendanceWorkersTable({
   onPrepSuccessNavigate,
   suppressEmptyMessage = false,
   readOnly = false,
+  filterContext,
 }: Props) {
   const router = useRouter();
   const runLocked = useRunWithGlobalLock();
   const rscRefreshLock = useAttendanceRscRefreshLock();
-  const [selected, setSelected] = useState<number[]>([]);
+  const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [bulkScope, setBulkScope] = useState<"page" | "all">("page");
   const statusMap = initialStatusMap;
   const [isSaving, setIsSaving] = useState(false);
@@ -87,8 +94,8 @@ export function AttendanceWorkersTable({
     [allIds, rowById],
   );
   const pageAllSelected =
-    eligibleOnPageIds.length > 0 && eligibleOnPageIds.every((id) => selected.includes(id));
-  const hasSelection = selected.length > 0;
+    eligibleOnPageIds.length > 0 && eligibleOnPageIds.every((id) => selected.has(id));
+  const hasSelection = selected.size > 0;
 
   const allFilteredIds = useMemo(() => Array.from(new Set(filteredWorkerIds)), [filteredWorkerIds]);
 
@@ -98,7 +105,12 @@ export function AttendanceWorkersTable({
       toast.error("هذا العامل بلا موقع معتمد في النظام. عيّن الموقع من شاشة «العمال» ثم أعد المحاولة.");
       return;
     }
-    setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   function toggleAllPage() {
@@ -111,20 +123,53 @@ export function AttendanceWorkersTable({
         toast.error("لا يوجد في الصفحة عمال لهم موقع معتمد — عيّن الموقع من «العمال».");
         return prev;
       }
-      const pageSelected = eligibleOnPage.every((id) => prev.includes(id));
+      const pageSelected = eligibleOnPage.every((id) => prev.has(id));
+      const next = new Set(prev);
       if (pageSelected) {
-        return prev.filter((id) => !eligibleOnPage.includes(id));
+        for (const id of eligibleOnPage) next.delete(id);
+      } else {
+        for (const id of eligibleOnPage) next.add(id);
       }
-      return Array.from(new Set([...prev, ...eligibleOnPage]));
+      return next;
     });
   }
 
   async function runPrepBulk(status: PrepSubmitStatus) {
     if (!hasSelection || isSaving) return;
-    const ids =
-      bulkScope === "all"
-        ? allFilteredIds
-        : Array.from(new Set(selected.filter((id) => allIds.includes(id))));
+    if (bulkScope === "all" && filterContext) {
+      await runLocked(async () => {
+        setIsSaving(true);
+        if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = true;
+        try {
+          const res = await submitAttendancePrepMatchingFilters({
+            workDate,
+            status,
+            siteId: filterContext.siteId,
+            contractorId: filterContext.contractorId,
+            search: filterContext.search,
+            prepShiftScope: filterContext.prepShiftScope,
+            usePerWorkerRound,
+            roundNo,
+          });
+          if (!res.ok) {
+            toast.error(res.error);
+            return;
+          }
+          toast.success(`تم تحضير ${res.count ?? 0} عامل ضمن الفلتر`);
+          setSelected(new Set());
+          onAttendanceChunkSaved?.(allIds, status);
+          onAttendanceSessionComplete?.();
+          onPrepSuccessNavigate?.();
+          void router.refresh();
+        } finally {
+          setIsSaving(false);
+          if (rscRefreshLock) rscRefreshLock.blockRscRefreshRef.current = false;
+        }
+      });
+      return;
+    }
+
+    const ids = Array.from(selected).filter((id) => allIds.includes(id));
     if (ids.length === 0) {
       toast.error("لا يوجد عامل ضمن النطاق.");
       return;
@@ -145,7 +190,7 @@ export function AttendanceWorkersTable({
     }
 
     type ChunkStep = { round: number; chunk: number[] };
-    let plan: ChunkStep[] = [];
+    const plan: ChunkStep[] = [];
     if (usePerWorkerRound) {
       const r1: number[] = [];
       const r2: number[] = [];
@@ -200,7 +245,7 @@ export function AttendanceWorkersTable({
           plan.length > 1 ? `تم التحضير — ${plan.length} دفعة (${withSite.length} عامل)` : "تم التحضير ✅",
           { id: progressId },
         );
-        setSelected([]);
+        setSelected(new Set());
         if (!skipServerRefresh) {
           void router.refresh();
         }
@@ -354,7 +399,7 @@ export function AttendanceWorkersTable({
                 تحديد المعروض ({allIds.length})
               </label>
               <span className="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
-                المحدد: {selected.length}
+                المحدد: {selected.size}
               </span>
             </>
           ) : (
@@ -377,7 +422,7 @@ export function AttendanceWorkersTable({
                 onChange={() => setBulkScope("page")}
                 disabled={isSaving}
               />
-              المعروض في الجدول فقط ({selected.length} محدد)
+              المعروض في الجدول فقط ({selected.size} محدد)
             </label>
             <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-bold">
               <input
@@ -402,7 +447,7 @@ export function AttendanceWorkersTable({
                 <label className="mb-1 inline-flex items-center gap-2 text-xs font-bold text-slate-600">
                   <input
                     type="checkbox"
-                    checked={selected.includes(worker.id)}
+                    checked={selected.has(worker.id)}
                     onChange={() => toggle(worker.id)}
                     disabled={isSaving || !workerHasSiteForPrep(worker)}
                   />
@@ -449,7 +494,7 @@ export function AttendanceWorkersTable({
                   <td className="border border-slate-300 px-2 py-1">
                     <input
                       type="checkbox"
-                      checked={selected.includes(worker.id)}
+                      checked={selected.has(worker.id)}
                       onChange={() => toggle(worker.id)}
                       disabled={isSaving || !workerHasSiteForPrep(worker)}
                     />

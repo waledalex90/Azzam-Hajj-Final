@@ -28,6 +28,8 @@ export type PrepWorkersLoadParams = {
   search?: string;
   workDate?: string;
   prepShiftScope: PrepShiftScope;
+  page?: number;
+  pageSize?: number;
 };
 
 type AttendanceWorkerIdsParams = {
@@ -386,8 +388,10 @@ export async function getApprovalFilterCounts(params: {
   return { pending, confirmed, total };
 }
 
-/** تحميل كامل لقائمة التحضير — حتى 10k عامل معلّق في النطاق */
-const PREP_WORKERS_PAGE_SIZE = 10_000;
+/** حجم صفحة عرض التحضير — لا تُرسم آلاف الصفوف دفعة واحدة */
+export const PREP_DISPLAY_PAGE_SIZE = 80;
+/** تصفح معرفات العمال في الاستعلام دون إرسال الصفوف للواجهة */
+const PREP_ID_SCAN_PAGE_SIZE = 1000;
 
 /**
  * عمال لديهم صف `attendance_checks` لهذا التاريخ (أي `attendance_checks.id` موجود).
@@ -574,8 +578,7 @@ export async function getAttendancePrepTabStats(
 /**
  * كل عمال التحضير المعلقين — نفس نطاق `getAttendanceWorkerIdsForFilters` ثم جلب الصفوف بـ `in(id,…)` على دفعات.
  *
- * **ملاحظة واجهة:** حقل «بحث فوري» في `AttendancePrepWorkzone` يفلتر **نفس الصفوف المحمّلة** في المتصفح فقط؛
- * لا يُعاد استدعاء هذه الدالة بـ `search`. إن ظهر اسم بالبحث فالعامل موجود في `initialWorkers` (قد يكون بعيداً في القائمة الافتراضية).
+ * البحث يُمرَّر عبر `search` إلى فلتر المعرفات؛ الصفحة تعرض شريحة فقط.
  */
 export async function getAllPendingPrepWorkers(
   params: PrepWorkersLoadParams,
@@ -629,7 +632,11 @@ export async function getAllPendingPrepWorkers(
     excludeAlreadyPrepped: true,
   });
 
-  const capped = pendingIds.slice(0, PREP_WORKERS_PAGE_SIZE);
+  const pageSize = Math.max(1, Math.min(params.pageSize ?? PREP_DISPLAY_PAGE_SIZE, 200));
+  const page = Math.max(1, params.page ?? 1);
+  const totalPending = pendingIds.length;
+  const from = (page - 1) * pageSize;
+  const capped = pendingIds.slice(from, from + pageSize);
   if (capped.length === 0) {
     if (debug) {
       console.warn("[attendance:prep]", {
@@ -643,7 +650,7 @@ export async function getAllPendingPrepWorkers(
         },
       });
     }
-    return { rows: [], meta: buildPaginationMeta(0, 1, 1) };
+    return { rows: [], meta: buildPaginationMeta(totalPending, page, pageSize) };
   }
 
   const supabase = createSupabaseAdminClient();
@@ -732,7 +739,7 @@ export async function getAllPendingPrepWorkers(
   }
   return {
     rows: hydrated,
-    meta: buildPaginationMeta(hydrated.length, 1, Math.max(hydrated.length, 1)),
+    meta: buildPaginationMeta(totalPending, page, pageSize),
   };
 }
 
@@ -804,12 +811,12 @@ export async function getAttendanceWorkerIdsForFilters(
       excludeMorningSize: excludeMorning.size,
       excludeEveningSize: excludeEvening.size,
       needShiftColumn,
-      rangeInclusiveEnd: PREP_WORKERS_PAGE_SIZE,
-      batchFullSizeExpected: PREP_WORKERS_PAGE_SIZE + 1,
+      rangeInclusiveEnd: PREP_ID_SCAN_PAGE_SIZE,
+      batchFullSizeExpected: PREP_ID_SCAN_PAGE_SIZE + 1,
     });
   }
 
-  /** تصفح مفتاحي بـ `id` + `range` بعرض PREP_WORKERS_PAGE_SIZE (بدون `.limit()` على الدفعة). */
+  /** تصفح مفتاحي بـ `id` + `range` بعرض PREP_ID_SCAN_PAGE_SIZE (بدون `.limit()` على الدفعة). */
   let lastWorkerId = 0;
   let scanIteration = 0;
   let scanStopReason = "unknown";
@@ -826,7 +833,7 @@ export async function getAttendanceWorkerIdsForFilters(
       .eq("is_active", true)
       .eq("is_deleted", false)
       .order("id", { ascending: true })
-      .range(0, PREP_WORKERS_PAGE_SIZE);
+      .limit(PREP_ID_SCAN_PAGE_SIZE);
 
     if (lastWorkerId > 0) {
       query = query.gt("id", lastWorkerId);
@@ -922,13 +929,12 @@ export async function getAttendanceWorkerIdsForFilters(
       });
     }
 
-    /** مع range(0, PREP_WORKERS_PAGE_SIZE) الشامل يصل إلى PREP_WORKERS_PAGE_SIZE + 1 صفاً كحدّ أقصى لكل طلب */
-    if (rows.length < PREP_WORKERS_PAGE_SIZE + 1) {
+    if (rows.length < PREP_ID_SCAN_PAGE_SIZE) {
       scanStopReason = "partial_batch_last_page";
       if (traceScan) {
         console.log("[getAttendanceWorkerIdsForFilters] stop", {
           stopReason: scanStopReason,
-          detail: `rows.length (${rows.length}) < full batch (${PREP_WORKERS_PAGE_SIZE + 1})`,
+          detail: `rows.length (${rows.length}) < full batch (${PREP_ID_SCAN_PAGE_SIZE})`,
           totalIterations: scanIteration,
           totalIds: ids.length,
         });

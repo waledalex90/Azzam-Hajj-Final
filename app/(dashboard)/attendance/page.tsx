@@ -23,9 +23,11 @@ import { canRequestAttendanceCorrection, hasPermission } from "@/lib/auth/permis
 import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
 import { PERM } from "@/lib/permissions/keys";
 import type { AttendanceDayStats } from "@/lib/types/db";
-import { buildPaginationMeta } from "@/lib/utils/pagination";
+import { PaginationControls } from "@/components/pagination/pagination-controls";
+import { buildPaginationMeta, parsePage } from "@/lib/utils/pagination";
 import { parseAttendancePrepShiftParam } from "@/lib/utils/attendance-shift";
 import { resolveWorkDateFromSearchParam } from "@/lib/utils/today";
+import { PREP_DISPLAY_PAGE_SIZE } from "@/lib/data/attendance";
 
 const emptyStats: AttendanceDayStats = {
   total: 0,
@@ -43,6 +45,8 @@ type Props = {
     date?: string;
     /** 0|all = كل الورديات في التحضير؛ 1 صباحي؛ 2 مسائي */
     shift?: string;
+    q?: string;
+    page?: string;
   }>;
 };
 
@@ -82,6 +86,8 @@ export default async function AttendancePage({ searchParams }: Props) {
   const workDate = resolveWorkDateFromSearchParam(params.date);
 
   const prepShiftScope = parseAttendancePrepShiftParam(params.shift);
+  const prepSearch = params.q?.trim() || undefined;
+  const prepPage = parsePage(params.page, 1);
   /** تبويب المراجعة يحمّل جولة واحدة؛ مع «كل الورديات» في الرابط نعرض صباحي حتى يختار المستخدم مسائي من القائمة */
   const reviewRoundNo: 1 | 2 = prepShiftScope === "all" ? 1 : prepShiftScope;
 
@@ -116,7 +122,7 @@ export default async function AttendancePage({ searchParams }: Props) {
             workDate,
             Number.isFinite(siteId) ? siteId : undefined,
             Number.isFinite(contractorId) ? contractorId : undefined,
-            undefined,
+            prepSearch,
             prepShiftScope,
             allowedSiteIds,
           )
@@ -140,9 +146,11 @@ export default async function AttendancePage({ searchParams }: Props) {
         siteId: Number.isFinite(siteId) ? siteId : undefined,
         allowedSiteIds,
         contractorId: Number.isFinite(contractorId) ? contractorId : undefined,
-        search: undefined,
+        search: prepSearch,
         workDate,
         prepShiftScope,
+        page: prepPage,
+        pageSize: PREP_DISPLAY_PAGE_SIZE,
       });
     } catch {
       prepWorkers = { rows: [], meta: buildPaginationMeta(0, 1, 1) };
@@ -265,17 +273,36 @@ export default async function AttendancePage({ searchParams }: Props) {
 
       <TabPanelTransition key={activeTab}>
         {activeTab === "workers" ? (
+          <>
           <AttendancePrepWorkzone
-            key={`prep-${workDate}-${prepShiftScope}-${params.siteId ?? ""}-${params.contractorId ?? ""}`}
+            key={`prep-${workDate}-${prepShiftScope}-${params.siteId ?? ""}-${params.contractorId ?? ""}-${prepSearch ?? ""}-${prepPage}`}
             initialDayStats={dayStats}
             initialWorkers={prepWorkers?.rows ?? []}
             initialStatusMap={initialStatusMap}
+            pendingTotal={prepWorkers?.meta.totalRows ?? dayStats.pending}
             workDate={workDate}
             prepShiftScope={prepShiftScope}
             siteId={params.siteId}
             contractorId={params.contractorId}
+            searchQuery={prepSearch ?? ""}
             readOnlyPrep={!canRecordPrep}
           />
+          {prepWorkers && prepWorkers.meta.totalPages > 1 ? (
+            <PaginationControls
+              page={prepWorkers.meta.page}
+              totalPages={prepWorkers.meta.totalPages}
+              basePath="/attendance"
+              query={{
+                tab: "workers",
+                date: workDate,
+                shift: params.shift,
+                siteId: params.siteId,
+                contractorId: params.contractorId,
+                q: prepSearch,
+              }}
+            />
+          ) : null}
+          </>
         ) : (
           <>
             <div className="grid gap-3 sm:grid-cols-3">
