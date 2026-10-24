@@ -21,6 +21,9 @@ type Step = {
  * يتطلب جلسة + صلاحية إدارة مستخدمين أو أدوار (نفس صفحة /users).
  */
 export async function GET() {
+  if (process.env.NODE_ENV === "production" && process.env.ENABLE_DEBUG_APIS !== "true") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const steps: Step[] = [];
 
   const { appUser } = await getSessionContext();

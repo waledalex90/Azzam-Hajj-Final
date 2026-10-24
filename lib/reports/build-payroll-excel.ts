@@ -139,7 +139,7 @@ export async function buildPayrollExcelBuffer(opts: {
   let r = 1;
 
   const logoFile = findCompanyLogoFile();
-  if (logoFile) {
+  if (logoFile && logoFile.format !== "SVG") {
     try {
       const buf = fs.readFileSync(logoFile.absPath);
       const ext = logoFile.format === "PNG" ? "png" : "jpeg";

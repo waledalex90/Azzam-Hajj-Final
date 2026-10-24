@@ -47,6 +47,9 @@ export async function POST(request: Request) {
   }
 
   const mode = body.mode ?? "attendance_submit";
+  if (demoMode) {
+    return NextResponse.json({ ok: true, demoMode: true }, { status: 200 });
+  }
 
   try {
     if (mode === "attendance_submit") {

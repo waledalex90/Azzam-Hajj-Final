@@ -1,6 +1,6 @@
-import Image from "next/image";
 import { clsx } from "clsx";
 
+import { PRODUCT_NAME } from "@/lib/product";
 import { brandLogo } from "@/lib/branding/logo-sizes";
 
 type Preset = keyof typeof brandLogo;
@@ -10,33 +10,34 @@ type Props = {
   priority?: boolean;
   preset?: Preset;
   /**
-   * `ui` — شعار داخل البرنامج/الدخول: خلفية سوداء فخمة + إطار ذهبي (لا يغيّر باقي الصفحة).
-   * `document` — نسخ مطبوعة/رسمية: صورة فقط بلا إطار (ورقة بيضاء).
+   * `ui` — داخل التطبيق.
+   * `document` — مطبوعات بلا إطار.
    */
   surface?: "ui" | "document";
 };
 
-const uiShellClass =
-  "inline-flex w-fit max-w-full shrink-0 items-center justify-center rounded-2xl border-2 border-[#d4af37] bg-[#0b0b0c] px-3 py-2.5 shadow-[0_0_0_1px_rgba(212,175,55,0.14),0_12px_32px_-8px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.05)]";
-
-const LOGO_W = 799;
-const LOGO_H = 287;
-
-export function BrandLogo({ className, priority = false, preset = "app", surface = "ui" }: Props) {
-  const img = (
-    <Image
-      src="/brand/azzam-logo.png"
-      alt="شعار شركة عزام"
-      width={LOGO_W}
-      height={LOGO_H}
-      unoptimized
-      priority={priority}
-      className={clsx(brandLogo[preset], className)}
-    />
+export function BrandLogo({ className, preset = "app", surface = "ui" }: Props) {
+  const mark = (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 64 64"
+      role="img"
+      aria-label={PRODUCT_NAME}
+      className={clsx("h-auto w-full", brandLogo[preset], className)}
+    >
+      <rect width="64" height="64" rx="16" fill="#0B1730" />
+      <circle cx="32" cy="16" r="4.4" fill="#FFFFFF" />
+      <path d="M22 32.5c0-5.2 4.5-8.5 10-8.5s10 3.3 10 8.5H22z" fill="#FFFFFF" />
+      <circle cx="14" cy="24" r="3.4" fill="#E2E8F0" />
+      <path d="M7.2 37c0-4.2 3.2-6.8 6.8-6.8S20.8 32.8 20.8 37H7.2z" fill="#E2E8F0" />
+      <circle cx="50" cy="24" r="3.4" fill="#E2E8F0" />
+      <path d="M43.2 37c0-4.2 3.2-6.8 6.8-6.8S56.8 32.8 56.8 37H43.2z" fill="#E2E8F0" />
+      <circle cx="32" cy="48" r="7" fill="none" stroke="#22C7D8" stroke-width="2.5" />
+      <circle cx="32" cy="48" r="2.4" fill="#2563EB" />
+      <path d="M32 35.5V41" stroke="#22C7D8" stroke-width="2" stroke-linecap="round" />
+    </svg>
   );
 
-  if (surface === "document") {
-    return img;
-  }
-  return <div className={uiShellClass}>{img}</div>;
+  if (surface === "document") return mark;
+  return <div className="inline-flex w-fit max-w-full shrink-0 items-center justify-center">{mark}</div>;
 }

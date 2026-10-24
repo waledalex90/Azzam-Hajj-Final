@@ -7,7 +7,7 @@ export function Input({ className, ...props }: Props) {
   return (
     <input
       className={clsx(
-        "min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base outline-none transition-all duration-200 focus:border-[#166534] focus:ring-2 focus:ring-[#f5efda]",
+        "min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base outline-none transition-all duration-200 focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20",
         className,
       )}
       {...props}

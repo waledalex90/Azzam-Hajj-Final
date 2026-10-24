@@ -1,33 +1,29 @@
 import fs from "node:fs";
 import path from "node:path";
 
-/** أسماء ملفات محتملة (حساسية مختلفة للأنظمة) */
+/** شعار المنتج للتصدير — SVG/PNG عام، بدون هوية جهة عمل. */
 const LOGO_NAMES = [
+  "brand/workforce-hub-mark.svg",
+  "icons/app-icon.svg",
   "company-logo.png",
-  "brand/azzam-logo.png",
-  "Company-Logo.png",
-  "company-logo.jpg",
-  "payroll-logo.png",
   "logo.png",
-  "logo.jpg",
 ] as const;
 
-export type ExportLogoFile = { absPath: string; format: "PNG" | "JPEG" };
+export type ExportLogoFile = { absPath: string; format: "PNG" | "JPEG" | "SVG" };
 
-function formatFromPath(absPath: string): "PNG" | "JPEG" | null {
+function formatFromPath(absPath: string): "PNG" | "JPEG" | "SVG" | null {
   const lower = absPath.toLowerCase();
+  if (lower.endsWith(".svg")) return "SVG";
   if (lower.endsWith(".png")) return "PNG";
   if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "JPEG";
   return null;
 }
 
-/** جذور بحث عن مجلد public (cwd يختلف بين التطوير والنشر) */
 function publicSearchRoots(): string[] {
   const cwd = process.cwd();
   const roots = new Set<string>();
   roots.add(cwd);
   roots.add(path.join(cwd, ".."));
-  roots.add(path.join(cwd, "azzam-hajj-system"));
   if (process.env.PROJECT_ROOT) {
     roots.add(process.env.PROJECT_ROOT);
   }
@@ -35,9 +31,9 @@ function publicSearchRoots(): string[] {
 }
 
 /**
- * مسار شعار الشركة للتصدير.
- * - الافتراضي: `public/company-logo.png` أو `public/brand/azzam-logo.png` (لوجو عزام الرسمي)
- * - أو عيّن متغير بيئة `COMPANY_LOGO_ABS_PATH` لمسار ملف كامل
+ * مسار شعار المنتج للتصدير.
+ * عيّن `COMPANY_LOGO_ABS_PATH` لمسار مخصص إن لزم.
+ * لا يُبحث عن شعارات جهات العمل القديمة.
  */
 export function findCompanyLogoFile(): ExportLogoFile | null {
   const envPath = process.env.COMPANY_LOGO_ABS_PATH?.trim();
@@ -57,9 +53,10 @@ export function findCompanyLogoFile(): ExportLogoFile | null {
   return null;
 }
 
-export function readCompanyLogoBuffer(): { buffer: Buffer; format: "PNG" | "JPEG" } | null {
+export function readCompanyLogoBuffer(): { buffer: Buffer; format: "PNG" | "JPEG" | "SVG" } | null {
   const f = findCompanyLogoFile();
   if (!f) return null;
+  if (f.format === "SVG") return null;
   try {
     return { buffer: fs.readFileSync(f.absPath), format: f.format };
   } catch {

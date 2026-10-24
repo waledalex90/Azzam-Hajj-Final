@@ -16,6 +16,8 @@ import { requireScreen } from "@/lib/auth/require-screen";
 import { getSessionContext } from "@/lib/auth/session";
 import { resolveAllowedSiteIdsForSession } from "@/lib/auth/transfer-access";
 import { PERM } from "@/lib/permissions/keys";
+import { PaginationControls } from "@/components/pagination/pagination-controls";
+import { parsePage } from "@/lib/utils/pagination";
 
 type Props = {
   searchParams: Promise<{
@@ -27,6 +29,8 @@ type Props = {
     shiftRound?: string;
     showStopped?: string;
     showDeleted?: string;
+    q?: string;
+    page?: string;
   }>;
 };
 
@@ -69,7 +73,7 @@ export default async function WorkersPage({ searchParams }: Props) {
     const paymentType = normalizeText(formData.get("paymentType")) === "daily" ? "daily" : "salary";
     const basicSalary = Number(formData.get("basicSalary"));
     const iqamaExpiryRaw = normalizeText(formData.get("iqamaExpiry"));
-    let siteId = Number(formData.get("siteId")) || null;
+    const siteId = Number(formData.get("siteId")) || null;
     const contractorId = Number(formData.get("contractorId")) || null;
     const shiftRaw = normalizeText(formData.get("shiftRound"));
     const shift_round = shiftRaw === "1" ? 1 : shiftRaw === "2" ? 2 : null;
@@ -315,18 +319,22 @@ export default async function WorkersPage({ searchParams }: Props) {
 
   const supabase = createSupabaseAdminClient();
 
-  async function fetchWorkersListAll(): Promise<WorkersListRow[]> {
+  const listPage = parsePage(params.page, 1);
+  const listSearch = params.q?.trim() ?? "";
+  const LIST_PAGE_SIZE = 80;
+
+  async function fetchWorkersListPage(): Promise<{ rows: WorkersListRow[]; total: number }> {
     if (siteScope !== undefined && siteScope.length === 0) {
-      return [];
+      return { rows: [], total: 0 };
     }
-    const CHUNK = 1000;
-    const out: WorkersListRow[] = [];
-    let from = 0;
-    while (true) {
+    const from = (listPage - 1) * LIST_PAGE_SIZE;
+    const to = from + LIST_PAGE_SIZE - 1;
+    {
       let q = supabase
         .from("workers")
         .select(
           "id, name, id_number, employee_code, job_title, payment_type, basic_salary, iqama_expiry, contractor_id, current_site_id, shift_round, is_active, is_deleted, sites(name), contractors(name)",
+          { count: "exact" },
         )
         .order("id", { ascending: false });
 
@@ -349,24 +357,28 @@ export default async function WorkersPage({ searchParams }: Props) {
       if (shiftRoundFilter !== undefined) {
         q = q.or(`shift_round.is.null,shift_round.eq.${shiftRoundFilter}`);
       }
+      if (listSearch) {
+        const v = listSearch.replace(/[%]/g, "");
+        q = q.or(`name.ilike.%${v}%,employee_code.ilike.%${v}%${canViewSensitive ? `,id_number.ilike.%${v}%` : ""}`);
+      }
 
-      const { data, error } = await q.range(from, from + CHUNK - 1);
-      if (error) break;
-      const chunk = ((data ?? []) as RawWorkerListRow[]).map((worker) => ({
+      const { data, error, count } = await q.range(from, to);
+      if (error) return { rows: [], total: 0 };
+      const rows = ((data ?? []) as RawWorkerListRow[]).map((worker) => ({
         ...worker,
+        id_number: canViewSensitive ? worker.id_number : "",
+        basic_salary: canViewSensitive ? worker.basic_salary : null,
+        iqama_expiry: canViewSensitive ? worker.iqama_expiry : null,
         employee_code: worker.employee_code ?? null,
         sites: relationValue(worker.sites),
         contractors: relationValue(worker.contractors),
       }));
-      out.push(...chunk);
-      if (chunk.length < CHUNK) break;
-      from += CHUNK;
+      return { rows, total: count ?? 0 };
     }
-    return out;
   }
 
-  const [workers, sitesRaw, contractors, totalRes, activeRes, stoppedRes, deletedRes] = await Promise.all([
-    fetchWorkersListAll(),
+  const [workersPage, sitesRaw, contractors, totalRes, activeRes, stoppedRes, deletedRes] = await Promise.all([
+    fetchWorkersListPage(),
     getSiteOptions(),
     getContractorOptions(),
     (async () => {
@@ -418,6 +430,9 @@ export default async function WorkersPage({ searchParams }: Props) {
         ? sitesRaw.filter((s) => siteScope.includes(s.id))
         : [];
 
+  const workers = workersPage.rows;
+  const workersListTotalPages = Math.max(1, Math.ceil(workersPage.total / LIST_PAGE_SIZE));
+
   const queryBase = {
     tab: "list",
     siteId: params.siteId,
@@ -426,6 +441,7 @@ export default async function WorkersPage({ searchParams }: Props) {
       shiftRoundFilter === 1 ? "1" : shiftRoundFilter === 2 ? "2" : undefined,
     showStopped: showStopped ? "1" : undefined,
     showDeleted: showDeleted ? "1" : undefined,
+    q: listSearch || undefined,
   };
 
   return (
@@ -540,7 +556,7 @@ export default async function WorkersPage({ searchParams }: Props) {
               <div className="flex items-end">
                 <button
                   type="submit"
-                  className="w-full rounded-lg bg-[#14532d] px-4 py-2 text-sm font-extrabold text-white shadow-md ring-2 ring-[#14532d]/35 hover:bg-[#166534]"
+                  className="w-full rounded-lg bg-[#0B1730] px-4 py-2 text-sm font-extrabold text-white shadow-md hover:bg-[#122347]"
                 >
                   حفظ الموظف
                 </button>
@@ -602,7 +618,8 @@ export default async function WorkersPage({ searchParams }: Props) {
                 <option value="1">صباحي</option>
                 <option value="2">مسائي</option>
               </select>
-              <button className="rounded bg-[#0f766e] px-4 py-2 text-sm font-bold text-white">تطبيق التصفية</button>
+              <Input name="q" defaultValue={listSearch} placeholder="بحث بالاسم أو الكود" />
+              <button className="rounded bg-[#0B1730] px-4 py-2 text-sm font-bold text-white">تطبيق التصفية</button>
             </form>
           </Card>
 
@@ -621,6 +638,12 @@ export default async function WorkersPage({ searchParams }: Props) {
             restoreWorker={restoreWorker}
             canEditWorkers={canEditWorkers}
             canViewSensitive={canViewSensitive}
+          />
+          <PaginationControls
+            page={listPage}
+            totalPages={workersListTotalPages}
+            basePath="/workers"
+            query={queryBase}
           />
         </>
       )}

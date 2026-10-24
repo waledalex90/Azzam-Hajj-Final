@@ -10,6 +10,7 @@ type Props = {
   className?: string;
   children: ReactNode;
   prefetch?: boolean;
+  onClick?: (e: MouseEvent<HTMLAnchorElement>) => void;
 };
 
 function sameDestination(href: string): boolean {
@@ -27,11 +28,12 @@ function sameDestination(href: string): boolean {
  * تنقل داخلي عبر `router.push` داخل `startTransition` ليبقى الواجهة مستجيبة أثناء جلب RSC.
  * لا يعترض النقر مع مفاتيح التعديل أو `target` غير `_self`.
  */
-export function SpaLink({ href, className, children, prefetch = true }: Props) {
+export function SpaLink({ href, className, children, prefetch = true, onClick: onClickProp }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   function onClick(e: MouseEvent<HTMLAnchorElement>) {
+    onClickProp?.(e);
     if (e.defaultPrevented) return;
     if (e.button !== 0) return;
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;

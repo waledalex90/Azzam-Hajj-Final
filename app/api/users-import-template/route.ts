@@ -28,7 +28,7 @@ export async function GET() {
   const sites = siteRows ?? [];
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Azzam Hajj System";
+  wb.creator = "Workforce Hub";
 
   const usersSheet = wb.addWorksheet("Users", {
     views: [{ rightToLeft: true }],

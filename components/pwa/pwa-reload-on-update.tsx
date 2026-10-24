@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 
 const RELOAD_COOLDOWN_MS = 12_000;
-const LAST_RELOAD_KEY = "azzam-pwa-sw-last-reload";
+const LAST_RELOAD_KEY = "workforce-hub-pwa-sw-last-reload";
 
 /**
  * عند نشر نسخة جديدة، الـ Service Worker يتفعّل لكن الصفحة المفتوحة تبقى على كود قديم.

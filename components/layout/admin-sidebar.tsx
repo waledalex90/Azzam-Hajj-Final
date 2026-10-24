@@ -28,6 +28,7 @@ import { ALL_REPORT_TAB_PERMISSIONS, PERM } from "@/lib/permissions/keys";
 
 type Props = {
   user: AppUser;
+  onNavigate?: () => void;
 };
 
 const menuItems = [
@@ -85,7 +86,7 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AdminSidebar({ user }: Props) {
+export function AdminSidebar({ user, onNavigate }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -100,9 +101,9 @@ export function AdminSidebar({ user }: Props) {
   }
 
   return (
-    <aside className="w-full border-b border-slate-200 bg-white/95 text-slate-800 backdrop-blur lg:min-h-screen lg:w-[260px] lg:border-b-0 lg:border-l lg:border-slate-200">
+    <aside className="w-full bg-white text-slate-800 lg:min-h-screen lg:border-l lg:border-slate-200">
       <div className="px-4 py-4">
-        <BrandLogo />
+        <BrandLogo preset="shell" />
         <div className="mt-3 border-t border-slate-200 pt-3">
           <p className="text-xs font-extrabold text-slate-700">{user.username}</p>
           <p className="mt-1 text-[11px] text-slate-500">{user.roleLabel}</p>
@@ -137,10 +138,11 @@ export function AdminSidebar({ user }: Props) {
               <SpaLink
                 key={item.href}
                 href={item.href}
+                onClick={onNavigate}
                 className={clsx(
-                  "flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
+                  "flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-colors",
                   active
-                    ? "bg-emerald-50 text-emerald-700 shadow-sm"
+                    ? "bg-[#0B1730] text-white shadow-sm"
                     : "text-slate-700 hover:bg-slate-50 hover:text-slate-900",
                 )}
               >

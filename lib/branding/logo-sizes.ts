@@ -1,20 +1,10 @@
-/**
- * أبعاد موحّدة للوجو الرسمي (نسبة 799:287).
- * `app` / `auth` / `shell` / `topNav` — نفس الظهور البصري لصفحة تسجيل الدخول (عرض تكيفي بحد أقصى 300px).
- */
-const appLike =
-  "h-auto w-full max-w-[min(100%,300px)] sm:max-w-[300px] mx-auto";
+const appLike = "h-11 w-11 sm:h-12 sm:w-12";
 
 export const brandLogo = {
   app: appLike,
-  /** @deprecated استخدم `app` — مُبقي للتوافق */
   shell: appLike,
-  /** تسجيل الدخول */
-  auth: appLike,
-  /** شاشة التحميل — نفس النسبة، أعلى قليلاً على الشاشات الكبيرة */
-  launch: "h-auto w-full max-w-[min(100%,300px)] sm:max-w-[320px] mx-auto",
-  /** ترويسة */
-  topNav: appLike,
-  /** رأس تقارير (إن وُجد) */
-  reports: "h-auto w-full max-w-[min(100%,200px)] sm:max-w-[200px] mx-auto",
+  auth: "h-16 w-16 sm:h-20 sm:w-20",
+  launch: "h-20 w-20 sm:h-24 sm:w-24",
+  topNav: "h-9 w-9",
+  reports: "h-12 w-12",
 } as const;

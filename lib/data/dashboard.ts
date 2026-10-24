@@ -184,8 +184,9 @@ async function getAdminDashboardDataUncached(
   if (targetDate) {
     try {
       const siteList = (await getSiteOptions()).filter((s) => !scoped || siteScope!.includes(s.id));
+      const capped = siteList.slice(0, 8);
       const rows = await Promise.all(
-        siteList.map(async (s) => {
+        capped.map(async (s) => {
           const st = await getAttendanceDayStats(targetDate, s.id);
           return {
             siteId: s.id,

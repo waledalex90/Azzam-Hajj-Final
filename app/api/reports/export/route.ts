@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 import { canExportExportQueryReport } from "@/lib/auth/report-permissions";
 import { getSessionContext } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -37,6 +38,9 @@ export async function GET(req: NextRequest) {
   }
   if (!canExportExportQueryReport(appUser, report)) {
     return new Response("Forbidden", { status: 403 });
+  }
+  if (isDemoModeEnabled()) {
+    return new Response("Demo mode", { status: 403 });
   }
 
   const f = filtersFromUrl(url);

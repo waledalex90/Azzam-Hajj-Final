@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 import { canExportReportTab } from "@/lib/auth/report-permissions";
 import { getSessionContext } from "@/lib/auth/session";
 import { buildPayrollExcelBuffer } from "@/lib/reports/build-payroll-excel";
@@ -31,6 +32,9 @@ export async function GET(req: NextRequest) {
   }
   if (!canExportReportTab(appUser, "payroll")) {
     return new NextResponse("Forbidden", { status: 403 });
+  }
+  if (isDemoModeEnabled()) {
+    return new NextResponse("Demo mode", { status: 403 });
   }
 
   const url = req.nextUrl;

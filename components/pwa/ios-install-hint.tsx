@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-const STORAGE_KEY = "azzam-pwa-ios-hint-dismissed";
+const STORAGE_KEY = "workforce-hub-pwa-ios-hint-dismissed";
 
 function isIos(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -16,18 +16,19 @@ function isStandalone(): boolean {
   return window.matchMedia("(display-mode: standalone)").matches;
 }
 
-export function IosInstallHint() {
-  const [open, setOpen] = useState(false);
+function shouldShowHint(): boolean {
+  if (typeof window === "undefined") return false;
+  if (!isIos() || isStandalone()) return false;
+  try {
+    if (sessionStorage.getItem(STORAGE_KEY) === "1") return false;
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
 
-  useEffect(() => {
-    if (!isIos() || isStandalone()) return;
-    try {
-      if (sessionStorage.getItem(STORAGE_KEY) === "1") return;
-    } catch {
-      /* ignore */
-    }
-    setOpen(true);
-  }, []);
+export function IosInstallHint() {
+  const [open, setOpen] = useState(shouldShowHint);
 
   function dismiss() {
     setOpen(false);

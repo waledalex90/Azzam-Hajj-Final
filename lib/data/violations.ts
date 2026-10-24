@@ -435,8 +435,9 @@ export async function getNoticeBundleForView(
 
   if (we || !workerRow) return null;
 
-  const urls =
+  const storedUrls =
     (primary as { attachment_urls?: string[] | null }).attachment_urls?.filter(Boolean) ?? [];
+  const urls = await resolveNoticeAttachmentUrls(storedUrls);
 
   const bundle: NoticeBundleView = {
     primaryViolationId: primary.id,
@@ -455,8 +456,44 @@ export async function getNoticeBundleForView(
 
 const NOTICE_MEDIA_BUCKET = "violation-notices";
 const NOTICE_MEDIA_MAX_BYTES = 45 * 1024 * 1024;
-
+const NOTICE_SIGNED_TTL_SEC = 60 * 15;
 const NOTICE_UPLOAD_CONCURRENCY = 4;
+
+function isHttpUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value);
+}
+
+function storagePathFromStoredRef(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (!isHttpUrl(trimmed)) return trimmed.replace(/^\/+/, "");
+  const marker = `/storage/v1/object/public/${NOTICE_MEDIA_BUCKET}/`;
+  const idx = trimmed.indexOf(marker);
+  if (idx < 0) return null;
+  return decodeURIComponent(trimmed.slice(idx + marker.length).split("?")[0]);
+}
+
+/** يحوّل المسارات المخزّنة أو الروابط العامة القديمة إلى روابط موقّعة مؤقتة. */
+export async function resolveNoticeAttachmentUrls(stored: string[]): Promise<string[]> {
+  const supabase = createSupabaseAdminClient();
+  const out: string[] = [];
+  for (const item of stored.filter(Boolean)) {
+    const objectPath = storagePathFromStoredRef(item);
+    if (!objectPath) {
+      if (isHttpUrl(item)) out.push(item);
+      continue;
+    }
+    const { data, error } = await supabase.storage
+      .from(NOTICE_MEDIA_BUCKET)
+      .createSignedUrl(objectPath, NOTICE_SIGNED_TTL_SEC);
+    if (!error && data?.signedUrl) {
+      out.push(data.signedUrl);
+      continue;
+    }
+    if (isHttpUrl(item)) out.push(item);
+  }
+  return out;
+}
 
 /** رفع صور/فيديو لإشعار المقاول؛ يتطلب bucket violation-notices في Supabase Storage */
 export async function uploadContractorNoticeMediaFiles(workerId: number, files: File[]): Promise<string[]> {
@@ -481,8 +518,7 @@ export async function uploadContractorNoticeMediaFiles(workerId: number, files: 
           console.error("violation-notice media upload:", error.message);
           return null;
         }
-        const { data } = supabase.storage.from(NOTICE_MEDIA_BUCKET).getPublicUrl(path);
-        return data.publicUrl;
+        return path;
       }),
     );
     for (const u of batch) {

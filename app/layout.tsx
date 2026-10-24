@@ -4,36 +4,37 @@ import "./globals.css";
 import uxInteractions from "./ux-interactions.module.css";
 import { IosInstallHint } from "@/components/pwa/ios-install-hint";
 import { PwaReloadOnUpdate } from "@/components/pwa/pwa-reload-on-update";
+import { PRODUCT_NAME, PRODUCT_TAGLINE_AR } from "@/lib/product";
 
 const tajawal = Tajawal({
   variable: "--font-tajawal",
   subsets: ["arabic", "latin"],
-  weight: ["200", "300", "400", "500", "700", "800", "900"],
+  weight: ["400", "500", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "نظام عزام للحج",
-  description: "Azzam Hajj System - Progressive Web App",
-  applicationName: "نظام عزام للحج",
+  title: PRODUCT_NAME,
+  description: PRODUCT_TAGLINE_AR,
+  applicationName: PRODUCT_NAME,
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "نظام عزام للحج",
+    title: PRODUCT_NAME,
   },
   icons: {
     icon: [
-      { url: "/icons/azzam-pwa-192.png", type: "image/png", sizes: "192x192" },
-      { url: "/icons/azzam-pwa-512.png", type: "image/png", sizes: "512x512" },
-      { url: "/icons/azzam-app-icon.svg", type: "image/svg+xml", sizes: "any" },
+      { url: "/icons/app-icon.svg", type: "image/svg+xml", sizes: "any" },
+      { url: "/icons/pwa-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icons/pwa-512.png", type: "image/png", sizes: "512x512" },
     ],
     apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
-    shortcut: ["/icons/azzam-pwa-192.png"],
+    shortcut: ["/icons/pwa-192.png"],
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f8fafc",
+  themeColor: "#0B1730",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -46,7 +47,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" className={`${tajawal.variable} h-full antialiased`}>
-      <body className={`${uxInteractions.root} min-h-full flex flex-col bg-slate-50 text-slate-900`}>
+      <body className={`${uxInteractions.root} flex min-h-full flex-col bg-background text-foreground`}>
         {children}
         <PwaReloadOnUpdate />
         <IosInstallHint />

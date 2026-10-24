@@ -15,12 +15,12 @@ import {
   getApprovalFilterCounts,
   getAttendanceChecksPage,
   getContractorOptionsLive,
-  getPendingApprovalCheckIds,
   getSiteOptionsLive,
 } from "@/lib/data/attendance";
 import { parseApprovalShiftFromParam } from "@/lib/utils/attendance-shift";
-import { buildPaginationMeta } from "@/lib/utils/pagination";
+import { buildPaginationMeta, parsePage } from "@/lib/utils/pagination";
 import { resolveWorkDateFromSearchParam } from "@/lib/utils/today";
+import { PaginationControls } from "@/components/pagination/pagination-controls";
 
 type Props = {
   searchParams: Promise<{
@@ -29,10 +29,11 @@ type Props = {
     siteId?: string;
     contractorId?: string;
     shift?: string;
+    page?: string;
   }>;
 };
 
-const FULL_LOAD = 50000;
+const PAGE_SIZE = 300;
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -88,6 +89,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
 
   const sid = Number.isFinite(siteId) ? siteId : undefined;
   const cid = Number.isFinite(contractorId) ? contractorId : undefined;
+  const page = parsePage(params.page, 1);
 
   let sites: Awaited<ReturnType<typeof getSiteOptionsLive>> = [];
   let contractors: Awaited<ReturnType<typeof getContractorOptionsLive>> = [];
@@ -109,11 +111,11 @@ export default async function ApprovalPage({ searchParams }: Props) {
       }),
     ]);
 
-    [pendingBlock, historyBlock, pendingFilteredTotal] = await Promise.all([
+    [pendingBlock, historyBlock] = await Promise.all([
       activeTab === "pending"
         ? getAttendanceChecksPage({
-            page: 1,
-            pageSize: FULL_LOAD,
+            page,
+            pageSize: PAGE_SIZE,
             workDate,
             siteId: sid,
             allowedSiteIds,
@@ -125,8 +127,8 @@ export default async function ApprovalPage({ searchParams }: Props) {
         : Promise.resolve(null),
       activeTab === "history"
         ? getAttendanceChecksPage({
-            page: 1,
-            pageSize: FULL_LOAD,
+            page,
+            pageSize: PAGE_SIZE,
             workDate,
             siteId: sid,
             allowedSiteIds,
@@ -136,17 +138,8 @@ export default async function ApprovalPage({ searchParams }: Props) {
             roundNo: roundNo,
           })
         : Promise.resolve(null),
-      activeTab === "pending"
-        ? getPendingApprovalCheckIds({
-            workDate,
-            siteId: sid,
-            contractorId: cid,
-            search: undefined,
-            roundNo,
-            allowedSiteIds,
-          }).then((ids) => ids.length)
-        : Promise.resolve(0),
     ]);
+    pendingFilteredTotal = approvalStats.pending;
   } catch {
     sites = [];
     contractors = [];
@@ -195,7 +188,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
             href={`/approval?${tabQs.pending}`}
             className={`rounded-t-xl px-3 py-2 font-extrabold transition-colors ${
               activeTab === "pending"
-                ? "bg-[#14532d] text-white shadow-sm ring-2 ring-[#14532d]/25"
+                ? "bg-[#0B1730] text-white shadow-sm ring-2 ring-[#2563EB]/25"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
@@ -205,7 +198,7 @@ export default async function ApprovalPage({ searchParams }: Props) {
             href={`/approval?${tabQs.history}`}
             className={`rounded-t-xl px-3 py-2 font-extrabold transition-colors ${
               activeTab === "history"
-                ? "bg-[#14532d] text-white shadow-sm ring-2 ring-[#14532d]/25"
+                ? "bg-[#0B1730] text-white shadow-sm ring-2 ring-[#2563EB]/25"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
@@ -248,6 +241,18 @@ export default async function ApprovalPage({ searchParams }: Props) {
           />
         )}
       </TabPanelTransition>
+      <PaginationControls
+        page={page}
+        totalPages={(activeTab === "pending" ? pendingBlock?.meta.totalPages : historyBlock?.meta.totalPages) ?? 1}
+        basePath="/approval"
+        query={{
+          tab: activeTab,
+          date: workDate,
+          shift: shiftQuery,
+          siteId: params.siteId,
+          contractorId: params.contractorId,
+        }}
+      />
     </section>
   );
 }

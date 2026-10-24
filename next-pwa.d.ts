@@ -9,6 +9,7 @@ declare module "next-pwa" {
     fallbacks?: {
       document?: string;
     };
+    runtimeCaching?: Array<Record<string, unknown>>;
   };
 
   type WithPWA = (config: NextConfig) => NextConfig;

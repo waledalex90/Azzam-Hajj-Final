@@ -1,9 +1,24 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
+import { getSessionContext } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/permissions";
+import { PERM } from "@/lib/permissions/keys";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
+
 export const runtime = "nodejs";
 
 export async function GET() {
+  const { appUser } = await getSessionContext();
+  if (
+    !appUser ||
+    !(hasPermission(appUser, PERM.IMPORT_WORKERS) || hasPermission(appUser, PERM.EDIT_WORKERS))
+  ) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+  if (isDemoModeEnabled()) {
+    return new NextResponse("Demo mode", { status: 403 });
+  }
   const headers = [
     "الاسم",
     "كود الموظف",
@@ -23,8 +38,8 @@ export async function GET() {
       "كود الموظف": "EMP-1001",
       "رقم الهوية/الإقامة/الجواز": "A123456789",
       "المسمى الوظيفي": "عامل نظافة",
-      المقاول: "الزبير",
-      الموقع: "الدورات الحديثة - عرفات فرقة (1)",
+      المقاول: "مقاول تجريبي أ",
+      الموقع: "موقع تجريبي 1",
       الوردية: "صباحي",
       "نظام الدفع": "راتب شهري",
       الراتب: 3500,
@@ -36,7 +51,7 @@ export async function GET() {
       "رقم الهوية/الإقامة/الجواز": "P99887766",
       "المسمى الوظيفي": "سائق",
       المقاول: "الشركة",
-      الموقع: "دورات المسار - مزدلفة رضا",
+      الموقع: "موقع تجريبي 2",
       الوردية: "مسائي",
       "نظام الدفع": "راتب يومي",
       الراتب: 180,

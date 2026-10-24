@@ -46,7 +46,7 @@ type Props = {
   }>;
 };
 
-const FULL_LOAD = 50000;
+const REVIEW_PAGE_SIZE = 500;
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -167,7 +167,7 @@ export default async function AttendancePage({ searchParams }: Props) {
     try {
       const reviewedPage = await getAttendanceChecksPage({
         page: 1,
-        pageSize: FULL_LOAD,
+        pageSize: REVIEW_PAGE_SIZE,
         workDate,
         siteId: Number.isFinite(siteId) ? siteId : undefined,
         allowedSiteIds,
@@ -211,7 +211,7 @@ export default async function AttendancePage({ searchParams }: Props) {
             href={`/attendance?${attendanceQuery("workers")}`}
             className={`rounded-t-xl px-3 py-2 font-extrabold transition-colors ${
               activeTab === "workers"
-                ? "bg-[#14532d] text-white shadow-sm ring-2 ring-[#14532d]/25"
+                ? "bg-[#0B1730] text-white shadow-sm ring-2 ring-[#2563EB]/25"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
@@ -221,7 +221,7 @@ export default async function AttendancePage({ searchParams }: Props) {
             href={`/attendance?${attendanceQuery("review")}`}
             className={`rounded-t-xl px-3 py-2 font-extrabold transition-colors ${
               activeTab === "review"
-                ? "bg-[#14532d] text-white shadow-sm ring-2 ring-[#14532d]/25"
+                ? "bg-[#0B1730] text-white shadow-sm ring-2 ring-[#2563EB]/25"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >

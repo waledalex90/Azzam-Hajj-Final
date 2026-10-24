@@ -518,7 +518,7 @@ export function ReportsHub({
           {tab === "payroll" && (
             <span className="mt-1 block text-emerald-900">
               مسير الرواتب: حدّد فترة الاحتساب من/إلى يدوياً أو استخدم «ملء الفترة من الشهر والسنة». البحث على السيرفر
-              (اسم / إقامة / كود موظف)؛ تصدير Excel / PDF مع شعار من public/company-logo.png أو public/brand/azzam-logo.png عند وجوده.
+              (اسم / إقامة / كود موظف)؛ تصدير Excel / PDF بشعار المنتج عند توفره.
             </span>
           )}
           {tab === "contractors" && (

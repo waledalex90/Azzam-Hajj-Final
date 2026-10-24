@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { resolveLoginEmailForAuth } from "@/lib/auth/resolve-login-email";
+import { resolveLoginEmailCandidates } from "@/lib/auth/resolve-login-email";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -17,40 +17,42 @@ export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const domainHint = env.authEmailDomain;
-
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setIsLoading(true);
 
-    const email = resolveLoginEmailForAuth(identifier, domainHint);
-    if (!email) {
+    const emails = resolveLoginEmailCandidates(identifier, env.authEmailDomain, env.authEmailDomainAliases);
+    if (emails.length === 0) {
       setIsLoading(false);
       setError("أدخل اسم الدخول أو البريد.");
       return;
     }
 
-    const { error: loginError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    setIsLoading(false);
-    if (loginError) {
-      setError(loginError.message);
-      return;
+    let lastError: string | null = null;
+    for (const email of emails) {
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (!loginError) {
+        setIsLoading(false);
+        router.replace("/dashboard");
+        router.refresh();
+        return;
+      }
+      lastError = "بيانات الدخول غير صحيحة.";
     }
 
-    router.replace("/dashboard");
-    router.refresh();
+    setIsLoading(false);
+    setError(lastError ?? "تعذر تسجيل الدخول.");
   }
 
   return (
     <form onSubmit={onSubmit} className="space-y-4 text-right">
       <div className="space-y-2">
-        <label className="text-sm font-extrabold text-slate-800" htmlFor="login-id">
-          اسم الدخول أو الكود
+        <label className="text-sm font-bold text-slate-800" htmlFor="login-id">
+          اسم الدخول أو البريد
         </label>
         <Input
           id="login-id"
@@ -60,17 +62,12 @@ export function LoginForm() {
           required
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
-          placeholder={`مثال: ahmed أو بريد كامل`}
-          className="border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#166534] focus:ring-[#dcfce7]"
+          placeholder="اسم المستخدم أو البريد"
         />
-        <p className="text-[11px] leading-relaxed text-slate-500">
-          إذا لم يكن البريد كاملاً (بدون @)، يُكمَّل تلقائياً:{" "}
-          <span className="font-mono font-bold text-slate-600">@{domainHint}</span>
-        </p>
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-extrabold text-slate-800" htmlFor="password">
+        <label className="text-sm font-bold text-slate-800" htmlFor="password">
           كلمة المرور
         </label>
         <Input
@@ -81,21 +78,14 @@ export function LoginForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="********"
-          className="border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#166534] focus:ring-[#dcfce7]"
         />
       </div>
 
-      {error && (
-        <p className="rounded-xl border border-red-200 bg-red-50 p-2 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      {error ? (
+        <p className="rounded-xl border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</p>
+      ) : null}
 
-      <Button
-        type="submit"
-        disabled={isLoading}
-        className="w-full py-2.5"
-      >
+      <Button type="submit" disabled={isLoading} className="w-full py-2.5">
         {isLoading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
       </Button>
     </form>

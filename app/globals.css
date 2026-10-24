@@ -2,16 +2,26 @@
 
 :root {
   --background: #f8fafc;
-  --foreground: #0f172a;
-  --primary: #166534;
-  --primary-dark: #14532d;
-  --danger: #b91c1c;
+  --foreground: #0b1730;
+  --primary: #0b1730;
+  --primary-dark: #07101f;
+  --secondary: #2563eb;
+  --accent: #22c7d8;
+  --success: #16a34a;
+  --warning: #f59e0b;
+  --danger: #dc2626;
   --muted: #64748b;
+  --card: #ffffff;
+  --radius: 1rem;
+  --shadow-card: 0 8px 24px rgb(11 23 48 / 0.06);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
   --font-sans: var(--font-tajawal);
 }
 
@@ -30,20 +40,19 @@ button,
 input,
 select,
 textarea {
-  transition: all 180ms ease;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
 }
 
 select {
   border-radius: 0.75rem;
   border-color: #e2e8f0;
   background: #ffffff;
-  color: #0f172a;
+  color: #0b1730;
 }
 
 a {
   color: inherit;
   text-decoration: none;
-  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
 }
 
 .container-mobile {
@@ -54,20 +63,14 @@ a {
 }
 
 .card {
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid #e2e8f0;
-  border-radius: 1.1rem;
-  box-shadow: 0 8px 28px rgb(15 23 42 / 0.06);
-  transition: box-shadow 180ms ease, border-color 180ms ease;
-}
-
-.card:hover {
-  border-color: #d9e4dc;
-  box-shadow: 0 12px 30px rgb(15 23 42 / 0.08);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
 }
 
 .status-present {
-  color: #047857;
+  color: var(--success);
 }
 
 .status-absent {
@@ -75,12 +78,12 @@ a {
 }
 
 .status-half {
-  color: #b45309;
+  color: var(--warning);
 }
 
 .launch-screen {
-  background: linear-gradient(180deg, #f1f5f9 0%, #f8fafc 45%, #eef2f7 100%);
-  animation: launchFadeIn 240ms ease-out;
+  background: radial-gradient(1200px 600px at 80% -10%, rgb(34 199 216 / 0.18), transparent 50%),
+    linear-gradient(180deg, #0b1730 0%, #122347 55%, #0b1730 100%);
 }
 
 .launch-screen__overlay {
@@ -88,16 +91,13 @@ a {
   display: grid;
   place-items: center;
   padding: 1.5rem;
-  background: transparent;
 }
 
 .launch-screen__logo-wrap {
   text-align: center;
-  color: #0f172a;
-  animation: launchFloatIn 420ms ease-out;
+  color: #fff;
 }
 
-/* حاوية الشعار: بلا خلفية — الإطار الأسود/الذهبي داخل BrandLogo */
 .launch-screen__icon {
   background: transparent;
   border: none;
@@ -107,22 +107,20 @@ a {
 .launch-screen__title {
   margin-top: 0.95rem;
   font-size: 1.65rem;
-  font-weight: 800;
-  letter-spacing: 0.2px;
-  color: #0f172a;
+  font-weight: 700;
+  color: #fff;
 }
 
 .launch-screen__subtitle {
   margin-top: 0.3rem;
   font-size: 0.9rem;
-  color: #475569;
-  opacity: 0.95;
+  color: rgb(255 255 255 / 0.78);
 }
 
 @keyframes loginLuxFadeSlide {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -131,36 +129,27 @@ a {
 }
 
 .login-lux-card-animate {
-  animation: loginLuxFadeSlide 0.56s ease-out both;
-}
-
-.login-lux-logo-animate {
-  animation: loginLuxFadeSlide 0.62s ease-out 0.08s both;
+  animation: loginLuxFadeSlide 0.45s ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .login-lux-card-animate,
-  .login-lux-logo-animate {
+  .login-lux-card-animate {
     animation: none !important;
   }
 }
 
-@keyframes launchFadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.skeleton {
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+  border-radius: 0.75rem;
 }
 
-@keyframes launchFloatIn {
-  from {
-    opacity: 0;
-    transform: translateY(14px) scale(0.97);
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
+  100% {
+    background-position: -100% 0;
   }
 }
